@@ -159,7 +159,7 @@ export const gateOf = (s) => Object.fromEntries(Object.entries(GATES).map(([k, [
 const arg = (name, d = null) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : d }
 const readGold = async () => JSON.parse(await fs.readFile(path.join(FIX_DIR, 'gold.json'), 'utf8'))
 
-async function freshKn(dir, name) {
+export async function freshKn(dir, name) {
   await fs.rm(dir, { recursive: true, force: true })
   await fs.mkdir(path.join(dir, 'docs'), { recursive: true })
   await fs.mkdir(path.join(dir, 'work'), { recursive: true })

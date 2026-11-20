@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>채널별 지식 생성 평가</title>
+<style>
+:root{
+  --bg:#f6f5f1;--card:#fff;--ink:#1c1b18;--sub:#6b6860;--line:#e3e0d8;--soft:#efede6;--pane:#fcfbf8;
+  --pri:#2f5d50;--pri-soft:#e2efe9;--warn:#a85d1a;--warn-soft:#fbeedd;--bad:#a23b32;--bad-soft:#f9e4e1;--info:#3a5a8c;--info-soft:#e4ecf7;
+  --bar1:#8fc2ac;--bar2:#a3badf;--bar3:#ebb87f;--barbad:#e8a49c;--barbg:#efede6;--onfill:#fff;
+  --r:12px;--f:"Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#151614;--card:#1d1f1c;--ink:#e9e7e1;--sub:#a3a097;--line:#33352f;--soft:#262823;--pane:#1a1c19;
+    --pri:#7fc3a8;--pri-soft:#1f3a31;--warn:#e0a466;--warn-soft:#3a2a17;--bad:#ec8a80;--bad-soft:#3d1f1b;--info:#8fb0e6;--info-soft:#1d2a40;
+    --bar1:#3d6e5c;--bar2:#3f5a85;--bar3:#7a5226;--barbad:#7a3a33;--barbg:#2a2c27;--onfill:#111;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#151614;--card:#1d1f1c;--ink:#e9e7e1;--sub:#a3a097;--line:#33352f;--soft:#262823;--pane:#1a1c19;
+  --pri:#7fc3a8;--pri-soft:#1f3a31;--warn:#e0a466;--warn-soft:#3a2a17;--bad:#ec8a80;--bad-soft:#3d1f1b;--info:#8fb0e6;--info-soft:#1d2a40;
+  --bar1:#3d6e5c;--bar2:#3f5a85;--bar3:#7a5226;--barbad:#7a3a33;--barbg:#2a2c27;--onfill:#111;color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--f);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 72px}
+header.top{padding:52px 0 22px}
+.eyebrow{font-size:13px;color:var(--pri);font-weight:700;letter-spacing:.04em}
+h1{font-size:clamp(26px,4vw,40px);line-height:1.25;margin:10px 0 14px;letter-spacing:-.02em;text-wrap:balance}
+.lead{font-size:17px;color:var(--sub);max-width:820px;text-wrap:pretty;margin:0}
+.cond{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+.cond span{font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px}
+.cond span b{color:var(--sub);font-weight:700;margin-right:6px}
+.cond span.w{background:var(--warn-soft);border-color:transparent;color:var(--warn);font-weight:700}
+nav.toc{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin:0 -20px 8px;padding:10px 20px;display:flex;gap:6px;overflow-x:auto;white-space:nowrap}
+nav.toc a{font-size:13px;color:var(--sub);text-decoration:none;padding:6px 12px;border-radius:999px}
+nav.toc a:hover{background:var(--soft);color:var(--ink)}
+nav.toc a:focus-visible{outline:2px solid var(--info);outline-offset:1px}
+section{padding:40px 0 8px}
+h2{font-size:24px;margin:0 0 6px;letter-spacing:-.01em}
+h3{font-size:16px;margin:26px 0 10px}
+.h2sub{color:var(--sub);margin:0 0 20px}
+.grid{display:grid;gap:14px}
+.kpi{grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;min-width:0}
+.k .n{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+.k .l{font-size:13px;color:var(--sub);font-weight:700}
+.k .d{font-size:13px;color:var(--sub);margin-top:6px}
+.k.bad .n{color:var(--bad)}.k.warn .n{color:var(--warn)}.k.pri .n{color:var(--pri)}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--soft);color:var(--sub);white-space:nowrap}
+.tag.pri{background:var(--pri-soft);color:var(--pri)}.tag.warn{background:var(--warn-soft);color:var(--warn)}.tag.bad{background:var(--bad-soft);color:var(--bad)}.tag.info{background:var(--info-soft);color:var(--info)}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card);max-width:100%}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:14px}
+th,td{padding:10px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{font-size:12px;color:var(--sub);background:var(--soft);font-weight:700;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td code,p code,li code,.def code{font:12.5px var(--mono);background:var(--soft);border-radius:4px;padding:0 4px}
+.ch{font:700 13px var(--mono);white-space:nowrap}
+.note{font-size:13px;color:var(--sub)}
+ul.tight{margin:8px 0 0;padding-left:20px}ul.tight li{margin:3px 0}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--sub);margin:0 0 12px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:10px;border-radius:3px;display:inline-block}
+.svgbox{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card);padding:10px}
+.svgbox svg{display:block;min-width:820px;width:100%;height:auto}
+svg text{font-family:var(--f);fill:var(--ink)}
+svg .s{fill:var(--sub);font-size:11px}
+svg .nd{fill:var(--card);stroke:var(--line)}
+svg .ok{fill:var(--pri-soft);stroke:var(--pri)}
+svg .tool{fill:var(--info-soft);stroke:var(--info)}
+svg .prod{fill:var(--bad-soft);stroke:var(--bad)}
+svg .mix{fill:var(--warn-soft);stroke:var(--warn)}
+svg .off{fill:var(--soft);stroke:var(--line);stroke-dasharray:4 3}
+svg .gate{fill:var(--ink)}
+svg .gatet{fill:var(--bg);font-weight:700}
+svg .ln{stroke:var(--sub);stroke-width:1.4;fill:none;opacity:.55}
+svg .grp{fill:var(--sub);font-size:12px;font-weight:700}
+/* 막대 */
+.bars{display:grid;gap:6px}
+.br{display:grid;grid-template-columns:150px 1fr 1fr;gap:10px;align-items:center;font-size:13px}
+.br .nm{font:700 12.5px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.br.hd{font-size:12px;color:var(--sub);font-weight:700}
+.bt{position:relative;height:20px;background:var(--barbg);border-radius:5px;overflow:hidden}
+.bt i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--bar1)}
+.bt.t i{background:var(--bar2)}
+.bt span{position:absolute;left:8px;top:0;line-height:20px;font-size:12px;font-weight:700;color:var(--ink);mix-blend-mode:normal}
+.bt i.opus{background:repeating-linear-gradient(45deg,var(--bar1) 0 5px,var(--bar3) 5px 10px)}
+.split{display:flex;height:28px;border-radius:8px;overflow:hidden;font-size:12px;font-weight:700}
+.split div{display:grid;place-items:center;color:var(--onfill);min-width:0;white-space:nowrap;overflow:hidden}
+/* 결함 카드 */
+.cards{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr))}
+.def{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;border-top:4px solid var(--line);min-width:0}
+.def.high{border-top-color:var(--bad)}.def.med{border-top-color:var(--warn)}.def.low{border-top-color:var(--info)}
+.def .hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.def .id{font:700 13px var(--mono);color:var(--sub)}
+.def .t{font-weight:700;line-height:1.45}
+.def dl{margin:10px 0 0;display:grid;gap:6px;font-size:13px}
+.def dt{font-size:11.5px;font-weight:700;color:var(--sub)}
+.def dd{margin:0}
+.def dd ul{margin:2px 0 0;padding-left:18px}
+.compact .def{padding:14px}
+/* 바로잡기 그림 */
+.fixrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:14px}
+.stack{display:flex;height:34px;border-radius:8px;overflow:hidden;margin:8px 0 6px}
+.stack div{display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--onfill);min-width:0;overflow:hidden;white-space:nowrap}
+.c-ok{background:var(--pri)}.c-exp{background:var(--info)}.c-bad{background:var(--bad)}.c-out{background:#9c988c}.c-warn{background:var(--warn)}
+.why{display:grid;gap:8px;counter-reset:w}
+.why li{list-style:none;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px 10px 44px;position:relative;font-size:14px}
+.why li::before{counter-increment:w;content:counter(w);position:absolute;left:12px;top:10px;width:22px;height:22px;border-radius:50%;background:var(--soft);display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--sub)}
+.why{padding:0;margin:0}
+.good{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:10px;margin-top:14px}
+.good div{background:var(--pri-soft);border-radius:10px;padding:12px 14px;font-size:14px}
+.good b{display:block;color:var(--pri);font-size:12px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:14px}
+.steps .card h4{margin:0 0 8px;font-size:15px}
+.steps .card .no{font:700 12px var(--mono);color:var(--pri)}
+.left{display:grid;gap:10px}
+.left .card{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start}
+footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-size:13px;color:var(--sub)}
+footer code{font:12px var(--mono);word-break:break-all}
+@media (max-width:600px){
+  .wrap{padding:0 16px 56px}
+  nav.toc{margin:0 -16px 8px;padding:10px 16px}
+  header.top{padding:36px 0 16px}
+  .br{grid-template-columns:96px 1fr;}
+  .br .bt.t{grid-column:2}
+  .br.hd span:last-child{display:none}
+  .k .n{font-size:26px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">KMD 품질 개선 · 평가 real-1</div>
+  <h1>채널별 지식 생성 평가</h1>
+  <p class="lead">지식 생성 채널 19개를 실제 Claude 로 돌려 들어감 · 품질 · 비용 · 시간을 잰 결과. 읽기만 했고 고친 것은 없음.</p>
+  <div class="cond" aria-label="측정 조건">
+    <span><b>커밋</b>c20efc1</span>
+    <span><b>모델</b>sonnet 4.6</span>
+    <span><b>날짜</b>2026-11-19</span>
+    <span><b>호출</b>실제 Claude</span>
+    <span><b>도구</b>scripts/channel-eval.mjs (커밋 전)</span>
+    <span class="w">채널마다 원천 1 ~ 4건 · 통계적 결론 아님</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="차례">
+  <a href="#s1">1 요약</a><a href="#s2">2 채널</a><a href="#cost">비용 · 시간</a><a href="#s3">3 제품 결함</a><a href="#s4">4 시험 도구</a><a href="#s5">5 품질 묶음</a><a href="#s6">6 줄일 거리</a><a href="#s7">7 다음 측정</a><a href="#left">남은 것</a>
+</nav>
+
+<!-- 1 -->
+<section id="s1">
+  <h2>1. 한 장 요약</h2>
+  <p class="h2sub">제품이 실제로 깨진 곳은 보내기(send) 하나. 나머지 「안 들어감」 은 대부분 시험 도구의 셈.</p>
+  <div class="grid kpi">
+    <div class="card k"><div class="l">채널</div><div class="n">19</div><div class="d">돌림 17 · 걷은 채널 2(intake-fix · fix)<br><code>channels.*.ran</code></div></div>
+    <div class="card k"><div class="l">총비용</div><div class="n">$12.32</div><div class="d">바탕 $3.72(11행) · 채널 몫 $8.61(26 프로세스)</div></div>
+    <div class="card k"><div class="l">총시간</div><div class="n">약 75분</div><div class="d">LLM 계측 74.7분 · 행 합 채널 47.5분 + 바탕 27.8분</div></div>
+    <div class="card k pri"><div class="l">들어감(바로잡음)</div><div class="n">19 / 25</div><div class="d">도구 셈 18/38 · 기대대로 비움 3 · 진짜 실패 3</div></div>
+    <div class="card k bad"><div class="l">진짜 실패</div><div class="n">3</div><div class="d">send 2(제품) · shape 1(도구)</div></div>
+    <div class="card k warn"><div class="l">품질 평균</div><div class="n">5.5 / 10</div><div class="d">12 채널 · 심사 24 벌 · shape-folder 빼면 5.7</div></div>
+    <div class="card k warn"><div class="l">모델 섞임</div><div class="n">5 / 37</div><div class="d">opus-4-6[1m] 로 돎 · $3.81(31%) · 결과 머리 <code>model: null</code></div></div>
+  </div>
+  <ul class="tight">
+    <li>도구 셈 오류: session · bulk 는 회복된 E_APPROVE 를 실패로 셈 · polish 는 「고칠 것 없음」 을 들어감으로 셈</li>
+    <li>도구가 잘못 몬 채널: shape · kmd-seed</li>
+    <li>채널을 가로지르는 품질 결함: 장부 뜻 한 줄 · 근거 날짜 · 기록 칸 꼴 · 사건 서식(5절)</li>
+  </ul>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2>2. 채널 흐름과 판정</h2>
+  <p class="h2sub">모든 채널은 저장 문 하나(<code>hub.save</code>)로 모임. 색은 판정.</p>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--pri)"></i>정상</span>
+    <span><i class="sw" style="background:var(--bad)"></i>제품 결함</span>
+    <span><i class="sw" style="background:var(--warn)"></i>섞임(제품 + 도구)</span>
+    <span><i class="sw" style="background:var(--info)"></i>도구 탓</span>
+    <span><i class="sw" style="border:1px dashed var(--sub)"></i>돌리지 않음</span>
+  </div>
+  <div class="svgbox">
+  <svg viewBox="0 0 1000 560" role="img" aria-labelledby="flowT">
+    <title id="flowT">채널 19개가 무리별로 저장 문 hub.save 를 지나 지식으로 들어가는 흐름</title>
+    <!-- 무리 이름 -->
+    <text class="grp" x="20" y="28">무인 들이기</text>
+    <text class="grp" x="20" y="168">짓기 · 다듬기</text>
+    <text class="grp" x="20" y="338">사람 채널</text>
+    <text class="grp" x="20" y="478">보내기 · 세션 스킬 · 걷음</text>
+    <!-- 들이기 -->
+    <g font-size="13">
+      <rect class="ok" x="20" y="38" width="190" height="34" rx="8"/><text x="32" y="60">intake-file</text><text class="s" x="200" y="60" text-anchor="end">2/2 · 6.5</text>
+      <rect class="ok" x="220" y="38" width="190" height="34" rx="8"/><text x="232" y="60">intake-commit</text><text class="s" x="400" y="60" text-anchor="end">2/2 · 8.4</text>
+      <rect class="ok" x="20" y="80" width="190" height="34" rx="8"/><text x="32" y="102">intake-src</text><text class="s" x="200" y="102" text-anchor="end">3/3 · 6.25</text>
+      <rect class="mix" x="220" y="80" width="190" height="34" rx="8"/><text x="232" y="102">pc-intake</text><text class="s" x="400" y="102" text-anchor="end">1/1 · 5.75</text>
+    </g>
+    <!-- 짓기 -->
+    <g font-size="13">
+      <rect class="tool" x="20" y="178" width="190" height="34" rx="8"/><text x="32" y="200">shape</text><text class="s" x="200" y="200" text-anchor="end">0/1 E_INPUT</text>
+      <rect class="nd" x="220" y="178" width="190" height="34" rx="8"/><text x="232" y="200">shape-folder</text><text class="s" x="400" y="200" text-anchor="end">기준선 · 3.5</text>
+      <rect class="mix" x="20" y="220" width="190" height="34" rx="8"/><text x="32" y="242">shape-pc</text><text class="s" x="200" y="242" text-anchor="end">1/1 · 5.5</text>
+      <rect class="tool" x="220" y="220" width="190" height="34" rx="8"/><text x="232" y="242">shape-restructure</text><text class="s" x="400" y="242" text-anchor="end">바꿀 것 없음</text>
+      <rect class="tool" x="20" y="262" width="190" height="34" rx="8"/><text x="32" y="284">polish</text><text class="s" x="200" y="284" text-anchor="end">고칠 것 없음 · 5.5</text>
+    </g>
+    <!-- 사람 -->
+    <g font-size="13">
+      <rect class="mix" x="20" y="348" width="190" height="34" rx="8"/><text x="32" y="370">session (opus)</text><text class="s" x="200" y="370" text-anchor="end">2/2 · 6.75</text>
+      <rect class="tool" x="220" y="348" width="190" height="34" rx="8"/><text x="232" y="370">bulk (opus)</text><text class="s" x="400" y="370" text-anchor="end">원천 2/2</text>
+      <rect class="mix" x="20" y="390" width="190" height="34" rx="8"/><text x="32" y="412">http</text><text class="s" x="200" y="412" text-anchor="end">2/2 · 3.25</text>
+      <rect class="prod" x="220" y="390" width="190" height="34" rx="8"/><text x="232" y="412">edit</text><text class="s" x="400" y="412" text-anchor="end">3/3 · 5.25</text>
+      <rect class="ok" x="20" y="432" width="190" height="34" rx="8"/><text x="32" y="454">edit-source</text><text class="s" x="200" y="454" text-anchor="end">1/1 · 7.0</text>
+    </g>
+    <!-- 보내기 · 스킬 · 걷음 -->
+    <g font-size="13">
+      <rect class="prod" x="20" y="488" width="125" height="34" rx="8" stroke-width="2.2"/><text x="32" y="510">send</text><text class="s" x="137" y="510" text-anchor="end">0/2</text>
+      <rect class="mix" x="152" y="488" width="125" height="34" rx="8"/><text x="162" y="510" font-size="12">kmd-migrate</text>
+      <rect class="tool" x="284" y="488" width="125" height="34" rx="8"/><text x="294" y="510" font-size="12">kmd-seed</text>
+      <rect class="off" x="20" y="528" width="190" height="26" rx="8"/><text class="s" x="32" y="545">intake-fix · fix (걷음)</text>
+    </g>
+    <!-- 선 -->
+    <path class="ln" d="M410 76 C520 76 520 280 600 280"/>
+    <path class="ln" d="M410 237 C500 237 520 280 600 280"/>
+    <path class="ln" d="M410 407 C500 407 520 280 600 280"/>
+    <path class="ln" d="M410 505 C520 505 520 280 600 280"/>
+    <!-- 저장 문 -->
+    <rect class="gate" x="600" y="226" width="150" height="108" rx="14"/>
+    <text class="gatet" x="675" y="266" text-anchor="middle" font-size="15">저장 문</text>
+    <text class="gatet" x="675" y="288" text-anchor="middle" font-size="12" font-family="ui-monospace,Consolas,monospace">hub.save</text>
+    <text class="gatet" x="675" y="310" text-anchor="middle" font-size="11">검사 · 승인 · 지문</text>
+    <path class="ln" d="M750 280 L800 280" stroke-width="2"/>
+    <rect class="ok" x="800" y="238" width="180" height="84" rx="12"/>
+    <text x="890" y="272" text-anchor="middle" font-size="14" font-weight="700">지식</text>
+    <text class="s" x="890" y="294" text-anchor="middle">문서 · 장부 · 기록</text>
+    <!-- 막힌 send -->
+    <path d="M600 330 L560 470" stroke="var(--bad)" stroke-width="1.6" stroke-dasharray="5 4" fill="none"/>
+    <rect class="prod" x="440" y="470" width="200" height="44" rx="8"/>
+    <text x="540" y="489" text-anchor="middle" font-size="12" font-weight="700">PROPOSE unreflected</text>
+    <text class="s" x="540" y="505" text-anchor="middle">send 2건 막힘 (P1 · P2)</text>
+    <!-- 승인 회복 -->
+    <rect class="mix" x="640" y="120" width="230" height="44" rx="8"/>
+    <text x="755" y="139" text-anchor="middle" font-size="12" font-weight="700">E_APPROVE 뒤 회복</text>
+    <text class="s" x="755" y="155" text-anchor="middle">session · bulk 실제 들어감</text>
+    <path d="M675 164 L675 226" stroke="var(--warn)" stroke-width="1.4" stroke-dasharray="4 3" fill="none"/>
+  </svg>
+  </div>
+
+  <h3>채널 표</h3>
+  <p class="note">품질은 심사 두 벌 평균 · 「-」 는 심사할 지식이 생기지 않음 · $ 와 초는 바탕 행을 뺀 값.</p>
+  <div class="tblwrap"><table>
+    <thead><tr><th>채널</th><th>쓰임</th><th>결과</th><th>$</th><th>초</th><th>품질</th><th>판정</th></tr></thead>
+    <tbody>
+    <tr><td class="ch">intake-file</td><td>문서 파일 들이기</td><td>2/2 들어감 · 고쳐 받기 0</td><td class="num">0.658</td><td class="num">304</td><td class="num">6.5</td><td><span class="tag pri">정상</span> 품질 결함(회의 항목 장부 없음 · 근거 날짜 · 기록 칸)</td></tr>
+    <tr><td class="ch">intake-commit</td><td>커밋 들이기(시험만 여는 길)</td><td>2/2</td><td class="num">0.385</td><td class="num">67</td><td class="num"><b>8.4</b></td><td><span class="tag pri">정상</span> 운영 커밋은 intake-src 로 찍혀 죽은 이름</td></tr>
+    <tr><td class="ch">intake-src</td><td>가져올 곳(문서 · 커밋)</td><td>3/3 · 같은 것 다시 넣기 일감 0</td><td class="num">0.849</td><td class="num">318</td><td class="num">6.25</td><td><span class="tag pri">정상</span> 성격 「서술」 오판 · 커밋을 수집기에 지어 붙임</td></tr>
+    <tr><td class="ch">polish</td><td>다듬기</td><td>고칠 것 없음(「들어감 · NOLOG」 은 잘못 셈)</td><td class="num">0.148</td><td class="num">39</td><td class="num">5.5</td><td><span class="tag info">도구</span> 「콜럼」 오기 지나침 · 다듬은 문서 하나</td></tr>
+    <tr><td class="ch">shape</td><td>팀 기초 세우기</td><td>0/1 E_INPUT</td><td class="num">0.479</td><td class="num">219</td><td class="num">-</td><td><span class="tag info">도구</span> 처음 3 문서 승인 순서 어김</td></tr>
+    <tr><td class="ch">shape-folder</td><td>폴더 그대로(Claude 없음)</td><td>1/1</td><td class="num">0</td><td class="num">3</td><td class="num">3.5</td><td><span class="tag">기준선</span> 짜임 머리 · 장 번호가 항목 · 5초와 10초 함께</td></tr>
+    <tr><td class="ch">shape-pc</td><td>개인 기초 세우기</td><td>넣기 1/1(준비 단계 3)</td><td class="num">0.479</td><td class="num">143</td><td class="num">5.5</td><td><span class="tag warn">섞임</span> 셈은 도구 · 품질은 제품(지금 값 · 장부 짝 · 성격)</td></tr>
+    <tr><td class="ch">shape-restructure</td><td>짜임 다시 잡기</td><td>바꿀 것 없음(맞는 판단)</td><td class="num">0.201</td><td class="num">81</td><td class="num">-</td><td><span class="tag info">도구</span> 바탕이 이미 맞는 짜임 · note 비움 · 분모 셈</td></tr>
+    <tr><td class="ch">send</td><td>개인에서 팀으로 보내기</td><td><b>0/2 PROPOSE(unreflected)</b></td><td class="num">0.737</td><td class="num">389</td><td class="num">2.0</td><td><span class="tag bad">제품 high</span></td></tr>
+    <tr><td class="ch">session</td><td>사람 세션(대용 · opus)</td><td>실제 2/2(점수 1/2)</td><td class="num">1.591</td><td class="num">261</td><td class="num">6.75</td><td><span class="tag warn">섞임</span> 셈은 도구 · E_APPROVE 측정 줄 관측 구멍</td></tr>
+    <tr><td class="ch">bulk</td><td>대량 넣기(대용 · opus)</td><td>원천 2개 모두(점수 0/1)</td><td class="num">1.337</td><td class="num">386</td><td class="num">-</td><td><span class="tag info">도구</span></td></tr>
+    <tr><td class="ch">http</td><td>API 저장</td><td>2/2</td><td class="num">0</td><td class="num">1</td><td class="num">3.25</td><td><span class="tag warn">섞임</span> 제품(기록 칸 버림) · 도구(입력 조각내기 · 지어낸 31분)</td></tr>
+    <tr><td class="ch">edit</td><td>화면 고치기</td><td>3/3 · 거절 4/4 기대대로</td><td class="num">0</td><td class="num">1</td><td class="num">5.25</td><td><span class="tag bad">제품</span> 값 고침이 이력으로 가 출처 끊김 · 바뀐 것 칸 비움</td></tr>
+    <tr><td class="ch">edit-source</td><td>화면 새 항목 → 넣을 것</td><td>1/1</td><td class="num">0.389</td><td class="num">210</td><td class="num">7.0</td><td><span class="tag pri">정상</span> 새 머리를 표 행으로 접은 판단 맞음 · 기록 칸 꼴</td></tr>
+    <tr><td class="ch">pc-intake</td><td>개인 들이기</td><td>1/1</td><td class="num">0.471</td><td class="num">282</td><td class="num">5.75</td><td><span class="tag warn">섞임</span> F1 0 은 도구 · 비용 장부 · 끊긴 링크는 제품</td></tr>
+    <tr><td class="ch">kmd-migrate</td><td>리빌드 세션 스킬</td><td>DROP_REVIEW</td><td class="num">0.648</td><td class="num">120</td><td class="num">-</td><td><span class="tag warn">섞임</span> 막음은 정당 · 세션의 「줄표 꼴 차이」 거짓 보고 · 셈과 모델은 도구</td></tr>
+    <tr><td class="ch">kmd-seed</td><td>꾸러미 세션 스킬</td><td>NO_PACK(Bash 거절 4차례)</td><td class="num">0.237</td><td class="num">27</td><td class="num">-</td><td><span class="tag info">도구 쪽</span> 원인 미확정</td></tr>
+    <tr><td class="ch">intake-fix · fix</td><td>정정(걷은 채널)</td><td>돌리지 않음</td><td class="num">-</td><td class="num">-</td><td class="num">-</td><td><span class="tag">걷음</span> 코드는 걷고 문서에 남음</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>들어감 비율 바로잡기</h3>
+  <div class="fixrow">
+    <div class="card">
+      <b>도구가 매긴 값</b>
+      <div class="stack" role="img" aria-label="38행 가운데 들어감 18, 안 들어감 20">
+        <div class="c-ok" style="flex:18">들어감 18</div><div class="c-out" style="flex:20">안 들어감 20</div>
+      </div>
+      <p class="note" style="margin:0">38행 · 준비 단계 · 거절 시험 · 넣기 없는 스킬까지 분모에 섞임</p>
+    </div>
+    <div class="card">
+      <b>넣는 걸음 25 만</b>
+      <div class="stack" role="img" aria-label="25 가운데 들어감 19, 기대대로 비움 3, 실패 3">
+        <div class="c-ok" style="flex:19">들어감 19</div><div class="c-exp" style="flex:3">비움 3</div><div class="c-bad" style="flex:3">실패 3</div>
+      </div>
+      <p class="note" style="margin:0">비움: intake-src 같은 것 · polish · shape-restructure<br>실패: send 2(제품) · shape 1(도구)</p>
+    </div>
+    <div class="card">
+      <b>분모에서 뺀 13</b>
+      <ul class="tight" style="font-size:14px">
+        <li>shape · shape-pc 준비 단계 6</li>
+        <li>shape-restructure 구조안 1</li>
+        <li>edit 거절 시험 4</li>
+        <li>넣기 없는 스킬 2</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>kmd-seed 결론 (반박 뒤 직접 확인)</h3>
+  <p class="note">판정은 harness 유지. 제품 코드는 한 줄도 돌지 않음(<code>kn/real-1/kmd-seed</code> 에 pack 폴더 없음). 진단의 원인 「스킬 글의 상대 꼴 명령」 은 받아들이지 않음.</p>
+  <ol class="why">
+    <li>세션이 적은 명령 6개는 모두 <code>node C:/project/kmd/scripts/kmd-seed.mjs …</code> 절대 꼴. 상대 꼴은 첫 문장 한 번뿐(<code>channels.kmd-seed.rows[0].session.result</code>)</li>
+    <li>kmd-migrate 스킬 글(SKILL.md:24-33)도 상대 꼴인데 정상으로 돎. 두 채널의 차이를 설명 못 함</li>
+    <li>실제 차이는 허락 규칙 모양. seed 는 <code>Bash(node C:/…/kmd-seed.mjs:*)</code> 하나(channel-eval.mjs:1121) · migrate 는 하위 명령마다(:1196). cd · ls · <code>2&gt;&amp;1</code> 같은 덧붙인 셸 명령도 후보</li>
+    <li><code>session.checks</code> 는 0 이 아니라 4. :1124 가 출력 전체에서 「kmd-seed.mjs check」 문자열을 센 값이라 실제 횟수 아님</li>
+    <li><code>r.out</code> · <code>permission_denials</code> 를 남기지 않아(:1123-1125) 거절된 명령 글은 확인 불가 → H9</li>
+  </ol>
+</section>
+
+<!-- 비용 -->
+<section id="cost">
+  <h2>채널별 비용 · 시간</h2>
+  <p class="h2sub">바탕 행을 뺀 채널 몫. 줄무늬 막대는 opus 로 돈 프로세스가 섞인 채널.</p>
+  <div class="card">
+    <div class="bars" role="img" aria-label="채널별 비용과 시간 막대">
+      <div class="br hd"><span>채널</span><span>비용 $ (최대 1.59)</span><span>시간 초 (최대 389)</span></div>
+      <div class="br"><span class="nm">session</span><div class="bt"><i class="opus" style="width:100%"></i><span>1.591</span></div><div class="bt t"><i style="width:67%"></i><span>261</span></div></div>
+      <div class="br"><span class="nm">bulk</span><div class="bt"><i class="opus" style="width:84%"></i><span>1.337</span></div><div class="bt t"><i style="width:99%"></i><span>386</span></div></div>
+      <div class="br"><span class="nm">intake-src</span><div class="bt"><i style="width:53%"></i><span>0.849</span></div><div class="bt t"><i style="width:82%"></i><span>318</span></div></div>
+      <div class="br"><span class="nm">send</span><div class="bt"><i style="width:46%;background:var(--barbad)"></i><span>0.737</span></div><div class="bt t"><i style="width:100%;background:var(--barbad)"></i><span>389</span></div></div>
+      <div class="br"><span class="nm">intake-file</span><div class="bt"><i style="width:41%"></i><span>0.658</span></div><div class="bt t"><i style="width:78%"></i><span>304</span></div></div>
+      <div class="br"><span class="nm">kmd-migrate</span><div class="bt"><i class="opus" style="width:41%"></i><span>0.648</span></div><div class="bt t"><i style="width:31%"></i><span>120</span></div></div>
+      <div class="br"><span class="nm">shape</span><div class="bt"><i style="width:30%"></i><span>0.479</span></div><div class="bt t"><i style="width:56%"></i><span>219</span></div></div>
+      <div class="br"><span class="nm">shape-pc</span><div class="bt"><i style="width:30%"></i><span>0.479</span></div><div class="bt t"><i style="width:37%"></i><span>143</span></div></div>
+      <div class="br"><span class="nm">pc-intake</span><div class="bt"><i style="width:30%"></i><span>0.471</span></div><div class="bt t"><i style="width:72%"></i><span>282</span></div></div>
+      <div class="br"><span class="nm">edit-source</span><div class="bt"><i style="width:24%"></i><span>0.389</span></div><div class="bt t"><i style="width:54%"></i><span>210</span></div></div>
+      <div class="br"><span class="nm">intake-commit</span><div class="bt"><i style="width:24%"></i><span>0.385</span></div><div class="bt t"><i style="width:17%"></i><span>67</span></div></div>
+      <div class="br"><span class="nm">kmd-seed</span><div class="bt"><i class="opus" style="width:15%"></i><span>0.237</span></div><div class="bt t"><i style="width:7%"></i><span>27</span></div></div>
+      <div class="br"><span class="nm">shape-restructure</span><div class="bt"><i style="width:13%"></i><span>0.201</span></div><div class="bt t"><i style="width:21%"></i><span>81</span></div></div>
+      <div class="br"><span class="nm">polish</span><div class="bt"><i style="width:9%"></i><span>0.148</span></div><div class="bt t"><i style="width:10%"></i><span>39</span></div></div>
+      <div class="br"><span class="nm">shape-folder · http · edit</span><div class="bt"><i style="width:0"></i><span>0</span></div><div class="bt t"><i style="width:1%"></i><span>1 ~ 3</span></div></div>
+    </div>
+    <p class="note" style="margin:12px 0 0">빨간 막대: 헛돈(send 는 들어간 것 없음) · opus 프로세스 5개 $3.81 은 session 2 · bulk 1 · migrate 1 · seed 1 (<code>meter.models</code>)</p>
+  </div>
+
+  <h3>비용 구성</h3>
+  <div class="split" role="img" aria-label="cacheWrite 47%, output 36%, cacheRead 17%">
+    <div style="flex:47;background:var(--warn)">cacheWrite 47%</div>
+    <div style="flex:36;background:var(--info)">output 36%</div>
+    <div style="flex:17;background:var(--pri)">cacheRead 17%</div>
+  </div>
+  <p class="note">프로세스마다 새 <code>claude -p</code> · system 글 약 2만 자 · 매번 30k ~ 47k 새로 씀</p>
+  <div class="grid kpi" style="margin-top:12px">
+    <div class="card k"><div class="l">무인 들이기 건당</div><div class="n">$0.34</div><div class="d">2.5분 · H7b 보다 약 17% 쌈(빈 지식이라서)</div></div>
+    <div class="card k"><div class="l">커밋 건당</div><div class="n">$0.19</div><div class="d">0.6분</div></div>
+    <div class="card k"><div class="l">사람 세션 건당(opus)</div><div class="n">$0.80</div><div class="d">2.2분</div></div>
+    <div class="card k warn"><div class="l">같은 바탕 흔들림</div><div class="n">±25%</div><div class="d">실행마다</div></div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section id="s3">
+  <h2>3. 제품 결함 (개선 작업 입력)</h2>
+  <p class="h2sub">high 8 · medium 9 · low 6. 근거는 파일:줄 · 결과 JSON 칸 · 지식 파일 글.</p>
+
+  <h3><span class="tag bad">high</span></h3>
+  <div class="cards">
+    <article class="def high">
+      <div class="hd"><span class="id">P1</span><span class="tag bad">send</span></div>
+      <div class="t">보내기의 기록만 보내기 길: 수가 있는 원천이면 언제나 unreflected 로 막힘</div>
+      <dl>
+        <dt>원인</dt><dd>원천 칸에 「· 지문」 없음 → judgeReflect 가 인용 원문의 수와 첫 문단 <code>항목 글은 고치지 않았다: ${why}</code> 의 수까지 셈</dd>
+        <dt>근거</dt><dd><ul>
+          <li>server/hub.js:495 <code>## 원천\n- 보낸 글 · ${from} 에서</code> 지문 없음</li>
+          <li>core/values.js:157 SRC_PART_RE 는 지문 요구 · :168-179 는 그 꼴만 뺌</li>
+          <li>core/ingest.js:142 srcLine 은 지문을 붙임 · 같은 칸을 두 곳이 다르게 지음</li>
+          <li><code>send.rows[1].why</code> 「2 · 4 · 1」 · 원천 06 의 수 순서(1 · 5초 · 3 …)와 달라 why 문단의 수로 확인</li>
+        </ul></dd>
+        <dt>고칠 곳</dt><dd>hub.js sendInputOf: 원천 칸은 intakeSrcPart 로 · why 는 값 검사 밖 칸으로 · 회귀 시험 「초안 없음 + 수 있는 원문 → propose 오류 0」</dd>
+      </dl>
+    </article>
+    <article class="def high">
+      <div class="hd"><span class="id">P2</span><span class="tag bad">send</span></div>
+      <div class="t">보내기 초안이 후보 문서를 못 잡으면 updates 가 모두 held · 값 말하는 기록만 propose 로 감 (08 의 15초)</div>
+      <dl>
+        <dt>근거</dt><dd><ul>
+          <li>core/ingest.js:174-177 후보 밖 updates → held · hub.js:491-497 held 버림</li>
+          <li>hub.js:416-433 후보는 머리 · 제목 낱말뿐 · ## 머리 없는 원천은 후보 빔</li>
+          <li>hub.js:5457-5466 askClaude 의 MCP 가 보내는 개인 지식(srcId)을 가리킴</li>
+          <li>hub.js:6565-6569 stale 일 때만 다시 지음</li>
+        </ul></dd>
+        <dt>고칠 곳</dt><dd><ul>
+          <li>sendDraft · sendInputOf: held 있고 sections 비면 고쳐 쓰기 한 번 또는 기록만 보내기 · held 는 제안서 경고로</li>
+          <li>sendMaterial: 머리 없는 원천은 본문 낱말 · search 로 후보</li>
+          <li>askClaude 는 받는 팀 지식을 읽게</li>
+          <li>propose 오류 까닭을 붙여 한 번 다시 지음</li>
+        </ul></dd>
+      </dl>
+    </article>
+    <article class="def high">
+      <div class="hd"><span class="id">P3</span><span class="tag">들이기 · 짓기</span></div>
+      <div class="t">새 항목의 뜻 한 줄(gist) 없음 · 라벨에 이름만 되풀이 · 저장 문 경고 없음</div>
+      <dl>
+        <dt>근거</dt><dd>test-eval 지식 gist 0줄(kmd-migrate 만 23줄) · <code>_vocab.md</code>(intake-file · intake-src · intake-commit · shape-pc · pc-intake) · core/namebook.js:43 · savelog <code>warned []</code></dd>
+        <dt>고칠 곳</dt><dd>intake 프롬프트 · MCP save 설명에서 names[].gist 필수 · 새 coord 의 gist 가 비거나 머리와 같거나 15자 미만이면 고쳐 받기(R5-3 · R7-1)</dd>
+      </dl>
+    </article>
+    <article class="def high">
+      <div class="hd"><span class="id">P4</span><span class="tag">짓기 · http</span></div>
+      <div class="t">새 항목이 장부 짝 없이 머리만 섬</div>
+      <dl>
+        <dt>근거</dt><dd>intake-file 회의 항목 · shape-pc 6 가운데 4(pair 0.33) · http 되돌리기 · shape-folder 전부 · 기록 <code>touchesEmpty 「장부에 없는 항목을 세웠다」</code> · core/shape.js:513-514 옛 기준 3 · 4</dd>
+        <dt>고칠 곳</dt><dd>shape.js RULES_BASE 를 H-O14 대로 R3-2 · R7-1 로 갈음 · 사건 갈래 새 항목도 names 필수</dd>
+      </dl>
+    </article>
+    <article class="def high">
+      <div class="hd"><span class="id">P5</span><span class="tag">들이기 · 세션</span></div>
+      <div class="t">근거 날짜에 들인 날을 적음 · R2-5 지금 값 판단을 거꾸로 만들 빌미</div>
+      <dl>
+        <dt>근거</dt><dd><code>work/2026-1119-게이트웨이-설계서*.md</code> 「근거 날짜: 2026-11-19」(원천에 날짜 없음) · intake-file · intake-src · send · edit 바탕 전부 · edit-source 도 같음</dd>
+        <dt>고칠 곳</dt><dd>들이기 · 세션 프롬프트에 「원천에 날짜가 없으면 비운다」 반례(hub.js:5777 근처) · 근거 날짜가 들인 날과 같고 원천 글에 없으면 측정 표시</dd>
+      </dl>
+    </article>
+    <article class="def high">
+      <div class="hd"><span class="id">P6</span><span class="tag">shape</span></div>
+      <div class="t">기초 세우기가 재료끼리 부딪친 값을 견주지 않음 · 문서 성격 미기록(nature 0)</div>
+      <dl>
+        <dt>근거</dt><dd>shape-pc <code>docs/게이트웨이/설계.md:11</code> 5초 · <code>docs/회의록.md:10</code> 10초(2026-11-10 결정) · shape-folder 같은 꼴 · 버린 안 3초도 빠짐</dd>
+        <dt>고칠 곳</dt><dd>core/shape.js 글 짓기 프롬프트에 R2-5 · 「앞선 값」 카드 · 구조안에 문서 성격 칸 · 넣기가 <code>_forms.md</code> 씀(하네스 설계 5-3 shape 줄 숙제)</dd>
+      </dl>
+    </article>
+    <article class="def high">
+      <div class="hd"><span class="id">P7</span><span class="tag">http</span></div>
+      <div class="t">http 저장 길이 기록 서식 칸(changes · why · refs)을 말없이 버림</div>
+      <dl>
+        <dt>근거</dt><dd>server/http.js:1296-1297(opt.form 없음) · server/hub.js:1680-1684 · 기록 <code>work/2026-1119-장애-대응-절차.md:11-16</code></dd>
+        <dt>고칠 곳</dt><dd>http save 도 recordBody 를 거치게 · changes 없으면 E_INPUT · H-D33 으로 걷으면 걷는 커밋에서 정리</dd>
+      </dl>
+    </article>
+    <article class="def high">
+      <div class="hd"><span class="id">P8</span><span class="tag">edit</span></div>
+      <div class="t">값 바꾼 화면 고침이 이력(log/)으로 가 참고 블록 출처가 끊김 · 본문 8초 · 출처는 5초 기록</div>
+      <dl>
+        <dt>근거</dt><dd><code>docs/게이트웨이 설계.md:11</code>(8초) · :39-40 · <code>log/2026-1119-화면에서-고침*.md</code> · server/hub.js:4127 · 4149 · 4089-4092 · 바뀐 것 칸 비움(H-D38 미구현) · fixes 대상 검사 없음 · 작성기준 152줄(화면 고침은 이력)과 619줄(값 바뀌면 기록) 어긋남</dd>
+        <dt>고칠 곳</dt><dd>기준 152 · 619줄을 먼저 하나로 · 같은 커밋에서 hub.js:4149 길 · 바뀐 것은 앞뒤 값 장부에서 「대상 › 속성: 옛 → 새」 · fixes 는 대상이 applied 인지 확인</dd>
+      </dl>
+    </article>
+  </div>
+
+  <h3><span class="tag warn">medium</span></h3>
+  <div class="cards compact">
+    <article class="def med"><div class="hd"><span class="id">P9</span></div><div class="t">코드 커밋(HealthCheck.java)을 원천에 이름 없는 수집기 항목에 붙임</div>
+      <dl><dt>근거</dt><dd>intake-src <code>docs/게이트웨이 설계.md:14</code> · <code>work/2026-1119-헬스-체크-시간-초과를-늘림.md:45</code></dd><dt>고칠 곳</dt><dd>들이기 프롬프트에 R3-5 · diff 에 대상 이름 없으면 기존 항목에 붙이지 않음</dd></dl></article>
+    <article class="def med"><div class="hd"><span class="id">P10</span></div><div class="t">사건 · 결정 서식 검사 구멍 · 머리에 「주간」 이면 정례 보고로 보고 라벨 검사 건너뜀</div>
+      <dl><dt>근거</dt><dd>core/formcheck.js:133 · pc-intake <code>rows[0]</code> codes [] · fix 0 · 결정 항목 missing-label 3건 통과 · 회의록 갈래 서식 칸 「-」 · 「지식문서」</dd><dt>고칠 곳</dt><dd>routine 판정은 갈래 서식으로만 · pc-intake 가 lintForm 거치는지 확인 · 사건 갈래 서식 칸을 작업기록으로</dd></dl></article>
+    <article class="def med"><div class="hd"><span class="id">P11</span></div><div class="t">링크 끊김 · <code>결정기록.md</code>(실제 <code>결정 기록.md</code>) · 빈칸 %20 미표기</div>
+      <dl><dt>근거</dt><dd>pc-intake <code>docs/회의록.md:10</code>(savelog linked 0) · intake-file · intake-src · session · core/guard.js:478-488(점검에서만 잡음)</dd><dt>고칠 곳</dt><dd>저장 검사에서 링크 대상 문서 · 머리 존재 또는 이번 세움을 대 보고 빈칸 정규화</dd></dl></article>
+    <article class="def med"><div class="hd"><span class="id">P12</span></div><div class="t">비용 장부 구멍 · 제품 길 $1.85(채널 몫 21.5%) 미기록</div>
+      <dl><dt>근거</dt><dd><ul>
+        <li>pcAgent 가 r.cost 버림(hub.js:2043 · 2058)</li>
+        <li>askClaude 가 cost 버림(hub.js:5457-5466)</li>
+        <li>shape 세션 비용이 feed 에만(hub.js:803 · 1046-1060)</li>
+        <li>savelog cost 늘 null(hub.js:2137 · 1790 · costOf 1950 부르는 곳 없음)</li>
+        <li>「고칠 것 없음」 다듬기는 savelog 안 씀(hub.js:1940)</li></ul></dd>
+        <dt>고칠 곳</dt><dd>각 길에서 비용 · 부름 수를 일감이나 측정 줄에 · 커밋 뒤라 try/catch</dd></dl></article>
+    <article class="def med"><div class="hd"><span class="id">P13</span></div><div class="t">색인 임시 파일 이름 고정 · 병렬 match ENOENT · sendMaterial 이 말없이 넘김</div>
+      <dl><dt>근거</dt><dd>run-real-1.log:55-98 · core/search.js:167-169 · hub.js:418 · 423</dd><dt>고칠 곳</dt><dd>tmp 이름에 pid · 랜덤 또는 한 줄로 세움 · 오류 log</dd></dl></article>
+    <article class="def med"><div class="hd"><span class="id">P14</span></div><div class="t">기록 칸을 경위로 채움 · 까닭에 커밋 메시지 · 「최초 들임」 · 제목 「… 들임」</div>
+      <dl><dt>근거</dt><dd>intake-commit <code>work/2026-1119-수집기.md:23-24</code> · intake-file <code>…설계서-v0.3-들임.md:24-26</code></dd><dt>고칠 곳</dt><dd>들이기 프롬프트에 R6-4 반례 · 메타 줄(core/analyze.js:49)을 근거 재료와 뗌</dd></dl></article>
+    <article class="def med"><div class="hd"><span class="id">P15</span></div><div class="t">kmd-migrate dropsOf 가 줄 단위 Jaccard · 말만 바꾼 줄도 빠짐으로 잡을 수 있음(이번은 실제 빠짐)</div>
+      <dl><dt>근거</dt><dd>scripts/kmd-migrate.mjs:291-299</dd><dt>고칠 곳</dt><dd>문장 단위 포함률 · SKILL 에 「꼴 차이라고 단정하지 않는다」</dd></dl></article>
+    <article class="def med"><div class="hd"><span class="id">P16</span></div><div class="t">「## 넣은 것」 값 차이 요약이 새 행 둘을 「(줄표) → 09:00」 로 줄이고 금지된 줄표를 씀</div>
+      <dl><dt>근거</dt><dd>edit-source <code>work/2026-1119-수집기.md:45</code></dd><dt>고칠 곳</dt><dd>core/parts.js: 행마다 「새로: 행 이름 값」</dd></dl></article>
+    <article class="def med"><div class="hd"><span class="id">P17</span></div><div class="t">다듬기 프롬프트 범위 좁음 · 생성 오기(콜럼) · 백틱 · 수준 표시를 몫으로 보지 않음</div>
+      <dl><dt>근거</dt><dd>polish <code>docs/게이트웨이 설계.md:28</code> · core/ingest.js:271</dd><dt>고칠 곳</dt><dd>polishPromptOf 에 정돈 거리를 낱낱이</dd></dl></article>
+  </div>
+
+  <h3><span class="tag info">low</span></h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>#</th><th>결함</th><th>근거</th><th>고칠 곳</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">P18</td><td>E_APPROVE 측정 줄이 어긋난 까닭을 남기지 않음</td><td>hub.js:2647 · 1602</td><td>어긋남 표지 · 바뀐 쪽 · 해시 앞 8자</td></tr>
+      <tr><td class="ch">P19</td><td>채널 표기 오류 · 잔재: 보내기 propose 가 ch 「session」 · intake-commit 죽은 이름 · 정정 채널이 문서에 남음</td><td>hub.js:2706 · http.js:1303 · hub.js:615 · 1872 · 하네스 설계 446 · 450 · 451 · 권한 모델 156 · 저장승인 173 · 414</td><td>문서를 코드에 맞춤 · 채널 이름 하나로(사람 결정)</td></tr>
+      <tr><td class="ch">P20</td><td>바뀐 것 없는 구조안도 seal 하나뿐인 빈 「문서 짜임 마침」 기록(화면만 막음)</td><td>hub.js:3974-3977 · 2918-2933 · app/main.js:4504</td><td>API 길에서도 바뀐 것 0 이면 일을 열지 않음</td></tr>
+      <tr><td class="ch">P21</td><td>참고 블록 기록 링크 글이 id 조각 · 「수집기」 만 줄지어 섬 · 「## 새로 세움」 칸이 걷은 말 「이름」</td><td>intake-commit <code>docs/게이트웨이 설계.md:42-43</code> · core/parts.js</td><td>링크 글은 기록 제목 · 칸 말은 「항목」</td></tr>
+      <tr><td class="ch">P22</td><td>원본 메타(문서 번호 · 판)가 요약에 들어가거나 참고 블록 「- (문서)」 메모로 가지 않음</td><td>intake-src <code>docs/게이트웨이 설계.md:3</code> · <code>_forms.md:16</code></td><td>프롬프트 반례 · kmd 가 메모 줄로 옮김</td></tr>
+      <tr><td class="ch">P23</td><td>(선택) seedWrite({all}) E_INPUT 메시지에 승인 남은 문서 이름 없음</td><td>hub.js:3631</td><td>메시지에 이름</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+  <h2>4. 시험 도구에서 고칠 것</h2>
+  <p class="h2sub">자리는 scripts/channel-eval.mjs 의 줄(따로 적은 것 빼고). H1 ~ H5 가 먼저.</p>
+  <div class="tblwrap"><table>
+    <thead><tr><th>#</th><th>고칠 것</th><th>자리</th><th>영향</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">H1</td><td>put 판정: 걸리지 않고 put&gt;0 인 저장 줄이 있으면 들어감 · 회복된 오류는 recoveredCodes 로</td><td>:375 · :382</td><td>session 2/2 · bulk 원천 2/2 로 바로잡힘</td></tr>
+      <tr><td class="ch">H2</td><td>jobRow 에서 put 0 · rec null 이면 empty</td><td>:311 · :411-414</td><td>polish NOLOG 거짓 경보 사라짐</td></tr>
+      <tr><td class="ch">H3</td><td>대용 세션 · 세션 스킬 모델을 sonnet 고정 · 결과 머리에 실제 모델</td><td>:816 · :1122 · :1197 · :1269</td><td>opus 5 프로세스 $3.81 이 견줄 수 있는 값</td></tr>
+      <tr><td class="ch">H4</td><td>serverCost: 세션 스킬 · 대용 세션은 null 또는 self · costGap 에서 뺌 · shape-pc 는 feedCost 를 cost 로(센 result 빼고) · shape 글 짓기는 try/finally 로 jobSum 을 row 에</td><td>:387 · :403 · :881 · :695-712</td><td>거짓 costGap 사라짐</td></tr>
+      <tr><td class="ch">H5</td><td>runShapeTeam: was 문서 빼고 처음 min(3,n) 문서를 하나씩 짓고 승인 뒤 all · approve 의 <code>.catch(()=&gt;null)</code> 걷음</td><td>:632-645(shape-pc :707-713 꼴)</td><td>shape 넣기를 제대로 잼</td></tr>
+      <tr><td class="ch">H6</td><td>runSend 가 제안서 글 · items · errors · sendDraft why 를 남김</td><td>:784-795</td><td>06 떨어진 까닭 · 08 held 가림</td></tr>
+      <tr><td class="ch">H7</td><td>humanSession 도구 부름 · 결과 앞부분(toolTrace)을 파일로</td><td>:817</td><td>E_APPROVE 어긋난 칸 가림</td></tr>
+      <tr><td class="ch">H8</td><td>migrate · seed check 셈은 tool_use 의 Bash 명령만 · DROP_REVIEW 줄에 빠진 문장</td><td>:1124 · :1199</td><td>고쳐 받기 4 · checks 4 같은 부풀린 값 사라짐</td></tr>
+      <tr><td class="ch">H9</td><td>runSeedPack 이 r.out 저장 · permission_denials 를 session.denied 로 · PERM_DENIED 코드 · 허락은 하위 명령마다(rules · survey · prompt · check · text · status) · 그 뒤 seed 만 다시</td><td>:1121-1125</td><td>kmd-seed 원인 확정</td></tr>
+      <tr><td class="ch">H10</td><td>shape-restructure: 다시 잡을 거리 있는 바탕(06 · 09 · 10) · 지식관리자 말(note) · 구조안 줄은 분모에서 빼고 바꿀 것 없음은 expected</td><td>:47 · :734 · :733-752</td><td>채널을 실제로 잼</td></tr>
+      <tr><td class="ch">H11</td><td>goldScope: comparable 은 「같은 대상 쌍 2개 이상」 · 머리 대조 대소문자 구분(「gw_log」 가 「화면 GW_LOG」 로 잡힘) · 범위 판정에 needDocOrH · notH · 지나가는 대상(버퍼 · PLC)은 optional · intake-file docx 범위(srcOf) 확인</td><td>:85-99 · :93-95</td><td>intake-src · edit missRate 0.2 · 0.25 오탐 · pc-intake F1 0 바로잡힘</td></tr>
+      <tr><td class="ch">H12</td><td>gold.json 「회의 1110 버린 안」 정규식을 어순에 매이지 않게 · 결정 항목을 alt 대상으로 · 수집기 전송 주기도</td><td>test/fixture/harness/빈지식/gold.json:395-400</td><td>pc-intake F1</td></tr>
+      <tr><td class="ch">H13</td><td>채점: 성격은 forms.natures 로 · 사실 대조에서 참고 블록 뺌</td><td>scripts/harness-eval.mjs:55-57</td><td>polish nature 0 · 80% URL 오탐 사라짐</td></tr>
+      <tr><td class="ch">H14</td><td>runPolish 문서 고르기를 넓혀 docs:2 가 두 문서를 다듬게 · 결함 심은 원천 하나</td><td>:571-572</td><td>다듬기 검출률</td></tr>
+      <tr><td class="ch">H15</td><td>runHttp: <code>## </code> 조각으로만 떼지 않음 · names · natures · forms kind 「절차」 · B 단계 지어낸 31분 금지</td><td>:973-974 · :985</td><td>http 품질을 입력 탓과 가름</td></tr>
+      <tr><td class="ch">H16</td><td>edit B · C 시험 값은 gold 값 집합에서 고르거나 바탕과의 delta 로</td><td>runEdit</td><td>factPlaced 구조적 깎임 없음</td></tr>
+      <tr><td class="ch">H17</td><td>계측: 결과 줄 여럿인 프로세스는 tokens 를 결과마다 더함 · cost 는 마지막 값</td><td>:392-396 · tokensRule</td><td>shape-pc 글 짓기 토큰 덜 세지 않음</td></tr>
+      <tr><td class="ch">H18</td><td>intake-commit 에 운영 길 줄(가져올 곳 git → intake-src + code-change)</td><td>:478-489</td><td>운영 채널 확인</td></tr>
+      <tr><td class="ch">H19</td><td>edit-source 채널 몫 점수 칸(넣은 값 자리 · 새 장부 줄 없음 · 근거 날짜 비움)</td><td>score scope</td><td>바탕 점수와 섞이지 않음</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+  <h2>5. 품질 결함 묶음</h2>
+  <p class="h2sub">채널을 가로지르는 공통 결함. 칸은 걸린 채널 수 어림.</p>
+  <div class="tblwrap"><table>
+    <thead><tr><th>묶음</th><th>걸린 채널</th><th>조문</th><th>제품 쪽 원인</th></tr></thead>
+    <tbody>
+      <tr><td><b>Q1</b> 장부 뜻 한 줄 비거나 이름 되풀이</td><td>intake-file · intake-commit · intake-src · shape-pc · pc-intake · 바탕 전부</td><td>R5-3 · R7-1 · R9-1</td><td>P3</td></tr>
+      <tr><td><b>Q2</b> 새 항목 장부 짝 없음</td><td>intake-file(회의) · shape-pc(4/6) · http · shape-folder</td><td>R7-1 · R7-2</td><td>P4</td></tr>
+      <tr><td><b>Q3</b> 근거 날짜에 들인 날</td><td>바탕 전부 · edit-source</td><td>R2-5 · R6-4</td><td>P5</td></tr>
+      <tr><td><b>Q4</b> 기록 칸 꼴</td><td>거의 전부</td><td>R6-4 · 작성기준 6-3-6 기록</td><td>P14 · P16</td></tr>
+      <tr><td><b>Q5</b> 사건 · 결정 서식 계약</td><td>intake-file · intake-src · session · pc-intake · shape-pc</td><td>6-3-6 사건 · 결정 · 6-3-2</td><td>P10</td></tr>
+      <tr><td><b>Q6</b> 지금 값 · 한 사실 한 곳</td><td>shape-folder · shape-pc · send · intake-src</td><td>R2-5 · R4-3 · R3-5</td><td>P6 · P2 · P9</td></tr>
+      <tr><td><b>Q7</b> 링크</td><td>pc-intake · intake-file · intake-src · session</td><td>작성기준 4절 · 6-1</td><td>P11</td></tr>
+      <tr><td><b>Q8</b> 문서 성격 오판 · 미기록</td><td>intake-src · http(「서술」) · shape-pc · shape-folder(없음)</td><td>R4-1 · R3-4 · R7-2</td><td>P6 · 프롬프트 R4-1 예</td></tr>
+      <tr><td><b>Q9</b> 원본 메타 · 판 번호</td><td>intake-src · intake-file · shape-pc</td><td>6-3-1 · 3절 1</td><td>P22</td></tr>
+      <tr><td><b>Q10</b> 지어낸 범위 말 · 거짓 invented 경고</td><td>session · http · intake-src</td><td>R6-4 · 저장승인 3절</td><td>세션 · HTTP 기록에 원천이 실리지 않아 값 대조가 원천을 못 봄</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="cards compact" style="margin-top:14px">
+    <article class="def med"><div class="hd"><span class="id">Q4</span><span class="tag warn">기록 칸 꼴</span></div><ul class="tight">
+      <li>까닭 칸에 경위 · 커밋 메시지</li><li>바뀐 것이 「새로: 대상 값」 꼴 아님 · 대상이나 속성 빠짐</li><li>제목이 「들임」 · 「화면에서 고침」 꼴</li></ul></article>
+    <article class="def med"><div class="hd"><span class="id">Q5</span><span class="tag warn">사건 · 결정 서식</span></div><ul class="tight">
+      <li>첫 문장이 결과가 아니라 메타</li><li>「누가」 라벨 없음</li><li>남은 것 줄이 <code>* 할 일: 맡은 이 · 기한</code> 꼴 아님</li><li>결정 항목에 정한 것 · 까닭 · 상태 라벨 없음</li></ul></article>
+    <article class="def med"><div class="hd"><span class="id">Q6</span><span class="tag warn">지금 값</span></div><ul class="tight">
+      <li>회의의 10초가 수집기 항목에 들지 않음</li><li>send 의 15초 안 들어감</li><li>헬스 체크 값을 수집기에 지어 붙임</li></ul></article>
+    <article class="def med"><div class="hd"><span class="id">Q10</span><span class="tag warn">지어낸 말</span></div><ul class="tight">
+      <li>원천에 없는 말: 「게이트웨이 관련 정례」 · 「게이트웨이 로그 테이블」</li><li>원천에 있는 10:00 · 30분이 「근거에 없는 값」 으로 잘못 걸린 채 받아들여짐</li></ul></article>
+  </div>
+
+  <h3>공통으로 잘한 것</h3>
+  <div class="good">
+    <div><b>R3-6</b>문서 경계를 파일 이름이 아니라 주제로</div>
+    <div><b>R1-3</b>알갱이 판단: 대상은 항목 · 값은 표 행</div>
+    <div><b>injected 0</b>지어낸 값 0 (전 채널)</div>
+    <div><b>승인</b>승인 전 쓴 것 없음 · 거절 길 넷 모두 기대대로</div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+  <h2>6. 운영 어림과 줄일 거리</h2>
+  <div class="grid kpi">
+    <div class="card k"><div class="l">100건 / 월</div><div class="n">약 $35</div><div class="d">보정 $43 · 약 3.5시간</div></div>
+    <div class="card k"><div class="l">1000건 / 월</div><div class="n">약 $354</div><div class="d">보정 $425 · 약 35시간</div></div>
+    <div class="card k bad"><div class="l">헛돈</div><div class="n">$1.14</div><div class="d">바탕 뺀 지출의 13% · seed $0.24 · send $0.74 · shape-write $0.17</div></div>
+    <div class="card k warn"><div class="l">제품 장부가 놓침</div><div class="n">$2.74</div><div class="d">32% · 제품 코드 길만 $1.85(21.5%) → P12</div></div>
+  </div>
+  <div class="tblwrap" style="margin-top:14px"><table>
+    <thead><tr><th>줄일 거리</th><th>100건/월 절감</th><th>조건</th></tr></thead>
+    <tbody>
+      <tr><td>평가 대용 길에 sonnet 고정(H3)</td><td>평가 한 판 약 $1.5 · 운영은 사람 세션 스킬 안내 정도</td><td><span class="tag pri">바로</span></td></tr>
+      <tr><td>헛돈 막기(P1 · P2 · H5 · H9)</td><td>보내기가 늘 실패하면 $1.8</td><td>제품 · 도구 고친 뒤</td></tr>
+      <tr><td>커밋 들이기를 haiku 로</td><td>약 $3.1</td><td>골든 셋 채점부터</td></tr>
+      <tr><td>system 글을 프로세스 넘어 캐시</td><td>약 $4(몰아 들어올 때)</td><td>첫 차례 usage 로 확인(추정)</td></tr>
+      <tr><td>무인 들이기 전체를 haiku 로</td><td>약 $12.6</td><td><span class="tag bad">권하지 않음</span> 품질 다시 잰 뒤에만</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+  <h2>7. 다음 측정</h2>
+  <div class="steps">
+    <div class="card"><div class="no">1 · 조건</div><h4>고친 뒤 다시 잼</h4><ul class="tight">
+      <li>H1 ~ H9 · H11 ~ H13 · H17 먼저</li><li><code>--model sonnet</code> 고정 · 결과 머리에 실제 모델</li><li>send 는 P1 · P2 고친 뒤</li></ul></div>
+    <div class="card"><div class="no">2 · 반복</div><h4>채널마다 3번</h4><ul class="tight">
+      <li>바탕 ±25% 흔들림 · 평균과 범위 보고</li><li>어림 $8.6 × 3 + seed 다시 재기 약 $2</li><li>약 $30 ~ 37 · 약 4시간</li></ul></div>
+    <div class="card"><div class="no">4 · 추가 시험</div><h4>모델 · 캐시</h4><ul class="tight">
+      <li>커밋 들이기 haiku 한 판 · 골든 셋 F1 을 sonnet 과 견줌</li><li>첫 차례 usage 를 따로 찍어 cacheWrite 재사용 확인</li></ul></div>
+  </div>
+  <h3>3 · 빠진 채널 · 못 잰 것</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>대상</th><th>지금 상태</th><th>다음 판</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">shape(팀)</td><td>넣기를 잰 적 없음</td><td>H5 뒤 처음으로 넣기 잼</td></tr>
+      <tr><td class="ch">kmd-seed</td><td>원인 미확정</td><td>H9 뒤 다시 잼</td></tr>
+      <tr><td class="ch">shape-restructure</td><td>바탕이 이미 맞는 짜임</td><td>어지럽힌 바탕(H10)</td></tr>
+      <tr><td class="ch">polish</td><td>다듬을 거리 적은 문서 하나</td><td>결함 심은 원천(H14)</td></tr>
+      <tr><td class="ch">intake-src 커밋 운영 길</td><td>시험만 여는 길로 잼</td><td>H18 로 운영 길</td></tr>
+      <tr><td>사람 승인 단계</td><td>대용 세션이 새 제안을 스스로 다시 승인</td><td>사람 확인 시험 따로</td></tr>
+      <tr><td class="ch">bulk</td><td>원천 2개뿐</td><td>원천 10개 이상으로 효율</td></tr>
+      <tr><td class="ch">intake-fix · fix</td><td>걷은 채널</td><td>재지 않음</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 남은 것 -->
+<section id="left">
+  <h2>남은 것</h2>
+  <div class="left">
+    <div class="card"><span class="tag bad">미착수</span><div>고친 것 없음(읽기만). P1 ~ P23 · H1 ~ H19 모두 남음. 먼저: <b>P1 · P2(send)</b> · <b>H1 ~ H5</b></div></div>
+    <div class="card"><span class="tag warn">미확정</span><div>kmd-seed 거절 원인: r.out 없음 · H9 뒤 다시 돌림</div></div>
+    <div class="card"><span class="tag warn">정황</span><div>send 06 이 초안 없이 떨어진 까닭(Claude 답 없음 · 검사 실패 · 넣을 곳 없음)과 08 held 내용: 제안서 글이 남지 않아 정황으로만(H6)</div></div>
+    <div class="card"><span class="tag warn">추정</span><div>session · bulk 의 E_APPROVE 어긋난 칸: 도구 기록 없음(H7 · P18). 걸린 save 가 첫 put 보다 앞이라 「앞 파일이 넣어져 지식이 바뀜」 은 원인 아님</div></div>
+    <div class="card"><span class="tag info">사람 결정</span><div><ul class="tight" style="margin:0">
+      <li>작성기준 152줄(화면 고침은 이력) · 619줄(값 바뀌면 기록) 어긋남(P8)</li>
+      <li>intake-commit 채널 이름을 걷을지 살릴지(P19)</li>
+      <li>http 채널을 H-D33 대로 걷을지(P7)</li></ul></div></div>
+    <div class="card"><span class="tag">오차</span><div>표본이 채널당 1 ~ 3건 · 비용과 품질 어림에 ±30% 쯤 오차</div></div>
+  </div>
+  <footer>
+    근거 파일<br>
+    <code>.kmd-data/channel-eval/2026-11-19-real-1.json</code> ·
+    <code>.kmd-data/channel-eval/run-real-1.log</code> ·
+    <code>.kmd-data/channel-eval/meter/real-1/meter-1795063705769.jsonl</code> ·
+    <code>.kmd-data/channel-eval/kn/real-1/&lt;채널&gt;/</code> ·
+    <code>scripts/channel-eval.mjs</code> · <code>server/hub.js</code> ·
+    <code>test/fixture/harness/빈지식/gold.json</code><br>
+    기준: docs/kmd_문서_작성기준.md(3 ~ 5절 · 6-4 R1 ~ R9) · KMD_지식생성_하네스_설계.md(5-3 · 6) · KMD_저장승인_설계.md
+  </footer>
+</section>
+</div>
+</body>
+</html>
