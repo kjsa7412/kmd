@@ -26,7 +26,7 @@
 ### high
 
 - [x] `597981f` **P1 보내기 기록만 길의 unreflected.** `hub.js` sendInputOf 의 원천 칸을 intakeSrcPart 꼴(지문)로 · why 는 값 검사 밖 칸으로. 회귀 시험: 초안 없음 + 수 있는 원문 → propose 오류 0.
-- [x] `597981f` **P2 보내기 후보 못 잡음 → held 만.** held 있고 sections 비면 한 번 고쳐 쓰기 · held 는 제안서 경고로 · 머리 없는 원천은 본문 낱말 · search 로 후보 · askClaude 는 받는 팀 지식을 읽는다 · propose 오류의 까닭을 붙여 한 번 다시 짓는다.
+- [x] `597981f` **P2 보내기 후보 못 잡음 → held 만.** held 있고 sections 비면 한 번 고쳐 쓰기 · held 는 제안서 경고로 · 머리 없는 원천은 본문 낱말 · search 로 후보 · askClaude 는 받는 팀 지식을 읽는다 · propose 오류의 까닭을 붙여 한 번 다시 짓는다. (검토 고침 `HASH`: 세션 열쇠는 팀 서버가 내준 읽기 열쇠 · 서버 판정 · 설정 폴더 읽기 막음)
 - [ ] **P3 뜻 한 줄(gist) 없음.** 들이기 · 세션 프롬프트와 MCP save 설명에서 새 항목 names[].gist 필수 · 저장 문은 새 coord 의 gist 가 비거나 머리와 같거나 짧으면 고쳐 받기(무인) · 오류(사람).
 - [ ] **P4 장부 짝 없는 새 항목.** `core/shape.js` RULES_BASE 를 생성 룰 R3-2 · R7-1 로 · 사건 갈래 새 항목도 names 필수 · 저장 문이 짝 없는 새 머리를 고쳐 받기로.
 - [ ] **P5 근거 날짜에 들인 날.** 프롬프트에 「원천에 날짜가 없으면 비운다」 반례 · 저장 문은 근거 날짜가 들인 날과 같고 원천 글에 없으면 측정 표시.
@@ -48,7 +48,7 @@
 
 ### low
 
-- [x] `597981f` **P18** E_APPROVE 측정 줄에 어긋남 표지 · 바뀐 쪽 · 해시 앞 8자.
+- [x] `597981f` **P18** E_APPROVE 측정 줄에 어긋남 표지 · 바뀐 쪽 · 해시 앞 8자. (검토 고침 `HASH`: 화면 고치기 길도 측정 줄 · 바뀐 쪽은 해시가 본 bases 지문으로 · unknown)
 - [x] `597981f` **P19** 채널 이름 정리(D2).
 - [ ] **P20** 바뀐 것 없는 구조안은 API 길에서도 일을 열지 않음.
 - [ ] **P21** 참고 블록 기록 링크 글은 기록 제목 · 「## 새로 세움」 칸 말 「이름」 → 「항목」.
@@ -78,3 +78,4 @@
 |---|---|---|
 | 기준점(평가 도구 · 보고) | `6a3dd91` | |
 | send(P1 · P2 · P12 보내기 몫 · P13 · P18 · P19) | `597981f` | 시험 send · send-ops · search · approve · propose · pc-propose · propose-tool · intake · savelog · cost · harness-session · edit · fix · judge · claudelogin 통과. channel-eval 의 intake-commit 행(expectCh)은 H18 몫으로 남김 |
+| send 검토 지적 셋(P18 · P2) | (이 커밋) | ① 화면 고치기(hub.edit)의 E_APPROVE · 승인 없음도 측정 줄(ch edit · 앞 보고의 「두 곳」 은 저장 문 한 곳뿐이었다) ② 바뀐 쪽 판정을 제안이 낸 해시 → bases 지문(잇기 · 기록 모음 달 항목 포함)으로 · 이 프로세스가 내지 않은 해시는 unknown ③ 보내기 초안 세션은 기기 열쇠 대신 팀 서버가 내준 읽기 열쇠(`/api/k/:id/readkey` · 그 지식 하나 · 읽기 자리 · 20분 · 서버가 propose · save 403) · MCP 설정 폴더 읽기 막음. 시험 approve · edit · send · owners · levels · agent · harness-session · worker · judge · cost · send-ops · propose-tool 통과 |

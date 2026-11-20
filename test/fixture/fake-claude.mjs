@@ -106,6 +106,11 @@ function answer() {
   // 일 설명 끝의 생성 룰 덩이(H5)는 재료가 아니다 — 있는지만 보고 떼고 읽는다
   const RULES_TAIL = prompt.indexOf('아래는 이 일에 같이 따르는 고정 생성 룰이다')
   if (RULES_TAIL > 0) prompt = prompt.slice(0, RULES_TAIL).trimEnd()
+  // 붙은 MCP(열쇠 꼴 · 허용 · 막은 길) — 보내기 초안이 기기 열쇠가 아니라 읽기 열쇠로 붙나 · 설정 폴더를 막나(채널 평가 P2 검토)
+  if (process.env.FAKE_CLAUDE_MCP_LOG) {
+    const k = JSON.parse(fs.readFileSync(val('--mcp-config'), 'utf8')).mcpServers?.kmd
+    fs.appendFileSync(process.env.FAKE_CLAUDE_MCP_LOG, JSON.stringify({ auth: k?.headers?.Authorization || null, url: k?.url || null, allow: val('--allowedTools') || '', deny: val('--disallowedTools') || '', cfg: val('--mcp-config') }) + '\n')
+  }
   if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
   const ok = args.includes('-p') && val('--tools') === 'Read,Glob,Grep' && val('--permission-mode') === 'dontAsk' && args.includes('--strict-mcp-config') && JSON.parse(fs.readFileSync(val('--mcp-config'), 'utf8')).mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })

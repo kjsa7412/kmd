@@ -303,6 +303,8 @@ export function makeMcp(store) {
     // 저장 제안(저장 승인 설계 P-D3 · 2-1 · P2) — 쓰지 않는다 · 자리 · 입력 모양은 hub.propose 가 본다(쓰기 자리 · E_INPUT)
     async propose(args, ctx) {
       let { knowledge, record, sections, names, forms, natures, kinds, distinct, excluded } = args || {}
+      // 읽기만 하는 세션 열쇠(스키마 답 세션 · 보내기 초안)는 제안도 받지 않는다(서버 판정 · 채널 평가 P2 검토)
+      if (ctx?.agent?.intake?.ro) throw new KmdError('E_FORBIDDEN', '읽기만 하는 세션 열쇠다: 저장 제안 · 저장 없이 답(스키마)으로 돌려준다')
       // 무인 일감의 세션(넣기 에이전트 · 팀 세션 일감)에는 승인할 사람이 없다 — 저장 제안이 아니라 save 가 무인 저장 문을 지난다(지식 생성 하네스 H-D34)
       if (ctx?.agent?.intake) throw new KmdError('E_INPUT', '무인 일감의 세션이다: 저장 제안(propose) 없이 save 를 바로 부른다. 검사에 걸리면 save 가 걸린 까닭을 돌려주고 아무것도 쓰지 않는다: 그 자리만 고쳐 다시 save 한다')
       const listOf = (v) => {

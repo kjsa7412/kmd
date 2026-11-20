@@ -467,8 +467,10 @@ ${genRulesBlock({ profile: 'shape' })}`
       g: { type: 'send', src: { type: 'send', title: it.title, md: it.body, from }, docs, forms: Array.isArray(b.forms) ? b.forms : [], formsOwn, kinds: Array.isArray(b.kinds) ? b.kinds : [] },
       // draftToSave 가 보는 지식 — 후보 항목의 지금 글 전체(값 근거) · 항목 장부는 받는 쪽이 본다(보내기는 장부에 항목을 세우지 않는다)
       k: { byDocPath, vocab: { coords: new Set() } },
-      // 초안 세션이 읽는 받는 팀 지식(MCP 읽기 도구만 · 채널 평가 P2)
-      team: { url: d.url, key, kn: d.kn },
+      // 초안 세션이 읽는 받는 팀 지식(채널 평가 P2) — 팀 서버가 내준 읽기 열쇠(그 지식 하나 · 읽기만 · 20분)로만 붙는다.
+      //   열쇠를 받지 못하면(옛 팀 서버 · 닿지 않음) 세션은 MCP 없이 재료만으로 짓는다: 기기 열쇠는 넘기지 않는다
+      team: await sendLib.readKey(d.url, d.kn, key).then((r) => ({ url: d.url, key: r.key, kn: d.kn }), (e) => { log(`보내기 초안: 팀 읽기 열쇠를 받지 못했다 ${d.kn}: ${e.message} · MCP 없이 짓는다`); return null }),
+      deviceKey: key,
     }
   }
   // 넣을 곳을 고르지 못한 항목 글(draft.held) 한 줄씩 — 고쳐 쓰기의 까닭 · 제안서 경고
@@ -484,7 +486,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     const cost = { usd: 0, calls: 0 }
     const t0 = Date.now()
     const ask = async (prompt) => {
-      const a = await hub.askClaude(srcId, prompt, INTAKE_SCHEMA, { budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, role: 'ingest', timeoutMs: 600_000, team: m.team })
+      const a = await hub.askClaude(srcId, prompt, INTAKE_SCHEMA, { budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, role: 'ingest', timeoutMs: 600_000, team: m.team || false })
       cost.usd += Number(a.cost) || 0
       cost.calls++
       return a
@@ -503,8 +505,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       p = a.value ? draftToSave(m.k, m.g, a.value) : null
     }
     if (!a.value) return done({ why: `Claude 로 짓지 못했다: ${a.why || '답이 없다'}` })
-    // 답에 기기 열쇠가 들었다(원천 속 주입 문장이 MCP 설정을 읽게 했다) — 팀으로 보내지 않는다
-    if (m.team?.key && JSON.stringify(a.value).includes(m.team.key)) return done({ why: 'Claude 의 답에 이 PC 의 열쇠가 들었다: 보내지 않는다' })
+    // 답에 열쇠가 들었다(원천 속 주입 문장이 MCP 설정을 읽게 했다) — 팀으로 보내지 않는다(세션의 읽기 열쇠 · 기기 열쇠 둘 다 본다)
+    if ([m.team?.key, m.deviceKey].some((x) => x && JSON.stringify(a.value).includes(x))) return done({ why: 'Claude 의 답에 열쇠가 들었다: 보내지 않는다' })
     if (!p.ok) return done({ why: `Claude 가 지은 글이 검사를 넘지 못했다: ${p.why}` })
     // 넣을 곳이 없다(초안이 항목 글을 고르지 않았다) — 초안 없이 기록만 보낸다(이을 항목 · 기록 모음 달 항목)
     if (p.empty) return done({ why: `넣을 곳을 고르지 않았다: ${p.empty}` })
@@ -679,17 +681,23 @@ ${genRulesBlock({ profile: 'shape' })}`
     // 오래 안 쓴 통은 걷는다(가득 찬 통은 없는 것과 같다)
     if (rates.size > 2000) for (const [x, v] of rates) if (now - v.at > 120_000) rates.delete(x)
   }
-  // 승인 해시 어긋남(E_APPROVE)의 측정 표지(채널 평가 P18) — { miss: 'hash', side, got, now }: side 는 바뀐 쪽
-  //   knowledge = 입력의 지문(base)과 지금 항목의 지문이 다르다(그사이 지식이 바뀌었다) · input = 지문은 같다(입력 · 경고 · 제안서 글이 바뀌었다) · 해시는 앞 8자만
-  function approveMissOf(p, input, got) {
-    const items = Array.isArray(p?.items) ? p.items : []
-    const secs = Array.isArray(input?.sections) ? input.sections : []
-    const moved = secs.some((x) => {
-      if (!x || typeof x.base !== 'string') return false
-      const it = items.find((y) => (x.coord && y.coord === x.coord) || (x.doc && y.doc && docRel(y.doc) === docRel(x.doc) && y.heading === x.heading))
-      return !!(it && typeof it.base === 'string' && it.base !== x.base)
-    })
-    return { miss: 'hash', side: moved ? 'knowledge' : 'input', got: String(got || '').slice(0, 8), now: String(p?.proposal || '').slice(0, 8) }
+  // 승인 해시 어긋남(E_APPROVE)의 측정 표지(채널 평가 P18) — { miss: 'hash', side, got, now }: side 는 바뀐 쪽 · 해시는 앞 8자
+  //   해시에는 제안 항목 모두(고침 · 신설 · 잇기 · 기록 모음 달 항목)의 지문(bases)이 들어 있다. 제안을 낼 때 해시 → bases 지문을 적어 두고(이 프로세스 · 최근 500)
+  //   어긋나면 승인한 해시가 본 bases 와 지금 bases 를 댄다: knowledge = 그사이 지식(이은 항목 · 기록 모음 포함)이 바뀌었다 · input = bases 는 같다(입력 · 경고 · 제안서 글이 바뀌었다) ·
+  //   unknown = 승인한 해시를 이 프로세스가 내지 않았다(서버를 다시 띄웠거나 지어낸 해시)
+  const basesSeen = new Map()
+  const basesKeyOf = (p) => sha16(JSON.stringify((Array.isArray(p?.items) ? p.items : []).map((x) => [x.at, x.base ?? null])))
+  function basesNote(p) {
+    if (!p?.proposal) return p
+    basesSeen.delete(p.proposal)
+    basesSeen.set(p.proposal, basesKeyOf(p))
+    if (basesSeen.size > 500) basesSeen.delete(basesSeen.keys().next().value)
+    return p
+  }
+  function approveMissOf(p, got) {
+    const seen = basesSeen.get(String(got || ''))
+    const side = seen == null ? 'unknown' : seen !== basesKeyOf(p) ? 'knowledge' : 'input'
+    return { miss: 'hash', side, got: String(got || '').slice(0, 8), now: String(p?.proposal || '').slice(0, 8) }
   }
   // 측정 줄(S-D29) — <data>/savelog/<지식>.jsonl 덧붙이기 · 5MB 넘으면 .1 로 · 던지지 않는다(커밋 뒤 · S-D49)
   const SAVELOG_MAX = config.savelogMax ?? 5 * 1024 * 1024
@@ -1578,9 +1586,9 @@ ${genRulesBlock({ profile: 'shape' })}`
   }
   // 제안 판정 하나(hub.propose · approve 저장 문이 같이 쓴다) — approve 모드: 쓰기 자리 새 문서(P-D8) · 섞인 자리 없음(P-D19) · 되돌림 경고 · 달 항목
   function proposalOf(k, input, { id, meta, approve, path: p, viewers = null, extraErrors = [], newDoc = false, curator = false }) {
-    return buildProposal(k, input, approve
+    return basesNote(buildProposal(k, input, approve
       ? { newDoc: true, approve: true, curator, reverts: (doc) => revertsIn(k, doc), month: monthOf(input.record), extraErrors, head: { name: meta.name, viewers, path: p } }
-      : { newDoc, extraErrors, head: { name: meta.name, viewers, path: p } })
+      : { newDoc, extraErrors, head: { name: meta.name, viewers, path: p } }))
   }
   // 제안 입력 — save 입력에서 제안이 보는 칸만(해시가 같은 입력을 보게)
   const proposeInputOf = (input) => Object.fromEntries(['record', 'sections', 'names', 'forms', 'natures', 'kinds', 'distinct', 'excluded'].filter((x) => input?.[x] !== undefined).map((x) => [x, input[x]]))
@@ -1657,7 +1665,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (same) return { abort: { same: true, id: same } }
       const p = proposalOf(k, pin, p0)
       if (p.errors.length) throw proposeFail(p)
-      if (p.proposal !== input.proposal) throw Object.assign(new KmdError('E_APPROVE', '승인한 저장 제안과 지금 제안이 다르다(입력이 바뀌었거나 그사이 지식이 바뀌었다). 새 제안을 사람에게 보이고 다시 승인받는다(아무것도 쓰지 않았다)', { details: { propose: p } }), { approveMiss: approveMissOf(p, input, input.proposal) })
+      if (p.proposal !== input.proposal) throw Object.assign(new KmdError('E_APPROVE', '승인한 저장 제안과 지금 제안이 다르다(입력이 바뀌었거나 그사이 지식이 바뀌었다). 새 제안을 사람에게 보이고 다시 승인받는다(아무것도 쓰지 않았다)', { details: { propose: p } }), { approveMiss: approveMissOf(p, input.proposal) })
       const sections = []
       for (const x of p.items) {
         if (x.kind === '고침') sections.push({ ...(x.coord ? { coord: x.coord } : { doc: x.doc, heading: x.heading }), content: x.after, base: x.base })
@@ -4199,9 +4207,14 @@ ${genRulesBlock({ profile: 'shape' })}`
         const p = await hub.propose(ctx, id, pin, { path: '화면', count: false })
         if (p.errors.some((x) => x.stale)) throw proposeFail(p)
         if (dry) return { dry: true, propose: p }
-        if (!proposal) throw Object.assign(new KmdError('E_APPROVE', '저장 확인 창에서 저장 제안을 보고 [넣기] 를 누른다(아무것도 쓰지 않았다)', { details: { propose: p } }), { unproposed: true })
+        // 승인 어긋남 측정 줄(채널 평가 P18) — 화면 고치기는 hub.save 에 닿기 전에 던지므로 여기서 남긴다(던지지 않는다)
+        const missLog = async (e) => {
+          try { await savelog(id, { at: localStamp(), kn: id, user: ctx.user || null, device: ctx.device || null, ch: 'edit', kit: null, rec: null, n: pin.sections.length, put: 0, stale: [], conflictWith: [], same: false, ms: 0, err: 'E_APPROVE', mode: 'approve', ...(e.unproposed ? { unproposed: true } : {}), ...(e.approveMiss ? { approve: e.approveMiss } : {}) }) } catch (x) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${x.message}`) }
+          return e
+        }
+        if (!proposal) throw await missLog(Object.assign(new KmdError('E_APPROVE', '저장 확인 창에서 저장 제안을 보고 [넣기] 를 누른다(아무것도 쓰지 않았다)', { details: { propose: p } }), { unproposed: true }))
         if (p.errors.length) throw proposeFail(p)
-        if (p.proposal !== proposal) throw Object.assign(new KmdError('E_APPROVE', '그사이 저장 제안이 바뀌었다(입력이나 지식이 바뀌었다). 새 제안을 보고 다시 넣는다(아무것도 쓰지 않았다)', { details: { propose: p } }), { approveMiss: approveMissOf(p, pin, proposal) })
+        if (p.proposal !== proposal) throw await missLog(Object.assign(new KmdError('E_APPROVE', '그사이 저장 제안이 바뀌었다(입력이나 지식이 바뀌었다). 새 제안을 보고 다시 넣는다(아무것도 쓰지 않았다)', { details: { propose: p } }), { approveMiss: approveMissOf(p, proposal) }))
         accepted = p.warnings.map(({ id: wid, code, at, why: y }) => ({ id: wid, code, at, why: y }))
       } else if (dry) return { dry: true, propose: null }
       // 기록(이력 log/ · 태그 edit) + 항목 글 한 저장 — 이 PC 와 지식관리자는 kmd 자신의 쓰기(system)로 표까지 ·
@@ -5507,15 +5520,17 @@ ${genRulesBlock({ profile: 'shape' })}`
     //   항목이 정해진 기록 → 그 항목 끝에 글을 붙인다 · 항목 없는 기록(넣은 파일 · 세션 메모) → 이어지는 문서 또는 새 문서(규칙이면 새 문서)
     //   어느 쪽이든 그 기록은 「넣음」(reflects) · 넣은 일은 이력에 · 지식마다 한 줄로(저장은 바로 돌려주고 뒤에서)
     // role — 그 일의 모델(core/models.js · 설정 › Claude 모델)
-    //   team — 보내기 초안(채널 평가 P2): { url, key, kn } 받는 팀 지식의 MCP 에 그 PC 의 기기 열쇠로 붙되 읽기 도구(brief · match · section · search)만 쥔다
-    //   (propose · save 는 도구 목록에서 막는다 · 답에 그 열쇠가 들면 sendDraft 가 버린다). 보내는 개인 지식이 아니라 받는 지식을 읽는다
+    //   team — 보내기 초안(채널 평가 P2): { url, key, kn } 받는 팀 지식의 MCP 에 팀 서버가 내준 읽기 열쇠(hub.readKey · 그 지식 하나 · 읽기만 · 20분)로 붙는다.
+    //   서버가 판정한다(다른 지식은 404 · propose · save 는 403) · 도구 목록도 읽기 넷만(brief · match · section · search) · 기기 열쇠는 세션에 넘기지 않는다.
+    //   보내는 개인 지식이 아니라 받는 지식을 읽는다
     //   → { value, model, cost, turns } | { why, cost? } — cost 는 이 부름의 달러(부르는 쪽이 측정 줄에 · P12)
     async askClaude(id, prompt, schema, { budget = 0.5, timeoutMs, role = 'ingest', team = null } = {}) {
       if (mode !== 'pc') return { why: '팀 서버는 이 길로 Claude 를 부르지 않는다(팀 일꾼이 한다)' }
       if (!hub.meaningOk(id)) return { why: 'Claude 를 쓰지 않는다' }
       // 세션으로 부른다(H4a-3 · H-D34): 읽기 도구 + 이 PC 의 kmd MCP(그 지식에만 · 저장은 못 하는 단기 열쇠). 답은 스키마 한 덩이다
       const teamMcp = team?.url && team?.key && team?.kn ? { url: `${team.url}/mcp`, token: team.key, read: true } : null
-      const token = !teamMcp && hub.selfUrl ? hub.agentToken(id, null, null) : null
+      //   team === false — 보내기인데 팀 읽기 열쇠를 받지 못했다: MCP 없이(보내는 개인 지식에 붙지 않는다)
+      const token = !teamMcp && team !== false && hub.selfUrl ? hub.agentToken(id, null, null) : null
       const mcp = teamMcp || (token ? { url: `${hub.selfUrl}/mcp`, token } : null)
       let r
       try {
@@ -5779,10 +5794,19 @@ ${genRulesBlock({ profile: 'shape' })}`
     },
     // 단기 열쇠(kmda_) — 그 지식 · 그 일에만 · MCP 길만 · 일이 끝나면 지운다(늦어도 40분)
     //   intake — approve 개인 지식의 들이기(PC4 · 기록 없이 원천 · 일감을 든다 · agentIntakeSave)
-    agentToken(kn, rec, run, intake = null) {
+    agentToken(kn, rec, run, intake = null, ttl = 40 * 60_000) {
       const token = 'kmda_' + crypto.randomBytes(24).toString('base64url')
-      agentKeys.set(token, { kn, rec, run, exp: Date.now() + 40 * 60_000, ...(intake ? { intake } : {}) })
+      agentKeys.set(token, { kn, rec, run, exp: Date.now() + ttl, ...(intake ? { intake } : {}) })
       return token
+    },
+    // 보내기 초안 세션의 읽기 열쇠(채널 평가 P2 검토) — 팀 서버가 내준다: 이 PC 의 기기 열쇠로 청하고 · 받는 지식 하나 · 읽기만(propose · save 는 403) · 20분.
+    //   세션에 기기 열쇠를 넘기지 않는다(쓰기 가능 · 오래 감 · 모든 지식). 읽기 자리 미만이면 「없는 지식」(404)
+    async readKey(ctx, kn) {
+      if (mode !== 'team') throw new KmdError('E_NOTFOUND', '팀 서버만 읽기 열쇠를 내준다')
+      if (!ctx?.device || ctx.agent || ctx.machine || ctx.draft || ctx.worker) throw new KmdError('E_FORBIDDEN', '이 PC 의 기기 열쇠로만 청한다', { need: 'person' })
+      await hub.meta(kn, ctx)
+      const ttl = 20 * 60_000
+      return { key: hub.agentToken(kn, null, null, { team: true, ro: true, send: true, by: ctx.user }, ttl), kn, exp: new Date(Date.now() + ttl).toISOString() }
     },
     agentCtx(token) {
       const a = agentKeys.get(token)

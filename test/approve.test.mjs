@@ -304,3 +304,23 @@ test('반박 검토: 있는 장부 항목 덮기(쓰기 자리) · 종류만 · 
   await assert.rejects(s.hub.receive({ user: 'wr', device: 'd' }, 'apv', { from: '내 PC', items: [{ title: '옛 판', body: '글' }] }), (e) => e.code === 'E_APPROVE')
   assert.ok(sec.base)
 })
+
+test('채널 평가 P18: 승인 어긋남의 바뀐 쪽 — 이은 항목(잇기)이 그사이 바뀌면 knowledge · 이 프로세스가 내지 않은 해시는 unknown', async () => {
+  const why = { knowledge: 'apv', record: { title: '테스트 카나리: 비율 경위 다시', why: ['테스트 — 회고에서 다시 정했다'], body: '비율을 정한 경위를 다시 남긴다.', touches: ['proc:카나리'] } }
+  const p = await mcp('propose', why)
+  assert.deepEqual(p.errors, [], JSON.stringify(p.errors))
+  assert.deepEqual(p.items.map((x) => x.kind), ['잇기'])
+  // 그사이 이은 항목의 글이 바뀐다(다른 저장)
+  const sec = await canary()
+  const m = /요청의 ([0-9]+)% 만/.exec(sec.content)
+  assert.ok(m, JSON.stringify(sec).slice(0, 300))
+  const to = String(Number(m[1]) + 7)
+  const { r } = await approved(input(sec.base, { record: { title: `테스트 카나리: 비율 ${to}%`, changes: [`첫 30분 비율: ${m[1]}% → ${to}%`], why: ['테스트'], touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base: sec.base, edits: [{ find: m[0], replace: `요청의 ${to}% 만` }] }] }))
+  assert.ok(r.saved, JSON.stringify(r))
+  const miss = await mcp('save', { ...why, proposal: p.proposal, kit: KIT })
+  assert.equal(miss.error, 'E_APPROVE')
+  assert.equal(savelogOf('apv').at(-1).approve.side, 'knowledge', '입력은 같고 이은 항목의 지문이 바뀌었다')
+  const fake = await mcp('save', { ...why, proposal: 'f'.repeat(64), kit: KIT })
+  assert.equal(fake.error, 'E_APPROVE')
+  assert.equal(savelogOf('apv').at(-1).approve.side, 'unknown')
+})

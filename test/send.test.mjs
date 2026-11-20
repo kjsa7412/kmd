@@ -201,7 +201,9 @@ test('보내기(채널 평가 P1 · P2 · P12): 기록만 보내기는 원천 �
   fs.writeFileSync(path.join(proot, 'mine', 'docs', '메모.md'), '# 메모\n\n점검 순서는 3단계로 한다. 응답 대기는 5초, 재시도는 2번이다.\n')
   fs.writeFileSync(path.join(proot, 'mine', 'docs', '통신.md'), '# 통신\n\n통신 점검은 7초 안에 끝낸다.\n')
   const me = await signIn(s, { id: 'kim8', admin: true })
-  const env0 = { key: process.env.KMD_SEND_KEY, mode: process.env.FAKE_CLAUDE_MODE, log: process.env.FAKE_CLAUDE_LOG }
+  const env0 = { key: process.env.KMD_SEND_KEY, mode: process.env.FAKE_CLAUDE_MODE, log: process.env.FAKE_CLAUDE_LOG, mcp: process.env.FAKE_CLAUDE_MCP_LOG }
+  const mlog = path.join(tmp, 'fake-p2-mcp.log')
+  process.env.FAKE_CLAUDE_MCP_LOG = mlog
   process.env.KMD_SEND_KEY = me.key
   const flog = path.join(tmp, 'fake-p2.log')
   const pc = await startServer({ root: proot, mode: 'pc', user: 'kim8', port: 0, log: () => {}, scryptN: 1 << 15 })
@@ -233,6 +235,30 @@ test('보내기(채널 평가 P1 · P2 · P12): 기록만 보내기는 원천 �
     const calls = fs.readFileSync(flog, 'utf8').split('\n').filter(Boolean)
     assert.equal(calls.filter((x) => x === 'intake').length, 2, calls.join())
     assert.ok(calls.includes('fix'), '넣을 곳을 고르지 못해 한 번 고쳐 썼다')
+    // P2 검토 — 초안 세션은 기기 열쇠가 아니라 팀 서버가 내준 읽기 열쇠(kmda_ · 그 지식 하나 · 읽기만)로 붙는다 · 허용은 읽기 넷 · MCP 설정 폴더는 읽지 못한다
+    const ms = fs.readFileSync(mlog, 'utf8').trim().split(/\r?\n/).map((x) => JSON.parse(x))
+    assert.ok(ms.length >= 3, JSON.stringify(ms))
+    for (const x of ms) {
+      assert.match(String(x.auth), /^Bearer kmda_/, JSON.stringify(x))
+      assert.ok(!String(x.auth).includes(me.key), '기기 열쇠는 세션에 넘기지 않는다')
+      assert.equal(x.url, `${s.url}/mcp`)
+      assert.equal(x.allow, 'mcp__kmd__brief,mcp__kmd__match,mcp__kmd__section,mcp__kmd__search')
+      const cfgDir = path.dirname(path.resolve(x.cfg)).split(path.sep).join('/').replace(/^([A-Za-z]):/, (_, d) => '/' + d.toLowerCase())
+      assert.ok(x.deny.split(',').includes(`Read(/${cfgDir}/**)`), x.deny)
+    }
+    // 서버가 판정한다 — 읽기 열쇠로 그 지식은 읽고 · 다른 지식은 없음 · propose · save 는 403 · 기기 열쇠 없이는 받지 못한다
+    const rk = await fetch(`${s.url}/api/k/apvh/readkey`, { method: 'POST', headers: { authorization: `Bearer ${me.key}`, 'content-type': 'application/json' }, body: '{}' }).then((r) => r.json())
+    assert.match(rk.key, /^kmda_/)
+    const call = async (name, args) => (await fetch(`${s.url}/mcp`, { method: 'POST', headers: { authorization: `Bearer ${rk.key}`, 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) }).then((r) => r.json())).result?.structuredContent
+    assert.ok(Array.isArray((await call('brief', { knowledge: 'apvh' })).docs))
+    assert.ok(['E_NOTFOUND', 'E_FORBIDDEN'].includes((await call('brief', { knowledge: 'dpms' })).error), '받는 지식 밖은 읽지 못한다')
+    assert.ok(['E_NOTFOUND', 'E_FORBIDDEN'].includes((await call('section', { knowledge: 'dpms', coord: 'proc:카나리' })).error), '받는 지식 밖은 읽지 못한다')
+    assert.equal((await call('propose', { knowledge: 'apvh', record: { title: '테스트 읽기 열쇠', body: '쓰지 않는다.' } })).error, 'E_FORBIDDEN')
+    assert.equal((await call('save', { knowledge: 'apvh', record: { title: '테스트 읽기 열쇠', body: '쓰지 않는다.' } })).error, 'E_FORBIDDEN')
+    const httpSave = await fetch(`${s.url}/api/k/apvh/save`, { method: 'POST', headers: { authorization: `Bearer ${rk.key}`, 'content-type': 'application/json' }, body: JSON.stringify({ record: { title: '테스트 읽기 열쇠', body: '쓰지 않는다.' } }) })
+    assert.ok([401, 403].includes(httpSave.status), String(httpSave.status))
+    const again = await fetch(`${s.url}/api/k/apvh/readkey`, { method: 'POST', headers: { authorization: `Bearer ${rk.key}`, 'content-type': 'application/json' }, body: '{}' })
+    assert.equal(again.status, 403, '읽기 열쇠로 다른 열쇠를 청하지 못한다')
     // ③ P12 — 초안 세션의 비용 · 부른 수는 개인 쪽 측정 줄에(지표 줄로 세지 않는다: mode 없음)
     const lines = fs.readFileSync(path.join(proot, '.kmd', 'savelog', 'mine.jsonl'), 'utf8').trim().split('\n').map((x) => JSON.parse(x)).filter((x) => x.ch === 'send' && x.stage === 'draft')
     assert.ok(lines.length >= 2, JSON.stringify(lines))
@@ -240,7 +266,7 @@ test('보내기(채널 평가 P1 · P2 · P12): 기록만 보내기는 원천 �
     assert.ok(lines.some((x) => x.calls === 2 && x.held === 1), JSON.stringify(lines))
   } finally {
     await pc.close()
-    for (const [k, v] of [['KMD_SEND_KEY', env0.key], ['FAKE_CLAUDE_MODE', env0.mode], ['FAKE_CLAUDE_LOG', env0.log]]) if (v === undefined) delete process.env[k]; else process.env[k] = v
+    for (const [k, v] of [['KMD_SEND_KEY', env0.key], ['FAKE_CLAUDE_MODE', env0.mode], ['FAKE_CLAUDE_LOG', env0.log], ['FAKE_CLAUDE_MCP_LOG', env0.mcp]]) if (v === undefined) delete process.env[k]; else process.env[k] = v
   }
 })
 

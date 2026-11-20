@@ -200,6 +200,19 @@ export async function mcpCalls(url, key, calls, { timeoutMs = 30_000 } = {}) {
   }
   return out
 }
+// 보내기 초안 세션의 읽기 열쇠(채널 평가 P2 검토) — 기기 열쇠로 팀 서버에 청한다 → { key, kn, exp } · 받지 못하면 throw
+export async function readKey(url, kn, key, { timeoutMs = 15_000 } = {}) {
+  const ac = new AbortController()
+  const t = setTimeout(() => ac.abort(), timeoutMs)
+  try {
+    const r = await fetch(`${url}/api/k/${encodeURIComponent(kn)}/readkey`, { method: 'POST', headers: { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) }, body: '{}', signal: ac.signal })
+    const j = await r.json().catch(() => null)
+    if (!r.ok || typeof j?.key !== 'string' || !j.key.startsWith('kmda_')) throw Object.assign(new Error(j?.message || `HTTP ${r.status}`), { status: r.status })
+    return j
+  } finally {
+    clearTimeout(t)
+  }
+}
 export async function mcpCall(url, key, tool, args) {
   const [r] = await mcpCalls(url, key, [{ tool, args }])
   return r

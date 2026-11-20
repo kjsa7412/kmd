@@ -1258,10 +1258,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const cur = clean(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
       return out(200, { doc: d.id, sha: v.sha, at: v.at, who: v.who, msg: v.msg, md: past, cur, html: V.render(k, d.path, past) })
     }
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|propose|backup|backup\/pull|backup\/gitlab|backup\/detach|owner|learn|edit|revert|guard|ledger|hand|edit-source)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|propose|backup|backup\/pull|backup\/gitlab|backup\/detach|owner|learn|edit|revert|guard|ledger|hand|edit-source|readkey)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = dec(m[1])
     const what = m[2]
+    // 보내기 초안 세션의 읽기 열쇠(채널 평가 P2 검토) — 기기 열쇠로 청한다 · 그 지식 하나 · 읽기만 · 20분(hub.readKey 가 판정)
+    if (what === 'readkey') {
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      return out(200, await hub.readKey(need(ctx), id))
+    }
     if (['save', 'propose', 'backup', 'backup/pull', 'backup/gitlab', 'backup/detach', 'owner', 'learn', 'edit', 'revert', 'ledger', 'hand', 'edit-source'].includes(what)) {
       // 저장소 보기(메뉴 개편 6-4 · 권한 모델 7절) — 그 지식의 지식관리자부터(읽기 미만 404 · 쓰기 · 읽기 403) · 주소는 가려서 · 가지 · 상태만
       if (what === 'backup' && req.method === 'GET') {

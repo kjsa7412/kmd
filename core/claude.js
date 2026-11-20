@@ -13,7 +13,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { modelArgs } from './models.js'
 
-export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'TEMP', 'TMP', 'LANG', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'FAKE_CLAUDE_MODE', 'FAKE_CLAUDE_LOG', 'FAKE_CLAUDE_READ', 'FAKE_CLAUDE_SPANS', 'FAKE_CLAUDE_STREAM_MS', 'FAKE_CLAUDE_LIMIT_FILE', 'FAKE_AGENT_MODE', 'FAKE_AGENT_WAIT_MS', 'FAKE_AGENT_SCRIPT', 'FAKE_AGENT_LOG']
+export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'TEMP', 'TMP', 'LANG', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'FAKE_CLAUDE_MODE', 'FAKE_CLAUDE_LOG', 'FAKE_CLAUDE_MCP_LOG', 'FAKE_CLAUDE_READ', 'FAKE_CLAUDE_SPANS', 'FAKE_CLAUDE_STREAM_MS', 'FAKE_CLAUDE_LIMIT_FILE', 'FAKE_AGENT_MODE', 'FAKE_AGENT_WAIT_MS', 'FAKE_AGENT_SCRIPT', 'FAKE_AGENT_LOG']
 
 // model — 별칭(haiku · sonnet · opus) · 비면 그 PC 의 기본 모델(core/models.js)
 // onTick({ out, think, ms }) — 흘려 받기(stream-json): 쓴 글(답 · 스키마 답) · 생각 글자 수와 지난 시간을 tickMs 마다 한 번(끝날 때만 답하던 json 은 몇 분씩 소식이 없었다)
@@ -22,6 +22,11 @@ export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APP
 export const SESSION_TOOLS = ['Read', 'Glob', 'Grep']
 const SESSION_DENY = ['Read(~/.*)', 'Read(~/.*/**)', 'Read(~/AppData/Roaming/**)', 'Read(~/AppData/Local/Packages/**)']
 export const MCP_READ = ['brief', 'match', 'section', 'search']
+// 폴더 하나를 읽지 못하게 하는 규칙(Claude Code 권한 꼴 · 절대 경로는 「//」 · Windows 는 /c/… 꼴) — Read 규칙은 Glob · Grep 에도 걸린다
+export const denyDir = (dir) => {
+  const p = path.resolve(dir).split(path.sep).join('/').replace(/^([A-Za-z]):/, (_, d) => '/' + d.toLowerCase())
+  return [`Read(/${p}/**)`]
+}
 export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '', onTick = null, tickMs = 10_000, effort = '', onEvent = null, tools = SESSION_TOOLS, mcp = null }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-worker-'))
   // MCP 설정은 일 폴더 밖의 파일로(따옴표가 깨지지 않게 · 세션이 제 열쇠를 일 폴더에서 읽지 않게)
@@ -29,9 +34,10 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
   const cfgFile = path.join(cfgDir, 'mcp.json')
   fs.writeFileSync(cfgFile, JSON.stringify({ mcpServers: mcp ? { kmd: { type: 'http', url: mcp.url, headers: { Authorization: `Bearer ${mcp.token}` } } } : {} }))
   const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
-  //   mcp.read — 읽기 도구만(기기 열쇠처럼 저장도 되는 열쇠로 붙을 때 · 보내기 초안): 허용은 읽기 넷 · propose · save 는 막는다
+  //   mcp.read — 읽기 도구만(보내기 초안 · 열쇠는 팀 서버가 내준 읽기 열쇠라 서버도 막는다): 허용은 읽기 넷 · propose · save 는 도구 목록에서도 막는다
   const allow = mcp ? (mcp.read ? MCP_READ.map((t) => `mcp__kmd__${t}`).join(',') : 'mcp__kmd') : ''
-  const deny = [...SESSION_DENY, ...(mcp?.read ? ['mcp__kmd__propose', 'mcp__kmd__save'] : [])]
+  //   MCP 설정 폴더(열쇠가 든 mcp.json)도 읽지 못한다 — 임시 폴더(~/AppData/Local/Temp)는 SESSION_DENY 밖이다
+  const deny = [...SESSION_DENY, ...denyDir(cfgDir), ...(mcp?.read ? ['mcp__kmd__propose', 'mcp__kmd__save'] : [])]
   const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', tools.join(','), ...(allow ? ['--allowedTools', allow] : []), '--disallowedTools', deny.join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
   if (/^(low|medium|high|max)$/.test(effort)) args.push('--effort', effort)
   if (process.env.ANTHROPIC_API_KEY) args.push('--bare')

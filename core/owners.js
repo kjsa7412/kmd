@@ -121,10 +121,11 @@ export function accessOf(row) {
 export const groupsOf = (reg, user) => Object.entries(reg?.groups || {}).filter(([, g]) => (g?.members || []).includes(user)).map(([n]) => n)
 
 // 그 사람의 자리 — 총괄 관리자 · 셸 · PC 주인 ctx → 지식관리자 · 주인 → 지식관리자 · 그 밖은 사람 · 묶음 · 모두 줄의 가장 높은 것.
-//   에이전트(kmda_) · 기계 · 초안 열쇠는 그 지식 하나만(에이전트는 바로 쓴다 · 기계는 기준선 · 초안은 재료)
+//   에이전트(kmda_) · 기계 · 초안 열쇠는 그 지식 하나만(에이전트는 바로 쓴다 · 기계는 기준선 · 초안은 재료) ·
+//   읽기만 하는 세션 열쇠(intake.ro: 스키마 답 세션 · 보내기 초안)는 그 지식의 읽기 자리(propose · save 는 서버가 403)
 export function levelOf(reg, id, ctx = {}) {
   if (!ctx) return 'none'
-  if (ctx.agent) return ctx.agent.kn === id ? 'admin' : 'none'
+  if (ctx.agent) return ctx.agent.kn === id ? (ctx.agent.intake?.ro ? 'read' : 'admin') : 'none'
   if (ctx.machine) return ctx.machine.kn === id ? 'write' : 'none'
   if (ctx.draft) return ctx.draft.kn === id ? 'read' : 'none'
   if (ctx.worker) return 'none'
