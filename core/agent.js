@@ -125,6 +125,8 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       let mcpUsed = false // kmd 도구를 한 번이라도 불렀다
       let firstUse = false // 첫 차례 usage 를 적었다(채널 평가 C1 판정 · 캐시가 프로세스를 넘어 맞는가)
       const used = [] // 부른 도구 이름(다시 띄울 때 까닭을 가리려고 · 채널 평가 intake-file)
+      let retries = 0 // API 다시 시도(system api_retry) — 다시 생성한 몫은 usage 에 없고 modelUsage · 비용에만 든다(채널 평가 T3)
+      let lastRes = 0 // 마지막 도구 결과를 받은 때 — 끝 줄의 「꼬리」(마지막 도구 뒤 끝 말까지 · T3)
       let buf = ''
       let se = ''
       let last = null
@@ -154,7 +156,8 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
           const k = j.mcp_servers.find((s) => s.name === 'kmd')
           if (k) line('sys', `kmd 연결: ${k.status}`)
         }
-        if (j.type === 'user') for (const c of j.message?.content || []) if (c.type === 'tool_result') line(c.is_error ? 'err' : 'ok', resultLine(c))
+        if (j.type === 'system' && j.subtype === 'api_retry') { retries++; line('sys', `API 다시 시도 ${j.attempt ?? retries}${j.error_status ? ' · ' + j.error_status : ''}`) }
+        if (j.type === 'user') for (const c of j.message?.content || []) if (c.type === 'tool_result') { lastRes = Date.now(); line(c.is_error ? 'err' : 'ok', resultLine(c)) }
         if (j.type === 'result') last = j
       }
       p.stdout.on('data', (c) => {
@@ -179,7 +182,10 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
           resolve({ ok: false, error, message: text.trim().slice(0, 300), cost: last?.total_cost_usd || 0, turns: last?.num_turns || 0 })
           return
         }
-        line('cost', `끝: ${last.num_turns ?? '?'} 차례 · $${(last.total_cost_usd || 0).toFixed(3)} · ${Math.round((Date.now() - t0) / 1000)}초 · 첫 도구 ${used[0] || '없음'}`)
+        // 보조 모델(주 모델 밖의 modelUsage) · API 다시 시도 · 꼬리 — usage 로 설명되지 않는 비용 · 시간의 출처(채널 평가 T3)
+        const mu = Object.entries(last.modelUsage || {}).sort((a, b) => (b[1]?.costUSD || 0) - (a[1]?.costUSD || 0))
+        const aux = mu.slice(1).filter(([, x]) => (x?.costUSD || 0) > 0)
+        line('cost', `끝: ${last.num_turns ?? '?'} 차례 · $${(last.total_cost_usd || 0).toFixed(3)} · ${Math.round((Date.now() - t0) / 1000)}초 · 첫 도구 ${used[0] || '없음'}${lastRes ? ` · 꼬리 ${Math.round((Date.now() - lastRes) / 1000)}초` : ''}${retries ? ` · API 다시 시도 ${retries}` : ''}${aux.length ? ` · 보조 모델 ${aux.map(([m, x]) => `${m} $${(x.costUSD || 0).toFixed(3)}`).join(' · ')}` : ''}`)
         resolve({ ok: true, text: String(last.result || ''), cost: last.total_cost_usd || 0, turns: last.num_turns || 0, model: last.model || null })
       })
       p.stdin.end(prompt)

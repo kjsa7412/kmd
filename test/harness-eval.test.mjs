@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadKnowledge } from '../core/knowledge.js'
 import { scoreKnowledge, gateOf, itemsOf, factText, natureOf } from '../scripts/harness-eval.mjs'
-import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow } from '../scripts/channel-eval.mjs'
+import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost } from '../scripts/channel-eval.mjs'
 
 const FIX = path.resolve('test/fixture/harness/빈지식')
 const gold = JSON.parse(fs.readFileSync(path.join(FIX, 'gold.json'), 'utf8'))
@@ -315,4 +315,47 @@ test('채점 T2: 회의 하나만 넣었을 때 지나가며 말한 대상(수�
   // 수집기 항목이 선 바탕(원천 1 함께)에서는 alts 를 더하지 않는다: 값은 수집기 항목이 정본이다
   const { gold: g12 } = await goldScope([1, 2])
   assert.equal(g12.facts.find((f) => f.id === '수집기 전송 주기').alts, undefined)
+})
+
+test('T3 · T9 계측 줄: 한 result 프로세스의 토큰은 modelUsage 합 · 모델별 비용 · 보조 모델 몫 · usage 밖 출력 · 진단(kmd 안 씀 · API 다시 시도 · 꼬리)', () => {
+  const ml = [
+    { run: 'a', cost: 0.338, turns: 8, tokens: { input: 9, output: 1680, cacheRead: 275882, cacheWrite: 45286 }, model: 'claude-sonnet-4-6', modelUsage: { 'claude-sonnet-4-6': { input: 10, output: 4673, cacheRead: 326590, cacheWrite: 45286, cost: 0.3379 } }, diag: { initMs: 2100, kmd: 'connected', kmdAt: null, kmdUsed: true, firstTool: 'Read', first: { cacheRead: 0, cacheWrite: 20000, input: 3 }, retries: 1, tools: 6, tailMs: 16000 } },
+    { run: 'b', cost: 0.12, turns: 2, tokens: { input: 1, output: 300, cacheRead: 100, cacheWrite: 0 }, model: 'claude-sonnet-4-6', modelUsage: { 'claude-sonnet-4-6': { input: 1, output: 300, cacheRead: 100, cacheWrite: 0, cost: 0.1 }, 'claude-haiku-4-5': { input: 500, output: 40, cacheRead: 0, cacheWrite: 0, cost: 0.02 } }, diag: { initMs: 9000, kmd: 'pending', kmdAt: 15000, kmdUsed: false, firstTool: null, first: null, retries: 0, tools: 0, tailMs: null } },
+  ]
+  const m = meterRowOf({ cost: 0.458, calls: 2 }, ml)
+  assert.equal(m.meter.tokensFrom, 'modelUsage')
+  assert.deepEqual(m.tokens, { input: 511, output: 5013, cacheRead: 326690, cacheWrite: 45286 }, '모델별 합(보조 모델 포함)')
+  assert.deepEqual(m.meter.usageTokens, { input: 10, output: 1980, cacheRead: 275982, cacheWrite: 45286 }, '옛 규칙(usage)의 값도 남긴다')
+  assert.equal(m.meter.hiddenOutput, 3033, 'usage 가 담지 않은 출력(다시 시도 · 보조 모델)')
+  assert.deepEqual(Object.keys(m.meter.byModel), ['claude-sonnet-4-6', 'claude-haiku-4-5'])
+  assert.equal(m.meter.auxCost, 0.02, '주 모델 밖의 비용이 보조 모델 몫')
+  assert.deepEqual([m.meter.diag.kmdUnused, m.meter.diag.retries, m.meter.diag.tailMs, m.meter.diag.firstTool, m.meter.diag.kmdAt, m.meter.diag.firstCacheRead], [1, 1, [16000, null], ['Read', null], [null, 15000], [0, null]])
+  // 견주기: modelUsage 토큰이 usage 셈과 다른 채널은 「토큰 · 차례」 규칙 다름으로 가른다
+  const A = { tag: 'a', day: 'd', tokensRule: 'old', channels: { x: { total: { cost: 1, ms: 1000, turns: 1, rows: 1, put: 1 }, rows: [{ meter: { procs: 1, results: 1 } }] } } }
+  const B = { tag: 'b', day: 'd', tokensRule: RULES.tokens, channels: { x: { total: { cost: 1, ms: 1000, turns: 1, rows: 1, put: 1 }, rows: [{ meter: m.meter }] } } }
+  assert.deepEqual(compareOf(A, B).rows[0].rules, ['토큰 · 차례'])
+  // modelUsage 가 usage 와 같으면(다시 시도 · 보조 모델 없음) 규칙이 달라도 그 채널에는 걸리지 않는다
+  const same = meterRowOf({}, [{ run: 'c', cost: 0.1, turns: 1, tokens: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4 }, modelUsage: { s: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, cost: 0.1 } } }])
+  assert.deepEqual(compareOf(A, { ...B, channels: { x: { ...B.channels.x, rows: [{ meter: same.meter }] } } }).rows[0].rules, [])
+  // modelUsage 없는 옛 줄은 그대로 usage(H17)
+  assert.equal(meterRowOf({}, [{ run: 'd', cost: 0.1, turns: 1, tokens: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4 } }]).meter.tokensFrom, undefined)
+})
+
+test('T6 · T7 · T8: 코드는 앞 원인 · 뒤 원인 순으로 쌓이고 · 고쳐 받기 까닭이 결과 행에 · 문서마다 연 동작 내역의 비용을 더한다', () => {
+  // T6 — 거절(PERM_DENIED)을 input.json 없음(NO_INPUT)이 덮지 않는다
+  const out = { put: false, codes: ['PERM_DENIED'], why: ['거절 1'] }
+  const r = withCodes(out, ['NO_INPUT'], ['세션이 input.json 을 쓰지 않았다'])
+  assert.deepEqual(r.codes, ['PERM_DENIED', 'NO_INPUT'])
+  assert.deepEqual(r.why, ['거절 1', '세션이 input.json 을 쓰지 않았다'])
+  assert.deepEqual(withCodes({}, ['PUT']).codes, ['PUT'])
+  assert.deepEqual(withCodes({ codes: ['PUT'] }, ['PUT']).codes, ['PUT'], '같은 코드는 한 번')
+  assert.deepEqual(out.codes, ['PERM_DENIED'], '원본은 그대로')
+  // T7 — 스키마 일감(shape-plan)의 일꾼 로그 까닭 · 세션 들이기의 걸린 저장 줄 코드
+  const f = fixOf([{ err: 'unattended', code: ['pair', 'gist'], fix: 1 }, { err: null, put: 2, fix: 1 }], ['kn: 원천: 초안 · 40초', 'kn: 원천: 검사에 걸렸다 · 고쳐 쓴다(docs[1].items[2]: 머리 「X: X」 꼴 · 재료 3 이 어느 문서에도 없다)', 'kn: 원천: 넣음 3'])
+  assert.equal(f.fix, 2)
+  assert.deepEqual(f.fixWhy, ['docs[1].items[2]: 머리 「X: X」 꼴 · 재료 3 이 어느 문서에도 없다', 'pair · gist'])
+  assert.equal(fixOf([], []).fixWhy, undefined, '고쳐 받기가 없으면 칸도 없다')
+  // T8 — 글 짓기는 문서마다 동작 내역을 새로 연다: 끝에 한 번 읽은 마지막 문서 몫(0.0576)이 아니라 문서마다 더한다
+  assert.equal(feedDocsCost([{ feedCost: 0.0712 }, { feedCost: 0.0806 }, { feedCost: 0.0576 }]), 0.2094)
+  assert.equal(feedDocsCost([]), 0)
 })
