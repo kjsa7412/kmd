@@ -72,7 +72,10 @@ test('세션이 끝내 못 넣으면 지식에 아무것도 쓰지 않고 일감
   assert.equal(commits(), c0, '지식에는 아무것도 쓰지 않았다')
   assert.ok(!fs.existsSync(path.join(KD(), 'docs', '들인 자료')), '원문을 그대로 옮긴 문서(들인 자료)는 생기지 않는다')
   // 측정 줄 — 실패마다 한 줄 · 같은 까닭이 세 번이면 fail.same
-  const lines = fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'savelog', 'dpms.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((l) => l.job === o.job)
+  const all = fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'savelog', 'dpms.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((l) => l.job === o.job)
+  const lines = all.filter((l) => l.stage !== 'cost')
+  // 비용 줄(P12) — 세션마다 한 줄(돈은 일꾼이 알린 값 · 부름 1)
+  assert.deepEqual(all.filter((l) => l.stage === 'cost').map((l) => [l.ch, l.cost.calls]), [1, 2, 3, 4].map(() => ['intake-file', 1]))
   assert.deepEqual(lines.map((l) => [l.fail.n, l.fail.code, l.fail.final, !!l.fail.same]), [[1, 'nosave', false, false], [2, 'nosave', false, false], [3, 'nosave', false, true], [4, 'nosave', true, true]])
   // 실패 일감은 일꾼에게 다시 가지 않는다
   assert.equal(await work(), null)

@@ -5,6 +5,9 @@
 //   허락      --permission-mode dontAsk + --allowedTools mcp__kmd — 읽기는 일 폴더 안만(기본) · 그 밖은 묻지 않고 거절(쓰기 · 셸 · 웹 없음)
 //   연결      init 에 kmd 가 connected 가 아니면 끊고 다시 띄운다(세 번까지 — 도구 없이 헤매지 않게)
 //   일 순서   --append-system-prompt-file 에 스킬(agent/skills/kmd-build) · 일 설명은 표준 입력
+//   캐시      system 글(생성 룰 · 스킬 · 작성 가이드)은 일감마다 글자까지 같고 바뀌는 것(일 설명 · 원천)은 표준 입력으로만 간다(C1).
+//             Claude Code 는 system 글 머리(환경 칸)에 일 폴더 경로를 싣는다: 일 폴더도 고정 이름 자리(kmd-agent-w0 ~ w7)를 잡아 써서
+//             그 뒤의 append 글이 프로세스를 넘어 캐시에서 읽히게 한다(다 찼으면 임시 이름 · 캐시만 놓친다)
 //   줄        stream-json 한 줄마다 터미널 줄(말 · 도구 · 결과 · 비용)로 바꿔 onLine 에 준다
 // 환경변수는 허용 목록만(claude.js 와 같다). 시험은 KMD_CLAUDE_AGENT 에 가짜(node 스크립트)를 준다 —
 // KMD_CLAUDE(한 번 부르기 가짜)만 있으면 에이전트는 없는 것으로 본다(시험이 세션 길을 막을 때).
@@ -15,6 +18,26 @@ import os from 'node:os'
 import path from 'node:path'
 import { ENV_ALLOW } from './claude.js'
 import { modelArgs } from './models.js'
+
+// 일 폴더 자리(C1) — mkdir 이 잡기다(한 PC 의 개인 프로그램 · 팀 일꾼이 같이 써도 겹치지 않는다) · 끝나면 지워 놓아 준다.
+//   넘어진 프로세스가 남긴 자리는 stale 이 지나면 걷고 잡는다 · KMD_AGENT_ROOT 는 시험이 자리를 따로 둘 때
+export const AGENT_SLOTS = 8
+export function agentWorkDir({ staleMs = 3 * 3600_000 } = {}) {
+  const base = process.env.KMD_AGENT_ROOT || os.tmpdir()
+  for (let i = 0; i < AGENT_SLOTS; i++) {
+    const d = path.join(base, `kmd-agent-w${i}`)
+    try { fs.mkdirSync(d); return d } catch (e) {
+      if (e.code !== 'EEXIST') break
+      try {
+        if (Date.now() - fs.statSync(d).mtimeMs <= staleMs) continue
+        fs.rmSync(d, { recursive: true, force: true })
+        fs.mkdirSync(d)
+        return d
+      } catch { continue }
+    }
+  }
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-agent-'))
+}
 
 export function agentAvailable() {
   return !!process.env.KMD_CLAUDE_AGENT || !process.env.KMD_CLAUDE
@@ -50,7 +73,7 @@ function resultLine(c) {
 //   mcp: { url, token } 이 없으면 MCP 없이(바꾸기만) · files: 일 폴더에 둘 파일 [{ name, data }]
 //   signal — 그만두기(일 줄). 끊기면 Claude Code 를 나무째 끄고 { ok: false, error: 'cancel' }
 export async function runAgent({ prompt, system = '', files = [], mcp = null, budget = 2, timeoutMs = 20 * 60_000, model = '', onLine = () => {}, signal = null }) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-agent-'))
+  const dir = agentWorkDir({ staleMs: Math.max(3 * 3600_000, timeoutMs * 3) })
   const cfgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-agent-cfg-')) // 단기 열쇠 · 스킬 — 일 폴더 밖(에이전트가 읽는 자리가 아니다)
   const t0 = Date.now()
   const line = (k, x) => onLine({ t: Date.now() - t0, k, x })
@@ -81,11 +104,15 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
     // kmd 연결(MCP) 판정 — init 의 상태가 failed 같은 끝난 실패면 곧바로 끊고 다시 띄운다(세 번까지).
     //   「pending」(붙는 중)은 끊지 않는다: 새 판 Claude Code(2.1.19x)는 MCP 를 뒤에서 붙이며 init 에 늘 pending 으로 알린다(2026-11-17 · 188 에서 세션이 모두 여기서 끊겼다).
     //   pending 으로 시작한 세션은 끝까지 두고, kmd 도구를 한 번도 못 쓴 채 끝났을 때만 못 붙은 것으로 보고 다시 띄운다
+    //   다시 띄운 프로세스가 쓴 돈도 센다(P12 · 앞 프로세스 몫을 더한다)
+    let before = 0
+    const plus = (r) => (before ? { ...r, cost: (r.cost || 0) + before } : r)
     for (let attempt = 1; ; attempt++) {
-      if (signal?.aborted) return { ok: false, error: 'cancel', message: '그만뒀다' }
+      if (signal?.aborted) return plus({ ok: false, error: 'cancel', message: '그만뒀다' })
       const r = await once()
-      if (!r.mcpDown || signal?.aborted) return r.mcpDown ? { ok: false, error: 'cancel', message: '그만뒀다' } : r
-      if (attempt >= 3) { line('err', 'kmd 연결이 서지 않았다. 세 번 띄워도 · 일감이 다시 시도한다'); return { ok: false, error: 'fail', message: 'kmd MCP 가 이어지지 않았다' } }
+      if (!r.mcpDown || signal?.aborted) return plus(r.mcpDown ? { ok: false, error: 'cancel', message: '그만뒀다', cost: r.cost || 0 } : r)
+      before += r.cost || 0
+      if (attempt >= 3) { line('err', 'kmd 연결이 서지 않았다. 세 번 띄워도 · 일감이 다시 시도한다'); return { ok: false, error: 'fail', message: 'kmd MCP 가 이어지지 않았다', cost: before } }
       line('sys', `kmd 연결이 아직 서지 않았다. 끊고 다시 띄운다(${attempt + 1}번째)`)
       await new Promise((ok) => setTimeout(ok, 3000 * attempt))
     }
@@ -128,16 +155,16 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       p.on('close', (code) => {
         clearTimeout(kill)
         signal?.removeEventListener('abort', onAbort)
-        if (signal?.aborted) { resolve({ ok: false, error: 'cancel', message: '그만뒀다', cost: last?.total_cost_usd || 0 }); return }
-        if (mcpDown) { resolve({ mcpDown: true }); return }
+        if (signal?.aborted) { resolve({ ok: false, error: 'cancel', message: '그만뒀다', cost: last?.total_cost_usd || 0, turns: last?.num_turns || 0 }); return }
+        if (mcpDown) { resolve({ mcpDown: true, cost: last?.total_cost_usd || 0 }); return }
         if (buf.trim()) eat(buf)
         // 붙는 중으로 시작해 kmd 도구를 한 번도 못 쓰고 끝났다 — 연결이 서지 않은 것으로 보고 다시 띄운다(로그인 · 한도 오류는 아래에서 그대로 가른다)
-        if (mcp && mcpPending && !mcpUsed && last && !last.is_error && !code) { line('err', 'kmd 연결이 붙지 않은 채 끝났다'); resolve({ mcpDown: true }); return }
+        if (mcp && mcpPending && !mcpUsed && last && !last.is_error && !code) { line('err', 'kmd 연결이 붙지 않은 채 끝났다'); resolve({ mcpDown: true, cost: last.total_cost_usd || 0 }); return }
         const text = `${last?.result || ''} ${se}`
         if (!last || last.is_error || code) {
           const error = /login|log in|api key|auth|unauthori|credential|401/i.test(text) ? 'login' : /limit|quota|rate|usage|budget|429/i.test(text) ? 'limit' : 'fail'
           line('err', error === 'login' ? 'Claude 로그인이 없다. 머리의 「Claude」 에서 로그인' : error === 'limit' ? 'Claude 한도 · 예산에 닿았다' : `Claude 가 끝을 내지 못했다: ${short(text.trim() || '종료 ' + code, 160)}`)
-          resolve({ ok: false, error, message: text.trim().slice(0, 300), cost: last?.total_cost_usd || 0 })
+          resolve({ ok: false, error, message: text.trim().slice(0, 300), cost: last?.total_cost_usd || 0, turns: last?.num_turns || 0 })
           return
         }
         line('cost', `끝: ${last.num_turns ?? '?'} 차례 · $${(last.total_cost_usd || 0).toFixed(3)} · ${Math.round((Date.now() - t0) / 1000)}초`)

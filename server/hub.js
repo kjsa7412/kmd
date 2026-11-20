@@ -721,6 +721,13 @@ ${genRulesBlock({ profile: 'shape' })}`
       await fs.appendFile(f, JSON.stringify(line) + '\n')
     })
   }
+  // 비용 줄(채널 평가 P12) — Claude 를 부른 일의 돈 · 부름 수 · 차례. 세션 · 부름이 끝나야 알므로 저장 줄과 따로 한 줄(stage cost).
+  //   저장으로 세지 않는다(put 0 · mode 없음 · 지표 · 채널 셈은 stage cost 를 비용에만 더한다). 커밋 뒤라 던지지 않는다
+  async function costLine(id, { ch, usd = 0, calls = 0, ...rest }) {
+    const u = Number(usd) || 0
+    if (!(u > 0) && !(calls > 0)) return
+    try { await savelog(id, { at: new Date().toISOString(), ch, stage: 'cost', rec: null, n: 0, put: 0, err: null, cost: { usd: Math.round(u * 1e4) / 1e4, calls: Number(calls) || 0 }, ...rest }) } catch (e) { log(`비용 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+  }
   // 되돌림 — 그 문서에서 7일 안에 되돌린 수(줄 안에서 새로 읽은 지식으로)
   const revertsIn = (k, doc) => revertsOfDoc(k, doc)
   // 글 걸음 하나의 재료(바탕 세우기 설계 4-3 · 4-5) — 기록(제목 · 본문 · touches · fixes) · prepare(줄 안에서 새로 읽은 지식으로 항목 글 · 걷을 출처 · 문서 장부 줄 · 요약).
@@ -796,6 +803,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       const prompt = plan ? (prev ? shapePlanFixPromptOf(sg.g, prev, fixWhy) : shapePlanPromptOf(sg.g)) : prev ? shapeWriteFixPromptOf(sg.g, prev, fixWhy, { writeRules: WRITE_RULES }) : shapeWritePromptOf(sg.g, { writeRules: WRITE_RULES })
       const r = await runClaude({ prompt: `${prompt}\n\n아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):\n${genRulesBlock({ profile: 'shape' })}`, schema: plan ? SHAPE_PLAN_SCHEMA : SHAPE_WRITE_SCHEMA, budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, model: hub.modelOf('ingest'), timeoutMs: 600_000 })
       a.tries = n + 1
+      a.cost = (a.cost || 0) + (Number(r.cost) || 0)
+      a.calls = (a.calls || 0) + 1
       if (!r.error) await hub.workerStatus({ worker: { id: null } }, { ok: true }).catch((e) => log('Claude 상태', e.message))
       if (a.state !== 'running') return a // 그만뒀다 — 받은 초안은 버린다
       if (r.error) {
@@ -922,7 +931,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       async ask(msg) {
         if (first == null) first = msg
         for (;;) {
-          if (!s) s = await make()
+          if (!s) { s = await make(); (run.made ||= []).push(s) }
           const r = await s.ask(msg)
           if (r.error !== 'limit' || run.state !== 'running') return r
           const dead = s
@@ -935,6 +944,12 @@ ${genRulesBlock({ profile: 'shape' })}`
       end() { return s ? s.end() : Promise.resolve() },
       kill(why) { if (s) s.kill(why) },
     }
+  }
+  // 기초 세우기 일의 세션 비용(P12) — 그 일이 띄운 세션 모두(한도로 다시 띄운 것까지) · 일이 끝날 때 한 줄
+  const seedCostLine = (id, run) => {
+    const made = (run.made || []).filter((x) => x.started)
+    run.made = []
+    return costLine(id, { ch: 'shape', kind: run.kind === 'plan' ? 'seed-plan' : 'seed-write', by: run.by || null, usd: made.reduce((a, x) => a + (Number(x.cost) || 0), 0), calls: made.length, turns: made.reduce((a, x) => a + (Number(x.turns) || 0), 0) })
   }
   const SEED_SESSION_BUDGET = () => (Number(process.env.KMD_SEED_BUDGET) > 0 ? Number(process.env.KMD_SEED_BUDGET) : 5)
   // 세션 폴더 — 재료.tsv · md/<16자>.md(쓰는 재료의 사본) · cards/<16자>.json(카드가 있으면). 꾸러미 · 장부 · 지식 폴더는 넣지 않는다
@@ -1090,6 +1105,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       run.kill = null
       await Promise.all([...sessions].map((s) => s.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message))))
       if (run.state === 'cancelled') say('그만뒀다', 'warn')
+      await seedCostLine(id, run)
       for (const d of dirs) await fs.rm(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch((e) => log('기초 세우기 세션 폴더 지우기', d, e.message))
     }
   }
@@ -1336,6 +1352,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const mine = (t) => t.state === 'run' && t.rid === run.rid
       await hub.seedEdit(id, run.work, (w0) => (Object.values(w0.seed.texts || {}).some(mine) ? { ...w0, seed: { ...w0.seed, texts: Object.fromEntries(Object.entries(w0.seed.texts).map(([d, t]) => [d, mine(t) ? { ...t, state: 'wait' } : t])) } } : undefined)).catch((e) => log('기초 세우기: 짓는 중 표시를 걷지 못했다', id, e.message))
       if (run.state === 'running') Object.assign(run, end || { state: 'fail', why: '짓지 못했다' })
+      await seedCostLine(id, run)
     }
   }
   // 팀 일꾼 초안 끝(intakeDone) — 결과는 파일로(장부를 무겁게 하지 않는다) · 일감은 닫는다(쓰는 것 없음)
@@ -1964,6 +1981,8 @@ ${genRulesBlock({ profile: 'shape' })}`
   const INTAKE_FAIL = new Set(['login', 'limit', 'missing', 'budget', 'timeout', 'fail', 'shape'])
   // 들이기 일감의 보이는 이름(일 줄 · 지금 하는 일)
   const INTAKE_TITLE = { file: '들이기', commit: '들이기', polish: '다듬기', 'shape-plan': 'Claude 구조안', 'shape-write': 'Claude 짓기' }
+  // 들이기 세션의 모델 자리(C4) — 커밋 들이기는 따로 둔 자리(agentCommit · 처음 값은 agent 와 같은 sonnet · 다시 재기에서 판정)
+  const agentRole = (j) => (j?.type === 'commit' ? 'agentCommit' : 'agent')
   const intakeChannel = (j) => (j.type === 'polish' ? 'polish' : j.auto || j.type === 'commit' ? 'intake-src' : 'intake-file')
   // 저장 문이 붙이는 예약 태그(S-D43) — intake 는 core 가 늘 붙인다
   const intakeTagsOf = (j) => [`job/${j.id}`, ...(j.type === 'commit' ? ['code-change'] : []), ...(j.type === 'polish' ? ['polish'] : [])]
@@ -2022,6 +2041,8 @@ ${genRulesBlock({ profile: 'shape' })}`
     const ctx = hub.intakeCtx(j)
     const g = polishG(k, j, { seen: j.seen })
     const close = async (why, r = null) => {
+      // 넣지 않고 닫는 다듬기(고칠 것이 없다 · 모두 뺌 · 검사 실패)도 쓴 돈은 남긴다(P12 · 넣은 다듬기는 저장 줄의 cost 에)
+      if (!r) { const c = costOf(j); if (c) await costLine(id, { ch: 'polish', by: j.by, job: j.id, usd: c.usd, calls: c.calls }) }
       await intakeClose(j, { rec: r?.id || null, put: r?.put ?? 0, same: !!r?.same, docs: (r?.putRows || []).map((x) => `${String(x.doc || '').replace(/^docs\/|\.md$/g, '')} › ${x.heading}`), why })
       return { ok: true, rec: r?.id || null, put: r?.put ?? 0, ...(why ? { why } : {}) }
     }
@@ -2150,13 +2171,17 @@ ${genRulesBlock({ profile: 'shape' })}`
     const token = hub.agentToken(id, null, run?.id || null, it)
     let r
     try {
-      r = await runAgent({ ...(await hub.agentTask(meta, w, original)), mcp: { url: `${hub.selfUrl}/mcp`, token }, budget: 3, model: hub.modelOf('agent'), ...(run ? { onLine: (l) => hub.runLine(run, l.k, l.x), signal: Q.signal(run) } : {}) })
+      r = await runAgent({ ...(await hub.agentTask(meta, w, original)), mcp: { url: `${hub.selfUrl}/mcp`, token }, budget: 3, model: hub.modelOf(agentRole(j)), ...(run ? { onLine: (l) => hub.runLine(run, l.k, l.x), signal: Q.signal(run) } : {}) })
     } finally {
       agentKeys.delete(token)
       it.done = true
       // 끝나는 사이 돌던 저장(그만두기 · 시간 초과)까지 기다린다 — 커밋된 것을 「쓰지 않았다」 로 보이지 않게
       await it.chain.catch((e) => log('넣기 에이전트 저장', id, e.message))
     }
+    // 세션 비용(P12) — 저장 줄은 세션이 끝나기 전에 서므로 끝난 뒤 따로 한 줄(일감 id 로 잇는다)
+    j.cost = (j.cost || 0) + (Number(r.cost) || 0)
+    j.calls = (j.calls || 0) + 1
+    await costLine(id, { ch: intakeChannel(j), by: j.by, job: j.id, usd: r.cost, calls: 1, turns: r.turns || 0, ok: !!r.ok })
     if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
     else if (r.ok) await hub.workerStatus({ worker: { id: null } }, { ok: true })
     if (it.r) return { r: it.r, attached: it.attached }
@@ -3091,7 +3116,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       if ([...shapeAsks.values()].filter((a0) => a0.busy).length >= 4) throw new KmdError('E_RATE', 'Claude 짜임 일이 넷 돌고 있다. 끝난 뒤에 다시 건다', { details: { retryAfter: 30 } })
       const a = { id: crypto.randomBytes(6).toString('hex'), kn: id, type, by: ctx.user, state: 'running', at: new Date().toISOString(), tries: 0, busy: true }
       shapeAsks.set(a.id, a)
-      pcShapeRun(a, input).catch((e) => { log('Claude 짜임', a.id, e.message); if (a.state === 'running') Object.assign(a, { state: 'fail', why: e.message }) }).finally(() => { a.busy = false })
+      pcShapeRun(a, input).catch((e) => { log('Claude 짜임', a.id, e.message); if (a.state === 'running') Object.assign(a, { state: 'fail', why: e.message }) }).finally(() => { a.busy = false; return costLine(id, { ch: 'shape', kind: type, by: ctx.user, job: a.id, usd: a.cost, calls: a.calls }) })
       return { job: a.id, state: 'running' }
     },
     // 일 하나 — { job, type, state: queued | running | done | fail | cancelled, result?, why?, stepFail?, old? } · 그 지식의 지식관리자만
@@ -5348,7 +5373,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (extra.length) task.prompt = `${task.prompt}\n${extra.join('\n')}`
       j.calls = (j.calls || 0) + 1
       saveJobs()
-      return { token, prompt: task.prompt, system: task.system, files: task.files.map((f) => ({ name: f.name, b64: Buffer.from(f.data).toString('base64') })), budget: AGENT_BUDGET, minutes: 20, rulesRev: GEN_RULES_REV }
+      return { token, prompt: task.prompt, system: task.system, files: task.files.map((f) => ({ name: f.name, b64: Buffer.from(f.data).toString('base64') })), budget: AGENT_BUDGET, minutes: 20, rulesRev: GEN_RULES_REV, role: agentRole(j) }
     },
     // 세션 끝 — 세션이 저장했으면 그 저장으로 일감을 닫는다 · 로그인 · 한도 · claude 없음은 세지 않고 다시 대기 · 그 밖에 못 넣었으면 아무것도 쓰지 않고 다시 시도(H-D30)
     async intakeSessionDone(dctx, id, body = {}) {
@@ -5364,6 +5389,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       const it = s?.it || null
       const usd = Number(body?.cost)
       if (usd > 0 && usd < 100) j.cost = (j.cost || 0) + usd
+      // 세션 비용(P12) — 일꾼이 알린 이 세션의 돈 · 저장 줄은 세션 안에서 섰다(일감 id 로 잇는다)
+      await costLine(id, { ch: intakeChannel(j), by: j.by, job: j.id, usd: usd > 0 && usd < 100 ? usd : 0, calls: 1, ok: body?.ok === true })
       if (it?.r) return unattendedFinish(j, it.r)
       // 사람이 올린 「넣을 것」(H6) — 세션이 지은 저장 제안을 세워 두고 사람의 승인을 기다린다(지식에는 아직 아무것도 쓰지 않았다)
       if (it?.pending?.length && !j.stop) {
@@ -5439,7 +5466,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       const bin = await fs.readFile(binOf(j.id)).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
       cache.delete(id)
       const k = await hub.get(id)
-      if (SHAPE_T.has(j.type)) return shapeJobDone(j, id, k, md, body, last)
+      // 짜임 일감은 저장 줄에 비용을 싣지 않는다(넣기는 사람이 따로) — 부름마다 한 줄(P12)
+      if (SHAPE_T.has(j.type)) { await costLine(id, { ch: 'shape', kind: j.type, by: j.by, job: j.id, usd: usd > 0 && usd < 100 ? usd : 0, calls: 1 }); return shapeJobDone(j, id, k, md, body, last) }
       if (j.type === 'polish') return polishDone(j, id, k, body, last)
       // 파일 · 커밋 들이기는 세션이 팀 MCP 로 저장하고 세션 끝(done { session })으로 닫는다(H4a-2 · 초안을 받아 서버가 넣던 길은 걷었다)
       throw new KmdError('E_INPUT', '이 일감은 세션으로 짓는다: 팀 일꾼을 새 판으로 올린다')

@@ -84,7 +84,7 @@ export async function sessionOnce({ server, key, job, dkey, log = () => {}, mode
   let r
   const t0 = Date.now()
   try {
-    r = await runAgent({ prompt: t.prompt, system: t.system, files: (t.files || []).map((f) => ({ name: f.name, data: Buffer.from(String(f.b64 || ''), 'base64') })), mcp: { url: `${String(server).replace(/\/+$/, '')}/mcp`, token: t.token }, budget: Number(t.budget) > 0 ? Number(t.budget) : 3, timeoutMs: (Number(t.minutes) > 0 ? Number(t.minutes) : 20) * 60_000, model: modelOf('agent', models), onLine: (l) => { tick(); if (process.env.KMD_WORKER_VERBOSE) log(`  ${l.k} ${String(l.x).slice(0, 600)}`) }, signal: ac.signal })
+    r = await runAgent({ prompt: t.prompt, system: t.system, files: (t.files || []).map((f) => ({ name: f.name, data: Buffer.from(String(f.b64 || ''), 'base64') })), mcp: { url: `${String(server).replace(/\/+$/, '')}/mcp`, token: t.token }, budget: Number(t.budget) > 0 ? Number(t.budget) : 3, timeoutMs: (Number(t.minutes) > 0 ? Number(t.minutes) : 20) * 60_000, model: modelOf(t.role === 'agentCommit' ? 'agentCommit' : 'agent', models), onLine: (l) => { tick(); if (process.env.KMD_WORKER_VERBOSE) log(`  ${l.k} ${String(l.x).slice(0, 600)}`) }, signal: ac.signal })
   } finally {
     gate.give()
     clearInterval(watch)

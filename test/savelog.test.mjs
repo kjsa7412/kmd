@@ -134,3 +134,20 @@ test('지표 칸(P-D37 · P10): 무인 값 경고 · 고쳐 받기 · 다시 대
   const r = await readKnLines(data, 'dpms', '2026-11-11')
   assert.deepEqual([r.lines.length, r.broken], [4, 1])
 })
+
+test('비용 줄(stage cost · 채널 평가 P12): 채널 비용 · 부름에 더하고 저장 · 지표로 세지 않는다', async () => {
+  const { metricsOf } = await import('../core/metrics.js')
+  const lines = [
+    { at: '2026-11-20 10:00', kn: 'apv', by: 'kmd', ch: 'intake-file', job: 'j1', rec: 'w1', n: 1, put: 1, mode: 'approve', warned: [], cost: null, ms: 10 },
+    { at: '2026-11-20 10:01', kn: 'apv', by: 'kmd', ch: 'intake-file', job: 'j1', stage: 'cost', rec: null, n: 0, put: 0, err: null, cost: { usd: 0.31, calls: 1 }, turns: 6 },
+    { at: '2026-11-20 10:02', kn: 'apv', by: 'kim', ch: 'polish', job: 'j2', stage: 'cost', rec: null, n: 0, put: 0, err: null, cost: { usd: 0.24, calls: 1 } },
+    { at: '2026-11-20 10:03', kn: 'apv', user: 'kim', ch: 'send', stage: 'cost', cost: 0.1, calls: 2 },
+  ]
+  const s = summarize(lines)
+  const ch = (x) => s.channels.find((c) => c.ch === x)
+  assert.deepEqual([ch('intake-file').saves, ch('intake-file').put, ch('intake-file').cost.usd, ch('intake-file').cost.calls], [1, 1, 0.31, 1])
+  assert.deepEqual([ch('polish').saves, ch('polish').cost.usd], [0, 0.24])
+  assert.deepEqual([ch('send').cost.usd, ch('send').cost.calls], [0.1, 2], '옛 꼴(cost 수 · calls 칸)도 읽는다')
+  const m = metricsOf(lines, { days: 14, now: new Date('2026-11-21T12:00:00') })
+  assert.equal(m.saves, 1, '지표는 저장 줄만')
+})

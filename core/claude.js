@@ -13,7 +13,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { modelArgs } from './models.js'
 
-export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'TEMP', 'TMP', 'LANG', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'FAKE_CLAUDE_MODE', 'FAKE_CLAUDE_LOG', 'FAKE_CLAUDE_MCP_LOG', 'FAKE_CLAUDE_READ', 'FAKE_CLAUDE_SPANS', 'FAKE_CLAUDE_STREAM_MS', 'FAKE_CLAUDE_LIMIT_FILE', 'FAKE_AGENT_MODE', 'FAKE_AGENT_WAIT_MS', 'FAKE_AGENT_SCRIPT', 'FAKE_AGENT_LOG']
+export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'TEMP', 'TMP', 'LANG', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'FAKE_CLAUDE_MODE', 'FAKE_CLAUDE_LOG', 'FAKE_CLAUDE_MCP_LOG', 'FAKE_CLAUDE_READ', 'FAKE_CLAUDE_SPANS', 'FAKE_CLAUDE_STREAM_MS', 'FAKE_CLAUDE_LIMIT_FILE', 'FAKE_AGENT_MODE', 'FAKE_AGENT_WAIT_MS', 'FAKE_AGENT_SCRIPT', 'FAKE_AGENT_LOG', 'FAKE_AGENT_SYS']
 
 // model — 별칭(haiku · sonnet · opus) · 비면 그 PC 의 기본 모델(core/models.js)
 // onTick({ out, think, ms }) — 흘려 받기(stream-json): 쓴 글(답 · 스키마 답) · 생각 글자 수와 지난 시간을 tickMs 마다 한 번(끝날 때만 답하던 json 은 몇 분씩 소식이 없었다)
@@ -152,6 +152,8 @@ export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], b
   let idle = null
   let all = null
   let closed = Promise.resolve()
+  // 쓴 돈 · 차례(P12) — stream-json 입력 세션의 result 는 그 프로세스의 쌓인 값이다: 마지막 것을 쥔다(부르는 쪽이 측정 줄에)
+  let spent = { cost: 0, turns: 0 }
   const t0 = Date.now()
   const finish = (r) => { const w = wait; wait = null; if (w) w.ok(r) }
   const stop = (why) => { if (ended) return; ended = why; try { p.kill() } catch {} }
@@ -161,7 +163,10 @@ export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], b
     let j
     try { j = JSON.parse(l) } catch { return }
     for (const e of streamEvents(j)) emit(e)
-    if (j.type === 'result') finish(parse({ code: 0, so: l, se: '' }))
+    if (j.type === 'result') {
+      spent = { cost: Number(j.total_cost_usd) || spent.cost, turns: Number(j.num_turns) || spent.turns }
+      finish(parse({ code: 0, so: l, se: '' }))
+    }
   }
   const start = () => {
     p = spawn(cmd, quoted, { cwd, env, windowsHide: true, ...opt })
@@ -190,6 +195,9 @@ export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], b
   }
   return {
     get ms() { return Date.now() - t0 },
+    get cost() { return spent.cost },
+    get turns() { return spent.turns },
+    get started() { return !!p },
     ask(text) {
       if (ended) return Promise.resolve({ error: 'fail', message: ended })
       if (!p) start()

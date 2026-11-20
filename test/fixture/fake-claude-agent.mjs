@@ -4,6 +4,7 @@
 // MCP 가 있으면(들이기) 일 폴더의 md 를 읽어 kmd MCP 를 진짜 HTTP 로 부른다:
 //   brief → save(회의록 › 「2026-10-21 HNC 통화」 + 장부 항목 term:펄스명령) — 줄마다 stream-json 을 낸다
 //   FAKE_AGENT_SCRIPT=<mjs> → 시험이 준 대본대로 한다(아래 본문 참고)
+//   FAKE_AGENT_SYS=<파일> → 받은 system 글(--append-system-prompt-file) · 일 폴더(cwd) · 일 설명(표준 입력)을 한 줄 JSON 으로 덧붙인다(캐시 자리 시험 · C1)
 //   FAKE_AGENT_MODE=other → 다른 지식에 save 를 해 본다(거절돼야 한다) · =idle → 아무것도 넣지 않고 끝낸다
 // MCP 가 없으면(바꾸기) 「원본/…」 을 읽은 것처럼 md 글 하나를 답한다.
 
@@ -20,6 +21,7 @@ process.stdin.on('data', (c) => (prompt += c))
 process.stdin.on('end', async () => {
   const ok = args.includes('-p') && val('--output-format') === 'stream-json' && val('--tools') === 'Read,Glob,Grep' && val('--permission-mode') === 'dontAsk' && args.includes('--strict-mcp-config') && fs.existsSync(val('--mcp-config')) && fs.existsSync(val('--append-system-prompt-file'))
   if (!ok) return end({ is_error: true, subtype: 'error', result: '가짜 에이전트: 도구 · 허락 · 설정을 지키지 않았다' })
+  if (process.env.FAKE_AGENT_SYS) fs.appendFileSync(process.env.FAKE_AGENT_SYS, JSON.stringify({ system: fs.readFileSync(val('--append-system-prompt-file'), 'utf8'), cwd: process.cwd(), prompt, model: args.includes('--model') ? val('--model') : '' }) + '\n')
   const cfg = JSON.parse(fs.readFileSync(val('--mcp-config'), 'utf8')).mcpServers.kmd
   out({ type: 'system', subtype: 'init', model: args.includes('--model') ? `fake-agent(${val('--model')})` : 'fake-agent', mcp_servers: cfg ? [{ name: 'kmd', status: process.env.FAKE_AGENT_MODE === 'pending' || process.env.FAKE_AGENT_MODE === 'pending-idle' ? 'pending' : 'connected' }] : [] })
   if (!cfg) {

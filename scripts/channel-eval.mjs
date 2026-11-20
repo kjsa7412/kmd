@@ -357,16 +357,17 @@ async function measure(E, t, meta, fn) {
   }
   if (!row.ms) row.ms = Date.now() - t0
   row.wallMs = Date.now() - t0
-  // savelog — 이 건이 쓴 줄(저장 제안 줄 stage:'propose' 은 채널 판정에서 뺀다)
+  // savelog — 이 건이 쓴 줄(저장 제안 줄 stage:'propose' · 비용 줄 stage:'cost'(P12) 은 채널 판정에서 뺀다 · 비용 줄은 cost 에만 더한다)
   const sl = slFile ? readJsonl(slFile).slice(sl0) : []
-  const saves = sl.filter((l) => l.stage !== 'propose')
+  const saves = sl.filter((l) => l.stage !== 'propose' && l.stage !== 'cost')
+  const costLines = sl.filter((l) => l.stage === 'cost')
   const fx = fixOf(saves)
   row.savelog = {
-    lines: sl.length, saves: saves.length, proposeLines: sl.length - saves.length,
+    lines: sl.length, saves: saves.length, proposeLines: sl.length - saves.length - costLines.length, costLines: costLines.length,
     put: sum(saves.map((l) => l.put)), n: sum(saves.map((l) => l.n)), fixMax: Math.max(0, ...saves.map((l) => Number(l.fix) || 0)), fixTries: fx.fixTries,
     err: saves.map((l) => l.err).filter(Boolean), warned: [...new Set(saves.flatMap((l) => l.warned || []))], accepted: sum(saves.map((l) => (Array.isArray(l.accepted) ? l.accepted.length : l.accepted))),
     rounds: Math.max(0, ...saves.map((l) => Number(l.rounds) || 0)), fail: saves.map((l) => l.fail).filter(Boolean), dup: saves.filter((l) => l.dup).length,
-    ms: sum(saves.map((l) => l.ms)), cost: r4(sum(saves.map((l) => l.cost?.usd))), kit: [...new Set(saves.map((l) => l.kit).filter((x) => x != null))],
+    ms: sum(saves.map((l) => l.ms)), cost: r4(sum([...saves, ...costLines].map((l) => l.cost?.usd))), kit: [...new Set(saves.map((l) => l.kit).filter((x) => x != null))],
   }
   row.warned = row.savelog.warned.length
   row.accepted = row.savelog.accepted

@@ -292,3 +292,44 @@ test('개인 프로그램의 넣을 것: 올린 파일은 승인 대기로 선�
     assert.equal(count(), c1)
   } finally { process.env.KMD_UPLOAD_ASK = '0' }
 })
+
+// 채널 평가 C1 · P12 — system 글은 일감 사이에 글자까지 같고(바뀌는 것은 표준 입력의 일 설명뿐) · 일 폴더 자리도 같아 Claude Code 의 환경 칸이 바뀌지 않는다 ·
+//   세션이 끝나면 쓴 돈이 측정 줄(stage cost · 일감 id)에 남는다
+test('캐시 자리: 지식 · 파일 · 커밋이 달라도 system 글과 일 폴더는 같다 · 세션 비용은 측정 줄에', async () => {
+  const log = path.join(tmp, 'sys.jsonl')
+  const script = path.join(tmp, 'say.mjs')
+  fs.writeFileSync(script, "export default async () => '넣을 곳을 못 찾았다'\n")
+  const slots = path.join(tmp, 'slots')
+  fs.mkdirSync(slots, { recursive: true })
+  Object.assign(process.env, { FAKE_AGENT_SYS: log, FAKE_AGENT_SCRIPT: script, KMD_AGENT_ROOT: slots })
+  try {
+    await s.hub.addKnowledge(ME, { kind: 'new', name: '회의둘' })
+    for (const [kn, name] of [['회의', 'C1 캐시 하나.md'], ['회의둘', 'C1 캐시 둘.md']]) {
+      await s.hub.importFiles(ME, kn, [{ path: name, data: Buffer.from(HNC.replace('3초', `${name.length}초`)) }])
+      await s.hub.idle(kn)
+    }
+    const got = fs.readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l))
+    assert.equal(got.length, 2)
+    assert.ok(got[0].system.length > 5000, '생성 룰 · 스킬 · 작성 가이드')
+    assert.equal(got[1].system, got[0].system, 'system 글이 글자까지 같다')
+    assert.equal(got[1].cwd, got[0].cwd, '일 폴더 자리가 같다(환경 칸이 같다)')
+    assert.equal(path.basename(got[0].cwd), 'kmd-agent-w0')
+    assert.notEqual(got[1].prompt, got[0].prompt)
+    assert.match(got[1].prompt, /knowledge id: 회의둘\)/, '바뀌는 것은 일 설명(표준 입력)에')
+    assert.ok(!got[0].system.includes('회의둘') && !got[0].system.includes('C1 캐시'), 'system 에 지식 · 파일 이름이 없다')
+    // 커밋 들이기의 표도 같은 system
+    const t = await s.hub.agentTask(await s.hub.meta('회의둘'), { id: null, tags: ['code-change'], title: '수집 주기: gw abcdef1', author: 'kmd', date: '2026-11-20 10:00', body: '# x\n\n분석' })
+    assert.equal(t.system, got[0].system)
+    assert.ok(!fs.existsSync(got[0].cwd), '끝나면 자리를 비운다')
+    // 비용 줄 — 들이기마다 하나(ch · 일감 · 돈 · 부름) · 저장으로 세지 않는다
+    const find = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? find(path.join(d, e.name)) : e.name === `${encodeURIComponent('회의둘')}.jsonl` ? [path.join(d, e.name)] : []))
+    const f = find(path.join(tmp, 'kn')).find((x) => x.includes('savelog'))
+    const lines = fs.readFileSync(f, 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((x) => x.stage === 'cost')
+    assert.equal(lines.length, 1, JSON.stringify(lines))
+    assert.equal(lines[0].ch, 'intake-file')
+    assert.deepEqual(lines[0].cost, { usd: 0.01, calls: 1 })
+    assert.ok(lines[0].job && lines[0].put === 0 && !lines[0].mode)
+  } finally {
+    for (const k of ['FAKE_AGENT_SYS', 'FAKE_AGENT_SCRIPT', 'KMD_AGENT_ROOT']) delete process.env[k]
+  }
+})

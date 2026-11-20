@@ -98,6 +98,12 @@ export function summarize(lines) {
   const putIn = (x, coord) => (Array.isArray(x.ok) ? x.ok.includes(coord) : (x.put || 0) > 0 && !(x.stale || []).includes(coord))
   lines.forEach((x, i) => {
     const c = of(x.ch || '모름')
+    // 비용 줄(stage cost · 채널 평가 P12) — 세션 · 부름이 끝난 뒤의 돈 · 부름 수만 더한다(저장으로 세지 않는다)
+    if (x.stage === 'cost') {
+      const usd = typeof x.cost === 'number' ? x.cost : x.cost?.usd
+      if (Number.isFinite(usd)) { c.usd += usd; c.calls += Number(x.cost?.calls ?? x.calls) || 0 }
+      return
+    }
     const kit = x.kit == null ? '없음' : String(x.kit)
     c.kits[kit] = (c.kits[kit] || 0) + 1
     for (const w of Array.isArray(x.conflictWith) ? x.conflictWith : []) {
