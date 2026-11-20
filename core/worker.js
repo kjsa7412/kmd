@@ -16,7 +16,7 @@ import { genRulesBlock } from './genrules.js'
 import { INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, POLISH_SCHEMA, polishPromptOf } from './ingest.js'
 import { WRITE_RULES } from './writerules.js'
 import { SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SHAPE_CLAUDE_TYPES, SEED_PLAN_SCHEMA, seedPlanPromptOf, seedPlanFixPromptOf } from './shape.js'
-import { modelOf } from './models.js'
+import { modelOf, sessionRole } from './models.js'
 import { runAgent, agentAvailable } from './agent.js'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -84,7 +84,7 @@ export async function sessionOnce({ server, key, job, dkey, log = () => {}, mode
   let r
   const t0 = Date.now()
   try {
-    r = await runAgent({ prompt: t.prompt, system: t.system, files: (t.files || []).map((f) => ({ name: f.name, data: Buffer.from(String(f.b64 || ''), 'base64') })), mcp: { url: `${String(server).replace(/\/+$/, '')}/mcp`, token: t.token }, budget: Number(t.budget) > 0 ? Number(t.budget) : 3, timeoutMs: (Number(t.minutes) > 0 ? Number(t.minutes) : 20) * 60_000, model: modelOf(t.role === 'agentCommit' ? 'agentCommit' : 'agent', models), onLine: (l) => { tick(); if (process.env.KMD_WORKER_VERBOSE) log(`  ${l.k} ${String(l.x).slice(0, 600)}`) }, signal: ac.signal })
+    r = await runAgent({ prompt: t.prompt, system: t.system, files: (t.files || []).map((f) => ({ name: f.name, data: Buffer.from(String(f.b64 || ''), 'base64') })), mcp: { url: `${String(server).replace(/\/+$/, '')}/mcp`, token: t.token }, budget: Number(t.budget) > 0 ? Number(t.budget) : 3, timeoutMs: (Number(t.minutes) > 0 ? Number(t.minutes) : 20) * 60_000, model: modelOf(sessionRole(t.role), models), onLine: (l) => { tick(); if (process.env.KMD_WORKER_VERBOSE) log(`  ${l.k} ${String(l.x).slice(0, 600)}`) }, signal: ac.signal })
   } finally {
     gate.give()
     clearInterval(watch)

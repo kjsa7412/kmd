@@ -43,7 +43,7 @@ import { imagesOf } from '../core/ooxml.js'
 import { runAgent, agentAvailable } from '../core/agent.js'
 import { genRulesBlock, GEN_RULES_REV } from '../core/genrules.js'
 import { createQueue, Cancelled, isFinal, STAGES, STAGE_WRITE, STAGE_PUT } from '../core/queue.js'
-import { modelOf, ROLES, CHOICES } from '../core/models.js'
+import { modelOf, ROLES, CHOICES, sessionRole } from '../core/models.js'
 import { expandSections } from '../core/excerpt.js'
 import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
@@ -1982,7 +1982,7 @@ ${genRulesBlock({ profile: 'shape' })}`
   // 들이기 일감의 보이는 이름(일 줄 · 지금 하는 일)
   const INTAKE_TITLE = { file: '들이기', commit: '들이기', polish: '다듬기', 'shape-plan': 'Claude 구조안', 'shape-write': 'Claude 짓기' }
   // 들이기 세션의 모델 자리(C4) — 커밋 들이기는 따로 둔 자리(agentCommit · 처음 값은 agent 와 같은 sonnet · 다시 재기에서 판정)
-  const agentRole = (j) => (j?.type === 'commit' ? 'agentCommit' : 'agent')
+  const agentRole = sessionRole
   const intakeChannel = (j) => (j.type === 'polish' ? 'polish' : j.auto || j.type === 'commit' ? 'intake-src' : 'intake-file')
   // 저장 문이 붙이는 예약 태그(S-D43) — intake 는 core 가 늘 붙인다
   const intakeTagsOf = (j) => [`job/${j.id}`, ...(j.type === 'commit' ? ['code-change'] : []), ...(j.type === 'polish' ? ['polish'] : [])]

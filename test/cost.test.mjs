@@ -11,7 +11,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { modelOf, modelArgs, DEFAULT_MODELS, ROLES } from '../core/models.js'
+import { modelOf, modelArgs, DEFAULT_MODELS, ROLES, sessionRole } from '../core/models.js'
 import { runClaude, parse as parseClaude } from '../core/claude.js'
 import { runAgent } from '../core/agent.js'
 import zlib from 'node:zlib'
@@ -32,6 +32,18 @@ test('일마다 모델: 기본 배분 · 고른 값 · 「기본」 · 모르는
   assert.equal(modelOf('agent', { agent: 'opus' }), 'opus')
   assert.equal(modelOf('read', { read: '' }), '', '「기본」 은 그대로 빈 값')
   assert.equal(modelOf('read', { read: 'gpt-4' }), 'haiku', '모르는 값은 기본 배분으로')
+  // C4 agentCommit — 고르지 않았으면 그 PC 의 agent 값을 따른다(설정 화면에 줄이 없다)
+  assert.equal(modelOf('agentCommit', { agent: 'opus' }), 'opus', '커밋 들이기가 agent 에 고른 opus 를 따른다')
+  assert.equal(modelOf('agentCommit', { agent: '' }), '', '「기본」 도 물려받는다')
+  assert.equal(modelOf('agentCommit', { agent: 'opus', agentCommit: 'haiku' }), 'haiku', '따로 고르면 그 값')
+  assert.equal(modelOf('agentCommit'), 'sonnet')
+  // 세션 자리 — pcAgent(일감 type) · 일꾼(세션 표 role) 이 같은 셈
+  assert.equal(sessionRole({ type: 'commit' }), 'agentCommit')
+  assert.equal(sessionRole({ type: 'file' }), 'agent')
+  assert.equal(sessionRole('agentCommit'), 'agentCommit')
+  assert.equal(sessionRole('agent'), 'agent')
+  assert.equal(sessionRole(undefined), 'agent')
+  assert.equal(modelOf(sessionRole({ type: 'commit' }), { agent: 'opus' }), 'opus', 'pcAgent 커밋 들이기: agent 에 고른 값')
   assert.deepEqual(modelArgs('haiku'), ['--model', 'haiku'])
   assert.deepEqual(modelArgs(''), [])
 })

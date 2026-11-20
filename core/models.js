@@ -6,7 +6,7 @@
 //   ingest   들이기 초안 · 항목 글 초안(값 검사를 넘어야 한다)       다시 쓰기 — sonnet
 //   commit   커밋 차이 분석                                          코드 읽기 — sonnet
 //   agent    에이전트로 지식에 들이기(둘러보기 · 넣을 곳 · 항목)    판단 — sonnet
-//   agentCommit  커밋 하나를 들이는 세션(출력이 작다)               판단 — sonnet(채널 평가 C4: 가벼운 모델은 골든 셋 다시 재기에서 판정 · 그 전까지 agent 와 같다)
+//   agentCommit  커밋 하나를 들이는 세션(출력이 작다)               판단 — sonnet(채널 평가 C4: 가벼운 모델은 골든 셋 다시 재기에서 판정) · 따로 고르지 않았으면 그 PC 가 agent 에 고른 값을 따른다
 //
 // 값은 별칭(haiku · sonnet · opus) 또는 「기본」('') — 기본이면 --model 을 넘기지 않는다(그 PC 의 Claude Code 기본 모델).
 // 이 PC 는 설정(prefs.json 의 pc.models)으로 바꾼다 · 팀 일꾼은 기본 배분.
@@ -15,11 +15,20 @@ export const ROLES = ['convert', 'read', 'touch', 'ingest', 'commit', 'agent', '
 export const DEFAULT_MODELS = { convert: 'haiku', read: 'haiku', touch: 'haiku', ingest: 'sonnet', commit: 'sonnet', agent: 'sonnet', agentCommit: 'sonnet' }
 export const CHOICES = ['haiku', 'sonnet', 'opus', '']
 
+// 따로 고르지 않으면 이 자리의 값을 물려받는다(agentCommit 은 설정 화면에 줄이 없다 · 사람이 agent 에 고른 값을 말없이 버리지 않게)
+const INHERIT = { agentCommit: 'agent' }
+
 // 고른 값 · 기본 배분을 합친 그 일의 모델('' 이면 기본 모델)
 export function modelOf(role, models = {}) {
   const v = models?.[role]
-  return CHOICES.includes(v) ? v : DEFAULT_MODELS[role] ?? ''
+  if (CHOICES.includes(v)) return v
+  const up = INHERIT[role]
+  if (up && CHOICES.includes(models?.[up])) return models[up]
+  return DEFAULT_MODELS[role] ?? ''
 }
+
+// 들이기 세션의 모델 자리 — 커밋 들이기는 agentCommit · 그 밖은 agent(개인 pcAgent · 팀 세션 표의 role · 일꾼이 같이 쓴다)
+export const sessionRole = (j) => (j?.type === 'commit' || j === 'agentCommit' ? 'agentCommit' : 'agent')
 
 // --model 인자 — 값이 없으면 넘기지 않는다
 export const modelArgs = (model) => (model ? ['--model', String(model)] : [])
