@@ -11,7 +11,8 @@ import { save, assetPath } from '../core/save.js'
 import { begin } from '../core/journal.js'
 import { ensureRepo, tryGit } from '../core/git.js'
 import { loadKnowledge } from '../core/knowledge.js'
-import { parsePut, renderPut, parseReverted, renderReverted, dropPart } from '../core/parts.js'
+import { parsePut, renderPut, parseReverted, renderReverted, dropPart, metaRefsOf } from '../core/parts.js'
+import { parseDoc } from '../core/sections.js'
 import { isReservedTag } from '../core/names.js'
 import { valueDiff, rowsAdded } from '../core/values.js'
 import { httpStatusOf } from '../core/errors.js'
@@ -109,6 +110,22 @@ test('문서 쓰기가 넘어지면 기록도 되돌린다(반쯤 쓴 저장 없
   assert.equal(await head(), h0)
   fs.rmSync(path.join(dir, 'docs', '막힘.md'), { recursive: true, force: true })
   assert.equal(await status(), '')
+})
+
+test('원본 메타(문서 번호 · 판)는 기록 근거 칸에서 그 문서의 (문서) 메모 「글 출처:」 로 · 요약 · 항목 글이 아니다(채널 평가 P22)', async () => {
+  assert.deepEqual(metaRefsOf('요약.\n\n## 바뀐 것\n- 가: 1 → 2\n\n## 근거\n- 게이트웨이 설계서 v0.3 · 문서 번호 GW-DS-001\n- 커밋 a1b2c3d v1.2\n- [앞 기록](../work/x.md)\n- 회의에서 정함'), ['글 출처: 게이트웨이 설계서 v0.3 · 문서 번호 GW-DS-001'])
+  assert.deepEqual(metaRefsOf('## 근거\n- 운영 지침 2판\n- 장애 대응 절차'), ['글 출처: 운영 지침 2판'])
+  assert.deepEqual(metaRefsOf('## 까닭\n- v0.3 이라서'), [], '근거 칸만')
+  const body = '새 문서를 세운다.\n\n## 바뀐 것\n- 테스트 원본 메타: 새 항목\n\n## 근거\n- 테스트 설계서 v0.3 · 문서 번호 TS-DS-001'
+  const r = await save(dir, { record: { title: '테스트 원본 메타', body }, sections: [{ doc: 'docs/테스트 원본 메타.md', heading: '개요', content: '수집 주기는 5초다.' }] }, LEE)
+  const doc = parseDoc(read('docs/테스트 원본 메타.md'), '')
+  assert.deepEqual(doc.docLog, ['- 글 출처: 테스트 설계서 v0.3 · 문서 번호 TS-DS-001'])
+  assert.ok(!/v0\.3|TS-DS/.test(doc.sections.map((y) => y.body).join('\n') + doc.intro), '본문 · 요약에 없다')
+  assert.equal(await status(), '', '한 커밋')
+  // 같은 메타로 다시 저장하면 줄이 늘지 않는다
+  await save(dir, { record: { title: '테스트 원본 메타 둘', body: body.replace('새 항목', '값 바꿈') }, sections: [{ doc: 'docs/테스트 원본 메타.md', heading: '개요', content: '수집 주기는 10초다.' }] }, LEE)
+  assert.deepEqual(parseDoc(read('docs/테스트 원본 메타.md'), '').docLog, ['- 글 출처: 테스트 설계서 v0.3 · 문서 번호 TS-DS-001'])
+  assert.ok(r.id)
 })
 
 let putRec

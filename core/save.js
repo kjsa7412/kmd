@@ -31,7 +31,7 @@ import path from 'node:path'
 import { fail, KmdError } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
-import { replaceSection, removeSection, renameSection, replaceIntro, parseDoc, headsOf, findHeading, splitLog, splitRef, mergeLog, logLine, logHas } from './sections.js'
+import { replaceSection, removeSection, renameSection, replaceIntro, parseDoc, headsOf, findHeading, splitLog, splitRef, mergeLog, logLine, logHas, addDocNotes } from './sections.js'
 import { formatCheck, formatMessage, keptMessage, lintNew, lintMessage } from './docformat.js'
 import { lintFormNew, formMessage } from './formcheck.js'
 import { kindOf } from './forms.js'
@@ -44,7 +44,7 @@ import { begin, recover, writeAtomic } from './journal.js'
 import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, formsAfter, formsText, cleanForms, cleanNatures, placeExact, ledgerOps, dropRegistryRows, dropFormRows, dropNatureRows } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
 import { valuesOf, valueDiff, sameValues, rowsAdded } from './values.js'
-import { renderPut, renderAccepted, renderValues, renderLinked, renderFresh, KMD_PART_RE } from './parts.js'
+import { renderPut, renderAccepted, renderValues, renderLinked, renderFresh, KMD_PART_RE, metaRefsOf } from './parts.js'
 import { RECORDS_DOC_PATH } from './guard.js'
 
 const DATE = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/
@@ -617,6 +617,17 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       if (after === cur) continue
       if (!docs.includes(p.rel)) { await j.add(p.rel); docs.push(p.rel) }
       await writeAtomic(p.full, after)
+    }
+    // 원본 메타(문서 번호 · 판) — 기록 근거 칸에서 이 저장이 쓴 문서의 참고 블록 `- (문서)` 메모 「글 출처: …」 로(요약 · 항목 글이 아니다 · 작성기준 6-3 · 채널 평가 P22) · 기록(work/)만
+    const metas = sub === 'work' ? metaRefsOf(r.body) : []
+    if (metas.length) {
+      for (const rel of docs) {
+        const full = plan.find((p) => p.rel === rel)?.full || introsOk.find((p) => p.rel === rel)?.full
+        const cur = full && (await fs.readFile(full, 'utf8').then(readText, (e) => (e.code === 'ENOENT' ? null : Promise.reject(e))))
+        if (cur == null) continue
+        const after = addDocNotes(cur, metas)
+        if (after !== cur) await writeAtomic(full, after)
+      }
     }
     // 걷힌 출처로 들어오던 링크 — 같은 묶음에서 새 항목으로
     if (relinkMoves.length) {

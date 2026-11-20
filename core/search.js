@@ -170,7 +170,16 @@ export async function buildIndex(k, { dataDir = null, prev = null } = {}) {
     try {
       await fs.mkdir(path.dirname(f), { recursive: true })
       await fs.writeFile(tmp, JSON.stringify(out), { mode: 0o600 })
-      await fs.rename(tmp, f)
+      // Windows — 다른 부름이 색인을 읽는 사이 이름 바꾸기가 잠깐 막힐 수 있다(EPERM · 채널 평가 fake-after 의 send): 늘려 가며 다시
+      for (let i = 0; ; i++) {
+        try {
+          await fs.rename(tmp, f)
+          break
+        } catch (err) {
+          if (i >= 5 || !['EPERM', 'EACCES', 'EBUSY'].includes(err.code)) throw err
+          await new Promise((r) => setTimeout(r, 30 * (i + 1)))
+        }
+      }
     } catch (e) {
       console.error('[kmd] 찾기 색인을 쓰지 못했다', k.id, e.message)
       await fs.rm(tmp, { force: true }).catch((x) => console.error('[kmd] 찾기 색인 임시 파일을 지우지 못했다', tmp, x.message))

@@ -198,6 +198,16 @@ export function withRef(lines, ref) {
   return `${body.replace(/\s+$/, '')}${body.trim() ? '\n\n' : ''}${block.join('\n')}\n`
 }
 
+// (문서) 아래 메모 줄 더하기 — 글자가 같은 줄이 있으면 두고 · 블록 밖 글은 그대로 · 더할 것이 없으면 받은 글 그대로(채널 평가 P22)
+export function addDocNotes(text, notes) {
+  const S = splitRef(String(text).split('\n'))
+  const cur = S.ref.get(DOC_KEY) || []
+  const add = [...new Set((notes || []).map(noteLine))].filter((l) => l !== '- ' && !cur.includes(l))
+  if (!add.length) return text
+  S.ref.set(DOC_KEY, [...cur, ...add])
+  return withRef(S.lines, S.ref)
+}
+
 // 경과 꼬리 — 항목 끝 `**경과**` 아래가 모두 kmd 가 쓴 참고 줄(LOG_ENTRY)일 때만. 다른 글 · 다른 목록 줄이 하나라도 있으면 본문
 const LOG_HEAD = /^\*\*경과\*\*\s*$/
 // 꼬리가 시작하는 줄(**경과** 줄 번호) · 꼬리가 아니면 -1

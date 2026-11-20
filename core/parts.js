@@ -32,6 +32,22 @@ const EMPTY = '—'
 const NEW_LEAD = '새로: '
 const DROP_LEAD = '뺌: '
 
+// 기록 「## 근거」 칸의 원본 메타(문서 번호 · 판) → 「글 출처: …」 메모 글(작성기준 6-3 · 채널 평가 P22)
+//   판(v0.3 · 0.3판 · 판 3) · 문서 번호(문서 번호 · GW-DS-001 꼴)가 든 줄만 · 기록 링크 · 바깥 주소 · 커밋 줄은 경위라 뺀다 · 200자까지
+const META_REF = /(?:^|[^A-Za-z0-9])v\d+(?:\.\d+)+(?![0-9])|\d+(?:\.\d+)?\s*판(?![가-힣])|판\s*\d|문서\s*번호|(?:^|[^A-Za-z0-9-])[A-Z]{2,}(?:-[A-Z0-9]+)*-\d+(?![0-9])/
+export function metaRefsOf(body) {
+  const m = String(body || '').match(/^## 근거[ \t]*\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m)
+  if (!m) return []
+  const out = []
+  for (const l0 of m[1].split('\n')) {
+    const l = l0.replace(/^\s*[-*+]\s+/, '').replace(/\s+/g, ' ').trim()
+    if (!l || !META_REF.test(l) || /\]\((?:\.\.\/)*(?:work|log)\//.test(l) || /https?:\/\//.test(l) || /커밋|commit/i.test(l)) continue
+    const t = `글 출처: ${l.replace(/^글 출처:\s*/, '')}`
+    out.push(t.length > 200 ? `${t.slice(0, 199)}…` : t)
+  }
+  return [...new Set(out)]
+}
+
 // 항목 열쇠 — 「docs/x.md › 머리」(k.revertedItems 의 값 · 넣은 것 줄과 같은 꼴)
 export const itemKey = (doc, heading) => `${doc} › ${heading}`
 
