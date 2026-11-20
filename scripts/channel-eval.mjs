@@ -37,22 +37,23 @@ const SERVE = { decideMs: 3600000, sourceTickMs: 3600000, inboxTickMs: 3600000, 
 
 // ───────── 채널 표 ─────────
 //   ch      savelog 에 찍혀야 할 채널 값(channelOk) · llm 은 부르는 꼴(session · schema · none)
+//   feedRev 넣는 법의 판(원천 번호는 같아도 넣는 글 · 바꾸는 값이 바뀌면 올린다 · 견주기가 「원천 다름」 으로 가른다) — 2: real-1 뒤(H14 심은 문서 · H15 · H16 goldStep · 원천 전체 · 바탕 01 · 02 · 09 · 커밋 07 다음 값)
 //   src     골든 원천 번호(gold.json sources.n) · base 는 앞 상태로 먼저 넣는 원천(무인 들이기 · intake-src · 비용은 따로)
 //   unit    실제 Claude 예상(원천 · 건 하나) — 지난 실측(H4b · H7b: 세션 들이기 원천당 ≈ $0.45 · 3.5분)에서 어림
 const CHANNELS = {
   'intake-file': { ch: 'intake-file', llm: 'session', src: [1, 2], unit: { usd: 0.45, min: 3.5 }, run: runIntakeFile, note: '화면 올리기 둘(importFiles → 승인 대기 → 승인): docx(원본 첨부 · bin) 하나 + md 하나. uploadAsk 끔(바로 들어감)은 설정을 바꾼 경우라 재지 않는다' },
-  'intake-commit': { ch: 'intake-src', llm: 'session', src: [7], extra: 1, base: [1], unit: { usd: 0.25, min: 1.3 }, run: runIntakeCommit, note: '커밋 들이기(채널 이름 intake-commit 은 걷었다 · D2: 저장 줄 ch intake-src + 기록 태그 code-change) · 사람이 연 커밋 일감(07 값 5→10) + 운영 길(가져올 곳 git 의 새 커밋 10→15 · H18)' },
+  'intake-commit': { ch: 'intake-src', feedRev: 2, llm: 'session', src: [7], extra: 1, base: [1], unit: { usd: 0.25, min: 1.3 }, run: runIntakeCommit, note: '커밋 들이기(채널 이름 intake-commit 은 걷었다 · D2: 저장 줄 ch intake-src + 기록 태그 code-change) · 사람이 연 커밋 일감(07 값 5→10) + 운영 길(가져올 곳 git 의 새 커밋 10→15 · H18)' },
   'intake-src': { ch: 'intake-src', llm: 'session', src: [1, 2], unit: { usd: 0.45, min: 3.5 }, run: runIntakeSrc, note: '가져올 곳: 문서 폴더(하나씩 · 다시 돌려 same) + git 커밋 하나' },
-  polish: { ch: 'polish', llm: 'schema', src: [], base: [1, 3], unit: { usd: 0.2, min: 2, per: '문서' }, docs: 2, run: runPolish, note: '결함을 심은 문서(test/fixture/harness/다듬기 · 오기 · 백틱 · 수준 표시 · 줄표) + 들인 문서 하나를 다듬는다(runClaude 스키마 답 · 세션 아님 · 검출률 polishScore · H14)' },
+  polish: { ch: 'polish', feedRev: 2, llm: 'schema', src: [], base: [1, 3], unit: { usd: 0.2, min: 2, per: '문서' }, docs: 2, run: runPolish, note: '결함을 심은 문서(test/fixture/harness/다듬기 · 오기 · 백틱 · 수준 표시 · 줄표) + 들인 문서 하나를 다듬는다(runClaude 스키마 답 · 세션 아님 · 검출률 polishScore · H14)' },
   shape: { ch: 'shape', llm: 'schema', src: [1, 2, 3], unit: { usd: 0.35, min: 3 }, run: runShapeTeam, note: '팀 기초 세우기 Claude 안(올리기 → 조사 → shape-plan → shape-write → 연습 판 → 넣기)' },
   'shape-folder': { ch: 'shape', llm: 'none', src: [1, 2, 3], unit: { usd: 0, min: 0.2 }, run: runShapeFolder, note: '팀 기초 세우기 폴더 그대로(Claude 없음 · 기준선)' },
   'shape-pc': { ch: 'shape', llm: 'session', src: [1, 2, 3], unit: { usd: 0.6, min: 4 }, fakeSrc: [1, 3], run: runShapePc, note: '개인 기초 세우기 Claude 안(claudeSession 세션 · 뼈대 · 묶음 · 짓기)' },
-  'shape-restructure': { ch: 'shape', llm: 'schema', src: [], base: [1, 2, 9], fakeBase: [1, 3], unit: { usd: 0.5, min: 4, per: '구조안' }, run: runShapeRestructure, note: '짜임 다시 잡기(어지럽힌 바탕 01 · 02 · 09 + 지식관리자의 말 → shapeAsk shape-plan → 검사 → 연습 판 → 넣기 · 구조안은 앞 걸음 · 바꿀 것 없음은 기대한 결과로 셈 · H10)' },
+  'shape-restructure': { ch: 'shape', feedRev: 2, llm: 'schema', src: [], base: [1, 2, 9], fakeBase: [1, 3], unit: { usd: 0.5, min: 4, per: '구조안' }, run: runShapeRestructure, note: '짜임 다시 잡기(어지럽힌 바탕 01 · 02 · 09 + 지식관리자의 말 → shapeAsk shape-plan → 검사 → 연습 판 → 넣기 · 구조안은 앞 걸음 · 바꿀 것 없음은 기대한 결과로 셈 · H10)' },
   send: { ch: 'send', llm: 'schema', src: [6, 8], base: [1], fakeSrc: [6, 3], unit: { usd: 0.4, min: 3 }, run: runSend, note: '개인 프로그램 → 팀 지식 보내기(sendPreview = Claude · sendPicked = 승인) · 팀 지식에 바탕(01)을 세운 뒤 값이 바뀐 판(06)을 보낸다' },
   session: { ch: 'session', llm: 'session', src: [6, 2], base: [1], unit: { usd: 0.5, min: 4 }, run: runSession, note: '사람 MCP 세션(kmd-team-save · propose → 승인 대신 → save) · 바탕(01) 위에 값이 바뀐 판(06) · 회의(02) · 머리 없는 대용(runAgent)' },
   bulk: { ch: 'bulk', llm: 'session', src: [6, 4], base: [1], unit: { usd: 0.5, min: 3 }, run: runBulk, note: '사람 MCP 대량 넣기(kmd-team-import · ingest/ 표지 + 첨부 · 한 세션에 원천 여럿) · 바탕(01) 위 · 머리 없는 대용(runAgent)' },
-  http: { ch: 'http', llm: 'none', src: [3], base: [1], unit: { usd: 0, min: 0.1, per: '건' }, run: runHttp, note: 'API 열쇠 저장(POST /api/k/:id/propose → 받은 proposal 그대로 /save · 사람 채널 · 원천 전체(머리 앞 글 포함)와 names · natures · forms 절차를 싣고 B 는 gold 안의 값으로 · H15) · 코드에 남아 있음 · H-D33 폐기 예정' },
-  edit: { ch: 'edit', llm: 'none', src: [], base: [1], unit: { usd: 0, min: 0.1, per: '건' }, cases: 6, run: runEdit, note: '화면 고치기(저장 제안 → 넣기) · 기록 정정(fixes) · 거절 길(E_INPUT · E_FORMAT · E_CONFLICT · E_APPROVE)' },
+  http: { ch: 'http', feedRev: 2, llm: 'none', src: [3], base: [1], unit: { usd: 0, min: 0.1, per: '건' }, run: runHttp, note: 'API 열쇠 저장(POST /api/k/:id/propose → 받은 proposal 그대로 /save · 사람 채널 · 원천 전체(머리 앞 글 포함)와 names · natures · forms 절차를 싣고 B 는 gold 안의 값으로 · H15) · 코드에 남아 있음 · H-D33 폐기 예정' },
+  edit: { ch: 'edit', feedRev: 2, llm: 'none', src: [], base: [1], unit: { usd: 0, min: 0.1, per: '건' }, cases: 6, run: runEdit, note: '화면 고치기(저장 제안 → 넣기) · 기록 정정(fixes) · 거절 길(E_INPUT · E_FORMAT · E_CONFLICT · E_APPROVE)' },
   'edit-source': { ch: 'intake-file', llm: 'session', src: [], base: [1], unit: { usd: 0.45, min: 3.5, per: '건' }, cases: 1, run: runEditSource, note: '화면 고치기의 새 항목(editAsSource → 넣을 것 → 팀 일꾼 세션 → 승인 대기 → 승인) · 저장 줄 ch 는 intake-file' },
   'pc-intake': { ch: 'intake-file', llm: 'session', src: [2], unit: { usd: 0.45, min: 3.5 }, run: runPcIntake, note: '개인 프로그램 들이기(mode pc · importFiles → pcAgent(runAgent) → 승인 대기 → 승인) · 팀 일꾼과 다른 코드 길' },
   'kmd-migrate': { ch: null, llm: 'session', src: [], unit: { usd: 1.5, min: 15, per: '항목' }, cases: 1, run: runMigrate, note: '다시 그리기(세션 스킬 · core/save.js 를 바로 · savelog 없음) · 앞 상태는 test/fixture/kmd/dpms 사본' },
@@ -346,14 +347,20 @@ function fixOf(sl, lg = []) {
   const failLines = sl.filter((l) => l.fail)
   return { fix: sessionFix + schemaFix, fixTries: sl.filter((l) => l.err === 'unattended' && !l.fail).length, failJobs: failLines.length, failCodes: failLines.map((l) => l.fail.code), failCalls: lg.filter((x) => /초안을 받지 못했다\(/.test(x)).length }
 }
+// 일감의 들어감 · 빈 것 — 넣은 것 0 · 기록 없음(rec null)으로 닫힌 일감은 빈 것이다(채널 평가 H2 · 다듬기 「고칠 것 없음」 이 들어감으로 잡혀 NOLOG 거짓 경보가 났다)
+export function jobPutOf(j = {}) {
+  const res = j.result || {}
+  const done = j.state === 'done' && !res.aborted
+  const none = Number(res.put) === 0 && res.rec == null
+  return { put: done && !res.empty && !none, empty: !!res.empty || (done && none) }
+}
 const jobRow = (t, jid, w) => {
   const j = t.s.hub.job(jid) || {}
   const res = j.result || {}
   return {
     job: jid, state: j.state, ms: w.ms, workerLoops: w.loops, cost: j.cost || 0, calls: j.calls || 0, tries: j.tries ?? null,
     fix: w.fix || 0, fixTries: w.fixTries || 0, fails: w.failJobs || 0, failCalls: w.failCalls || 0,
-    // 넣은 것 0 · 기록 없음(rec null)으로 닫힌 일감은 빈 것이다(채널 평가 H2 · 다듬기 「고칠 것 없음」 이 들어감으로 잡혀 NOLOG 거짓 경보가 났다)
-    put: j.state === 'done' && !res.aborted && !res.empty && !(Number(res.put) === 0 && res.rec == null), empty: !!res.empty || (j.state === 'done' && !res.aborted && Number(res.put) === 0 && res.rec == null), ...(res.put != null ? { putItems: res.put } : {}),
+    ...jobPutOf(j), ...(res.put != null ? { putItems: res.put } : {}),
     ...(j.why ? { why: [String(j.why).slice(0, 300)] } : {}), ...(w.stop ? { stop: w.stop } : {}), ...(j.state !== 'done' && w.logTail?.length ? { workerLog: w.logTail } : {}), codes: [...(!w.got ? ['NO_JOB'] : []), ...(w.failCodes || []), ...(w.failCalls ? ['SCHEMA_FAIL'] : [])],
   }
 }
@@ -378,6 +385,58 @@ async function scored(out, dir, id, fed, before) {
 }
 
 // ───────── 재기 ─────────
+// 저장 줄로 가르는 들어감 · 남은 오류 · 회복된 오류(채널 평가 H1 · harness 검토 지적)
+//   fromSavelog(사람 세션 session · bulk · 세션이 MCP 로 저장) — 들어감은 걸리지 않고 넣은 줄이 하나라도 있을 때 · 아니면 fn 이 정한 put
+//   걸린 줄의 오류는 그 줄의 대상(targets · 저장 문이 줄에 단다)이 모두 뒤에 넣은 줄의 대상(targets · ok)에 있을 때만 회복(recoveredCodes) ·
+//   대상을 모르거나(옛 줄) 다른 대상이면 남은 오류(codes) — 원천 A 가 걸리고 원천 B 가 들어간 것을 회복으로 세지 않는다
+//   putRecs — 넣은 기록 수(rec 이 다른 넣은 줄 · 대량 넣기는 원천마다 기록 하나라 「들어간 원천 / 원천」)
+export function saveJudgeOf(saves = [], { fromSavelog = false, put = false } = {}) {
+  const okLine = (l) => !l.err && Number(l.put) > 0
+  const key = (x) => String(x || '').trim().normalize('NFC')
+  const p = fromSavelog ? saves.some(okLine) : !!put
+  const codes = []
+  const rec = []
+  saves.forEach((l, i) => {
+    if (!l.err || l.err === 'unattended') return
+    const want = (Array.isArray(l.targets) ? l.targets : []).map(key)
+    const later = new Set(saves.slice(i + 1).filter(okLine).flatMap((x) => [...(x.targets || []), ...(x.ok || [])]).map(key))
+    const to = p && want.length && want.every((w) => later.has(w)) ? rec : codes
+    if (!to.includes(l.err)) to.push(l.err)
+  })
+  return { put: p, codes, recoveredCodes: rec.filter((c) => !codes.includes(c)), putRecs: new Set(saves.filter(okLine).map((l) => l.rec).filter(Boolean)).size }
+}
+// 계측 줄(Claude Code result) → 이 건의 비용 · 부름 · 차례 · 토큰 · 모델(채널 평가 H4 · H17 · harness 검토 지적)
+//   한 프로세스(run)에 result 가 여럿이면(stream-json 입력 세션의 턴마다): cost 는 쌓이는 값이라 마지막 result · 토큰 · 차례는 턴마다의 값이라 더한다
+//   row.cost · row.calls 는 제품이 센 값(serverCost · serverCalls) · selfCost(세션 스킬 · 대용 세션 · 제품 비용 장부 밖)면 serverCost null(self)이고 costGap 을 달지 않는다
+export function meterRowOf(row = {}, ml = [], { selfCost = false } = {}) {
+  const out = { serverCost: selfCost ? null : r4(row.cost || 0), serverCalls: row.calls || 0, ...(selfCost ? { costSource: 'self' } : {}) }
+  if (ml.length) {
+    const runs = new Map()
+    for (const l of ml) runs.set(l.run, [...(runs.get(l.run) || []), l])
+    const lasts = [...runs.values()].map((ls) => ls[ls.length - 1])
+    const tk = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    let anyTk = false
+    for (const l of ml) if (l.tokens) { anyTk = true; for (const k of Object.keys(tk)) tk[k] += l.tokens[k] || 0 }
+    const multi = [...runs.values()].filter((ls) => ls.length > 1)
+    const meter = { procs: runs.size, results: ml.length, multiResultProcs: multi.length, cost: r4(sum(lasts.map((l) => l.cost))), turns: sum(ml.map((l) => l.turns)), apiMs: sum(lasts.map((l) => l.api)), errors: lasts.filter((l) => l.err).length, models: [...new Set(ml.flatMap((l) => String(l.model || '').split(',')).filter(Boolean))], tokens: anyTk ? tk : null }
+    if (multi.length) meter.multiSample = multi.slice(0, 2).map((ls) => ls.map((l) => ({ cost: l.cost, turns: l.turns, tokens: l.tokens })))
+    Object.assign(out, { meter, cost: meter.cost, calls: meter.procs, turns: meter.turns, tokens: meter.tokens, models: meter.models })
+    if (out.serverCost != null && Math.abs(meter.cost - out.serverCost) > 0.001) out.costGap = r4(meter.cost - out.serverCost)
+  } else out.cost = r4(row.cost || 0)
+  return out
+}
+// 채널 합(rows · 바탕 rows) — 들어감의 분모(rows)는 저장 걸음만(앞 걸음 aux 는 시간 · 비용에만 · H10)
+export function totalsOf(rs = []) {
+  return {
+    rows: rs.filter((r) => !r.aux).length, auxRows: rs.filter((r) => r.aux).length, ms: sum(rs.map((r) => r.ms)), cost: r4(sum(rs.map((r) => r.cost))), serverCost: rs.some((r) => r.serverCost != null) ? r4(sum(rs.map((r) => r.serverCost))) : null, selfCostRows: rs.filter((r) => r.costSource === 'self').length, costGapRows: rs.filter((r) => r.costGap != null).length,
+    calls: sum(rs.map((r) => r.calls)), turns: sum(rs.map((r) => r.turns)), fix: sum(rs.map((r) => r.fix)), fixTries: sum(rs.map((r) => r.fixTries)), fails: sum(rs.map((r) => r.fails)), failCalls: sum(rs.map((r) => r.failCalls)),
+    put: rs.filter((r) => r.put).length, empty: rs.filter((r) => r.empty).length, recovered: [...new Set(rs.flatMap((r) => r.recoveredCodes || []))], nolog: rs.filter((r) => r.nolog).length, needHuman: rs.filter((r) => r.needHuman).length,
+    warned: sum(rs.map((r) => r.warned)), accepted: sum(rs.map((r) => r.accepted)),
+    // 원천 여럿을 한 건에 넣는 걸음(대량 넣기) — 들어간 원천 / 원천(넣은 기록 수 · 원천 수를 넘지 않게)
+    ...(rs.some((r) => r.sources) ? { sources: sum(rs.map((r) => r.sources)), putSources: sum(rs.filter((r) => r.sources).map((r) => Math.min(r.putRecs || 0, r.sources))) } : {}),
+    tokens: rs.some((r) => r.tokens) ? Object.fromEntries(['input', 'output', 'cacheRead', 'cacheWrite'].map((k) => [k, sum(rs.map((r) => r.tokens?.[k]))])) : null,
+  }
+}
 //   fn(row) 이 돌려준 칸을 row 에 얹고 · 앞뒤 savelog · 계측 줄 · 지식 수를 끊어 읽는다
 async function measure(E, t, meta, fn) {
   const slFile = t?.savelogFile ? t.savelogFile() : null
@@ -419,47 +478,23 @@ async function measure(E, t, meta, fn) {
   row.warned = row.savelog.warned.length
   row.accepted = row.savelog.accepted
   row.ch = [...new Set(saves.map((l) => l.ch))]
-  // 사람 세션(session · bulk)은 세션이 MCP 로 저장한다: 들어감은 이 건의 저장 줄 가운데 걸리지 않고 넣은 줄이 있을 때(채널 평가 H1 · 걸린 줄이 하나라도 있으면 못 넣음으로 보던 것을 걷음)
-  if (row.putFromSavelog) { row.put = saves.some((l) => !l.err && Number(l.put) > 0); delete row.putFromSavelog }
+  // 들어감 · 남은 오류 · 회복된 오류(saveJudgeOf · 채널 평가 H1 · harness 검토) — 사람 세션(session · bulk)은 저장 줄로 가른다
+  const judge = saveJudgeOf(saves, { fromSavelog: !!row.putFromSavelog, put: row.put })
+  if (row.putFromSavelog) { row.put = judge.put; row.putRecs = judge.putRecs; row.putBy = 'savelog'; delete row.putFromSavelog }
   // 고쳐 받기 — fn(일감 줄)이 셈한 것이 먼저 · 없으면 이 건 구간의 savelog 최댓값(누적값이라 더하지 않는다)
   if (row.fix == null) row.fix = fx.fix
   if (!row.fixTries) row.fixTries = fx.fixTries
   // 실패 — fail 칸이 있는 줄(일감을 태운 실패)만 · 고쳐 받기 중간에 걸린 줄(err unattended · fail 없음)은 실패가 아니다
   if (!row.fails) row.fails = fx.failJobs
   for (const c of fx.failCodes) if (!row.codes.includes(c)) row.codes.push(c)
-  // 걸린 저장 줄의 오류 — 뒤에 걸리지 않고 넣은 줄이 있으면 회복된 오류(recoveredCodes · 다시 propose 해 넘은 것)로 따로 두고 codes 에 섞지 않는다(H1)
-  const lastOk = saves.reduce((a, l, i) => (!l.err && Number(l.put) > 0 ? i : a), -1)
-  saves.forEach((l, i) => {
-    if (!l.err || l.err === 'unattended') return
-    const to = row.put && i < lastOk ? row.recoveredCodes : row.codes
-    if (!to.includes(l.err)) to.push(l.err)
-  })
+  // 걸린 저장 줄의 오류 — 같은 대상을 뒤에 넣었으면 회복된 오류(recoveredCodes) · 아니면 codes(H1 · 위치만 보던 것을 대상 대조로)
+  for (const c of judge.codes) if (!row.codes.includes(c)) row.codes.push(c)
+  for (const c of judge.recoveredCodes) if (!row.recoveredCodes.includes(c)) row.recoveredCodes.push(c)
   // 계측 줄(Claude Code result) — 비용 · 부름의 기준(감싸개는 다시 띄운 것 · 스키마 일감의 실패한 부름까지 잡는다).
   //   j.cost · r.cost 는 serverCost · serverCalls 로 따로 남기고 계측과 $0.001 넘게 다르면 costGap.
   //   한 프로세스(run)에 result 가 여럿이면(stream-json 입력 세션의 턴마다): cost 는 쌓이는 값이라 마지막 result · 토큰 · 차례는 턴마다의 값이라 더한다
   //   (채널 평가 H17 · real-1 shape-pc 글 짓기에서 확인: cost 0.049 → 0.069 로 쌓이고 tokens · turns 는 턴마다 따로였다)
-  const ml = readJsonl(E.meterFile).slice(m0)
-  row.serverCost = meta.selfCost ? null : r4(row.cost || 0)
-  if (meta.selfCost) row.costSource = 'self'
-  row.serverCalls = row.calls || 0
-  if (ml.length) {
-    const runs = new Map()
-    for (const l of ml) runs.set(l.run, [...(runs.get(l.run) || []), l])
-    const lasts = [...runs.values()].map((ls) => ls[ls.length - 1])
-    const tk = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-    let anyTk = false
-    for (const l of ml) if (l.tokens) { anyTk = true; for (const k of Object.keys(tk)) tk[k] += l.tokens[k] || 0 }
-    const multi = [...runs.values()].filter((ls) => ls.length > 1)
-    row.meter = { procs: runs.size, results: ml.length, multiResultProcs: multi.length, cost: r4(sum(lasts.map((l) => l.cost))), turns: sum(ml.map((l) => l.turns)), apiMs: sum(lasts.map((l) => l.api)), errors: lasts.filter((l) => l.err).length, models: [...new Set(ml.flatMap((l) => String(l.model || '').split(',')).filter(Boolean))], tokens: anyTk ? tk : null }
-    if (multi.length) row.meter.multiSample = multi.slice(0, 2).map((ls) => ls.map((l) => ({ cost: l.cost, turns: l.turns, tokens: l.tokens })))
-    row.cost = row.meter.cost
-    row.calls = row.meter.procs
-    row.turns = row.meter.turns
-    row.tokens = row.meter.tokens
-    row.models = row.meter.models
-    if (row.serverCost != null && Math.abs(row.meter.cost - row.serverCost) > 0.001) row.costGap = r4(row.meter.cost - row.serverCost)
-  }
-  row.cost = r4(row.cost || 0)
+  Object.assign(row, meterRowOf(row, readJsonl(E.meterFile).slice(m0), { selfCost: !!meta.selfCost }))
   if (dir && c0) {
     const c1 = await countsOf(dir, kid)
     if (c1) row.added = { docs: c1.docs - c0.docs, items: c1.items - c0.items, records: c1.records - c0.records }
@@ -472,7 +507,7 @@ async function measure(E, t, meta, fn) {
     else row.channelOk = null
   } else row.channelOk = null
   const tail = row.why.length ? ` · ${row.why[row.why.length - 1].slice(0, 90)}` : ''
-  console.log(`  [${row.channel}${row.base ? ' 바탕' : row.aux ? ' 앞 걸음' : ''}] ${row.step}${row.file ? ` · ${row.file}` : ''}: ${row.aux && !row.put ? '저장 아님' : row.put ? '들어감' : row.empty ? '넣을 것 없음' : '안 들어감'} · ${Math.round(row.ms / 100) / 10}초 · $${row.cost.toFixed(3)} · 부름 ${row.calls} · 고쳐 받기 ${row.fix} · 실패 ${row.fails} · ch ${row.ch.join(',') || '-'}${row.channelOk === false ? ' (어긋남!)' : ''}${row.codes.length ? ` · ${row.codes.join(',')}` : ''}${row.recoveredCodes.length ? ` · 회복 ${row.recoveredCodes.join(',')}` : ''}${row.added ? ` · 문서 +${row.added.docs} 항목 +${row.added.items} 기록 +${row.added.records}` : ''}${tail}`)
+  console.log(`  [${row.channel}${row.base ? ' 바탕' : row.aux ? ' 앞 걸음' : ''}] ${row.step}${row.file ? ` · ${row.file}` : ''}: ${row.aux && !row.put ? '저장 아님' : row.put ? '들어감' : row.empty ? '넣을 것 없음' : '안 들어감'} · ${Math.round(row.ms / 100) / 10}초 · $${row.cost.toFixed(3)} · 부름 ${row.calls} · 고쳐 받기 ${row.fix} · 실패 ${row.fails} · ch ${row.ch.join(',') || '-'}${row.channelOk === false ? ' (어긋남!)' : ''}${row.codes.length ? ` · ${row.codes.join(',')}` : ''}${row.recoveredCodes.length ? ` · 회복 ${row.recoveredCodes.join(',')}` : ''}${row.sources ? ` · 원천 ${Math.min(row.putRecs || 0, row.sources)}/${row.sources} 들어감` : ''}${row.added ? ` · 문서 +${row.added.docs} 항목 +${row.added.items} 기록 +${row.added.records}` : ''}${tail}`)
   if (!E.fake && E.spent() > E.maxUsd) { E.over = true; console.log(`  ! 예산 넘음: 계측 누계 $${E.spent().toFixed(3)} > $${E.maxUsd} · 남은 건 · 채널은 돌리지 않는다`) }
   return row
 }
@@ -1017,7 +1052,7 @@ async function runBulk(E, C) {
         extra: '- 파서(kmd-parse)를 받지 않는다: 일 폴더의 index.json 이 파서 출력이다(rel · mdFile 글 · sha · tags · b64File 원본 base64).\n- 규칙 표 승인은 사람이 미리 했다: propose errors 가 0 이면 묻지 않고 파일마다 save 한다. save 의 record.tags 는 index.json 의 tags 그대로 · attach 는 [{ path: attachPath, b64: <b64File 글 그대로> }].\n- 빈 지식이어도 기초 세우기를 기다리지 않고 이어 간다.',
         prompt: `일 폴더의 파일들을 팀 지식(knowledge id: ${t.kn})에 대량으로 넣어 줘. index.json 을 먼저 읽는다. 규칙 표는 승인한 것으로 본다.`,
       })
-      return { putFromSavelog: true, proxy, toolTrace, cost: r.cost || 0, turns: r.turns ?? null, calls: 1, agentOk: !!r.ok, toolCalls: tools.length, saveCalls: tools.filter((x) => x.startsWith('저장')).length, perFileCost: r4((r.cost || 0) / srcs.length), answer: String(r.text || r.message || '').slice(0, 800), ...(r.ok ? {} : { codes: [`AGENT_${r.error || 'fail'}`], why: [String(r.message || '').slice(0, 300)] }) }
+      return { putFromSavelog: true, proxy, toolTrace, cost: r.cost || 0, turns: r.turns ?? null, calls: 1, agentOk: !!r.ok, toolCalls: tools.length, saveCalls: tools.filter((x) => x.startsWith('저장')).length, perFileCost: r4((r.cost || 0) / srcs.length), sources: srcs.length, answer: String(r.text || r.message || '').slice(0, 800), ...(r.ok ? {} : { codes: [`AGENT_${r.error || 'fail'}`], why: [String(r.message || '').slice(0, 300)] }) }
     }))
     rows.push(await measure(E, t, { channel: 'bulk', step: '같은 묶음 다시(모두 same 이어야)', expectCh: 'bulk', selfCost: true }, async () => {
       if (!E.fake) return { ran: false, why: ['진짜 판에서는 다시 돌리지 않는다(돈) · 가짜 판에서만 본다'] }
@@ -1494,12 +1529,8 @@ async function run() {
     // 고른 모델(일꾼 models · 세션 대용 · 세션 스킬)과 실제로 돈 모델(계측 줄의 modelUsage · 채널마다) — 머리에서 모델 차이를 바로 본다(H3)
     models: { asked: { workers: E.models || '기본 배분(core/models.js DEFAULT_MODELS)', sessions: model || SESSION_MODEL }, seen: { ...(prev?.models?.seen || {}) } },
     head, meter: path.relative(ROOT, E.meterFile), meters: [...new Set([...(prev?.meters || []), path.relative(ROOT, E.meterFile)])], maxUsd: fake ? null : maxUsd, loops: E.loops,
-    // 한 프로세스에 result 가 여럿일 때(stream-json 입력 세션): cost 는 마지막 result(쌓이는 값) · 토큰 · 차례는 result 마다 더한다(H17 · real-1 shape-pc 로 확인)
-    tokensRule: 'cost: last result per process · tokens/turns: sum of results (H17)',
-    // 들어감의 분모(rows)는 저장 걸음만(앞 걸음 aux 는 시간 · 비용에만) · 세션 스킬 · 대용 세션의 serverCost 는 null(self · costGap 밖)
-    rowRule: 'rows exclude aux steps (H10) · serverCost null for self-metered sessions (H4)',
-    // 품질 점수는 채널이 넣은 골든 원천(바탕 포함)에 걸린 정답만으로 매긴다(score.scope) · 원천이 다르면 F1 을 견줄 때 scope 를 같이 본다
-    scoreRule: 'gold subset by fed sources (score.scope)',
+    // 셈 규칙(RULES · 견주기가 양쪽을 대 본다) — 토큰 · 차례(H17) · 건 수(H10 · H4) · 들어감 판정(H1) · 채점(H11 ~ H13 · gold.json 판)
+    tokensRule: RULES.tokens, rowRule: RULES.rows, putRule: RULES.put, scoreRule: scoreRuleOf(await goldRev()),
     channels: { ...(prev?.channels || {}) },
   }
   const save = () => fs.writeFile(outFile, JSON.stringify(result, null, 1) + '\n')
@@ -1518,17 +1549,10 @@ async function run() {
     const rows = out.rows || []
     const main = rows.filter((r) => !r.base && r.ran !== false)
     const baseRows = rows.filter((r) => r.base)
-    const tot = (rs) => ({
-      rows: rs.filter((r) => !r.aux).length, auxRows: rs.filter((r) => r.aux).length, ms: sum(rs.map((r) => r.ms)), cost: r4(sum(rs.map((r) => r.cost))), serverCost: rs.some((r) => r.serverCost != null) ? r4(sum(rs.map((r) => r.serverCost))) : null, selfCostRows: rs.filter((r) => r.costSource === 'self').length, costGapRows: rs.filter((r) => r.costGap != null).length,
-      calls: sum(rs.map((r) => r.calls)), turns: sum(rs.map((r) => r.turns)), fix: sum(rs.map((r) => r.fix)), fixTries: sum(rs.map((r) => r.fixTries)), fails: sum(rs.map((r) => r.fails)), failCalls: sum(rs.map((r) => r.failCalls)),
-      put: rs.filter((r) => r.put).length, empty: rs.filter((r) => r.empty).length, recovered: [...new Set(rs.flatMap((r) => r.recoveredCodes || []))], nolog: rs.filter((r) => r.nolog).length, needHuman: rs.filter((r) => r.needHuman).length,
-      warned: sum(rs.map((r) => r.warned)), accepted: sum(rs.map((r) => r.accepted)),
-      tokens: rs.some((r) => r.tokens) ? Object.fromEntries(['input', 'output', 'cacheRead', 'cacheWrite'].map((k) => [k, sum(rs.map((r) => r.tokens?.[k]))])) : null,
-    })
     const chs = main.filter((r) => r.channelOk != null)
     result.channels[name] = {
-      ran: !out.error && main.length > 0, expectCh: C.ch, llm: C.llm, note: C.note, wallMs: Date.now() - t0, fed: fedOf(cfgOf(C, fake)),
-      channelOk: chs.length ? chs.every((r) => r.channelOk) : null, total: tot(main), base: tot(baseRows),
+      ran: !out.error && main.length > 0, expectCh: C.ch, llm: C.llm, note: C.note, wallMs: Date.now() - t0, fed: fedOf(cfgOf(C, fake)), feedRev: C.feedRev ?? 1,
+      channelOk: chs.length ? chs.every((r) => r.channelOk) : null, total: totalsOf(main), base: totalsOf(baseRows),
       codes: [...new Set(main.flatMap((r) => r.codes || []))], expected: main.some((r) => r.expect) ? { rows: main.filter((r) => r.expect).length, ok: main.filter((r) => r.expect && r.expectOk).length } : null, ...(out.error ? { error: out.error, stack: out.stack } : {}),
       ...(main.some((r) => r.proxy) ? { proxy: main.find((r) => r.proxy).proxy } : {}),
       ...(out.note ? { note2: out.note } : {}), ...(out.scoreNote ? { scoreNote: out.scoreNote } : {}), dirs: Object.fromEntries(Object.entries(out.dirs || {}).map(([k, v]) => [k, path.relative(ROOT, v)])),
@@ -1545,15 +1569,68 @@ async function run() {
   console.log(`\n결과: ${path.relative(ROOT, outFile)}`)
 }
 
+// 셈 규칙(결과 머리에 싣는다 · 견주기가 양쪽 규칙을 대 본다 · harness 검토 지적) — 규칙을 바꾸면 이 글을 바꾼다
+//   tokens — 한 프로세스에 result 가 여럿일 때(stream-json 입력 세션): cost 는 마지막 result(쌓이는 값) · 토큰 · 차례는 result 마다 더한다(H17 · real-1 shape-pc 로 확인)
+//   rows   — 들어감의 분모(rows)는 저장 걸음만(앞 걸음 aux 는 시간 · 비용에만 · H10) · 세션 스킬 · 대용 세션의 serverCost 는 null(self · costGap 밖 · H4)
+//   put    — 사람 세션(session · bulk)의 들어감은 저장 줄로 · 걸린 오류는 같은 대상을 뒤에 넣었을 때만 회복(H1 · saveJudgeOf)
+//   score  — 품질 점수는 채널이 넣은 골든 원천(바탕 포함)에 걸린 정답만으로(score.scope) · 범위 판정 H11 ~ H13 · gold.json 판(goldRev)
+export const RULES = {
+  tokens: 'cost: last result per process · tokens/turns: sum of results (H17)',
+  rows: 'rows exclude aux steps (H10) · serverCost null for self-metered sessions (H4)',
+  put: 'session/bulk put from savelog · error recovered only when a later put covers the same targets (H1 · saveJudgeOf)',
+  score: 'gold subset by fed sources (score.scope) · H11-H13',
+}
+export const goldRev = async () => (await import('node:crypto')).createHash('sha256').update(await fs.readFile(path.join(FIX_DIR, 'gold.json'))).digest('hex').slice(0, 8)
+export const scoreRuleOf = (rev) => `${RULES.score} · gold ${rev}`
+// 앞 걸음(aux)을 모르는 옛 결과(rowRule 없음 · real-1)의 앞 걸음 — 저장이 아닌 조사 · 구조안 · 글 짓기 · 꾸러미 짓기(H10 이 aux 를 단 걸음과 같다)
+const AUX_STEP_RE = /^(조사|구조안|글 짓기|꾸러미 짓기)/
+// 옛 결과를 지금 셈 규칙으로 다시 센다(동기 · 저장된 rows 로 되는 것만): rowRule 이 없으면 앞 걸음을 aux 로 보고 total · base 를 totalsOf 로 다시 · 바뀐 J 를 돌려준다(원본은 그대로)
+export function recountRun(J) {
+  if (!J || J.rowRule === RULES.rows || J.rowRule === `${RULES.rows} (recounted)`) return J
+  const channels = {}
+  for (const [name, c] of Object.entries(J.channels || {})) {
+    if (!c?.rows || !c.total) { channels[name] = c; continue }
+    const rows = c.rows.map((r) => (!r.base && AUX_STEP_RE.test(String(r.step || '')) ? { ...r, aux: true } : r))
+    channels[name] = { ...c, rows, total: totalsOf(rows.filter((r) => !r.base && r.ran !== false)), base: totalsOf(rows.filter((r) => r.base)) }
+  }
+  return { ...J, channels, rowRule: `${RULES.rows} (recounted)` }
+}
+// 옛 결과의 품질을 지금 채점(scoreOf · 지금 gold.json · 범위 판정)으로 다시 매긴다 — 채널의 지식 폴더(dirs.kn)가 남아 있을 때만 · 없으면 그 채널은 rescored 없음
+export async function rescoreRun(J, rev = null) {
+  rev ||= await goldRev()
+  const want = scoreRuleOf(rev)
+  if (!J || J.scoreRule === want) return J
+  const channels = {}
+  let n = 0
+  for (const [name, c] of Object.entries(J.channels || {})) {
+    const dir = c?.dirs?.kn ? path.resolve(ROOT, c.dirs.kn) : null
+    if (!c?.total || !dir || !fss.existsSync(dir) || !Array.isArray(c.fed)) { channels[name] = c; continue }
+    const score = await scoreOf(dir, path.basename(dir), c.fed)
+    if (score.error) { channels[name] = c; continue }
+    channels[name] = { ...c, score, scoreWas: c.score || null, rescored: true }
+    n++
+  }
+  return { ...J, channels, ...(n ? { scoreRule: want, rescored: n } : {}) }
+}
+
 // 두 결과 견주기(report --compare <before.json> <after.json>) — 채널마다 $ · 초 · 차례 · 토큰 in/out/cR/cW · 들어감 · 품질(F1 · 빠짐 · 값 · 성격)의 앞 → 뒤와 차이.
-//   모델이 다른 채널은 「모델 다름」 으로 표시한다(모델 탓 절감과 개선 탓 절감을 가른다 · TODO 5절) · 합 줄은 양쪽에 다 돈 채널만 더한다.
+//   조건이 다른 채널을 가른다(모델 탓 · 셈 규칙 탓 · 넣은 것 탓 차이를 개선 탓 절감과 섞지 않는다 · TODO 5절 · harness 검토 지적):
+//   - 모델 다름 — 실제로 돈 모델이 다르다
+//   - 규칙 다름 — 양쪽 셈 규칙(tokensRule · rowRule · putRule · scoreRule)이 다르고 그 채널에 걸린다(토큰: result 가 여럿인 프로세스가 있다 · 들어감: 저장 줄로 가른 걸음이 있다 · 채점: 점수가 있다)
+//   - 원천 다름 — 넣은 원천(fed) 또는 넣는 법의 판(feedRev)이 다르다
+//   합 줄은 양쪽에 다 돈 채널 · 그 가운데 조건이 같은 채널만의 합을 따로 낸다. 옛 결과는 견주기 전에 recountRun · rescoreRun 으로 지금 규칙에 맞춰 둔다(report).
 //   → { rows, total, md } (md 는 markdown 줄 목록)
 const modelsSeenOf = (c) => [...new Set([...(c?.models || []), ...(c?.rows || []).flatMap((r) => r.models || r.meter?.models || [])])].filter((x) => !/^fake/.test(x)).map((x) => x.replace(/^claude-/, '').replace(/\[1m\]$/, '')).sort()
+const multiResultOf = (c) => (c?.rows || []).some((r) => r.meter && (r.meter.multiResultProcs > 0 || r.meter.results > r.meter.procs))
+const putBySavelogOf = (c) => (c?.rows || []).some((r) => r.putBy === 'savelog' || r.putFromSavelog)
+const ruleOf = (J, k) => String(J?.[k] || '').replace(/ \(recounted\)$/, '') || null
+const RULE_FIELD = { tokens: 'tokensRule', rows: 'rowRule', put: 'putRule', score: 'scoreRule' }
 export function compareOf(A, B) {
   const pct = (a, b) => (typeof a === 'number' && typeof b === 'number' && a > 0 ? `${b - a > 0 ? '+' : ''}${Math.round(((b - a) / a) * 1000) / 10}%` : '-')
   const num = (x, d = 3) => (typeof x === 'number' ? (d ? x.toFixed(d) : String(Math.round(x))) : '-')
   const tk = (t, k) => (t ? t[k] || 0 : null)
   const names = [...new Set([...Object.keys(A.channels || {}), ...Object.keys(B.channels || {})])]
+  const ruleDiff = Object.fromEntries(Object.entries(RULE_FIELD).map(([k, f]) => [k, ruleOf(A, f) !== ruleOf(B, f)]))
   const rows = []
   for (const name of names) {
     const a = A.channels?.[name]
@@ -1565,8 +1642,21 @@ export function compareOf(A, B) {
     const mb = modelsSeenOf(b)
     const sa = a?.score || {}
     const sb = b?.score || {}
+    const both = !!(ta && tb)
+    // 이 채널에 걸리는 규칙 차이
+    const rules = !both ? [] : [
+      ...(ruleDiff.tokens && (multiResultOf(a) || multiResultOf(b)) ? ['토큰 · 차례'] : []),
+      ...(ruleDiff.rows ? ['건 수'] : []),
+      ...(ruleDiff.put && (putBySavelogOf(a) || putBySavelogOf(b)) ? ['들어감 판정'] : []),
+      ...(ruleDiff.score && (a?.score || b?.score) ? ['채점'] : []),
+    ]
+    //   feedRev 가 없는 옛 결과(real-1 · feedRev 전)는 채널 설명(note)이 다르면 넣는 법이 바뀐 것으로 본다(심은 문서 · 원천 전체 같은 바뀜은 설명에 적었다)
+    const noteDiffer = (a?.feedRev == null || b?.feedRev == null) && a?.note && b?.note && a.note !== b.note
+    const feed = both && (JSON.stringify(a.fed ?? null) !== JSON.stringify(b.fed ?? null) || (a.feedRev ?? 1) !== (b.feedRev ?? 1) || noteDiffer)
+    const differ = both && ma.join(',') !== mb.join(',') && ma.length > 0 && mb.length > 0
     rows.push({
-      name, both: !!(ta && tb), models: { before: ma, after: mb, differ: ma.join(',') !== mb.join(',') && ma.length > 0 && mb.length > 0 },
+      name, both, models: { before: ma, after: mb, differ }, rules, feed: feed ? { before: a.fed ?? null, after: b.fed ?? null, rev: [a.feedRev ?? 1, b.feedRev ?? 1], note: !!noteDiffer } : null,
+      same: both && !differ && !rules.length && !feed, rescored: !!(a?.rescored || b?.rescored),
       usd: [ta?.cost ?? null, tb?.cost ?? null], sec: [ta ? ta.ms / 1000 : null, tb ? tb.ms / 1000 : null], turns: [ta?.turns ?? null, tb?.turns ?? null],
       tokens: Object.fromEntries(['input', 'output', 'cacheRead', 'cacheWrite'].map((k) => [k, [tk(ta?.tokens, k), tk(tb?.tokens, k)]])),
       put: [ta ? `${ta.put}/${ta.rows}` : '-', tb ? `${tb.put}/${tb.rows}` : '-'], baseUsd: [a?.base?.cost ?? null, b?.base?.cost ?? null],
@@ -1574,27 +1664,43 @@ export function compareOf(A, B) {
       scope: [sa.scope?.facts || null, sb.scope?.facts || null],
     })
   }
+  const sumOf = (rs) => {
+    const S = (k, i) => r4(sum(rs.map((r) => r[k][i])))
+    return { channels: rs.length, usd: [S('usd', 0), S('usd', 1)], usdWithBase: [r4(S('usd', 0) + S('baseUsd', 0)), r4(S('usd', 1) + S('baseUsd', 1))], sec: [Math.round(S('sec', 0)), Math.round(S('sec', 1))], turns: [S('turns', 0), S('turns', 1)] }
+  }
   const both = rows.filter((r) => r.both)
-  const S = (k, i) => r4(sum(both.map((r) => r[k][i])))
-  const total = { channels: both.length, usd: [S('usd', 0), S('usd', 1)], usdWithBase: [r4(S('usd', 0) + S('baseUsd', 0)), r4(S('usd', 1) + S('baseUsd', 1))], sec: [Math.round(S('sec', 0)), Math.round(S('sec', 1))], turns: [S('turns', 0), S('turns', 1)], modelDiffer: both.filter((r) => r.models.differ).map((r) => r.name) }
+  const total = {
+    ...sumOf(both), same: sumOf(both.filter((r) => r.same)),
+    modelDiffer: both.filter((r) => r.models.differ).map((r) => r.name), ruleDiffer: both.filter((r) => r.rules.length).map((r) => r.name), feedDiffer: both.filter((r) => r.feed).map((r) => r.name),
+    rules: Object.entries(ruleDiff).filter(([, v]) => v).map(([k]) => k),
+  }
   const md = []
   const head = (j) => `${j.tag} · ${j.day} · ${j.fake ? '가짜' : '실제'} · ${j.head || '-'}${j.model ? ` · --model ${j.model}` : ''}${j.modelCommit ? ` · --model-commit ${j.modelCommit}` : ''}`
+  const sumTxt = (t) => `$${t.usd[0].toFixed(3)} → $${t.usd[1].toFixed(3)} (${pct(t.usd[0], t.usd[1])}) · 바탕 포함 $${t.usdWithBase[0].toFixed(3)} → $${t.usdWithBase[1].toFixed(3)} (${pct(...t.usdWithBase)}) · ${t.sec[0]}초 → ${t.sec[1]}초 (${pct(t.sec[0], t.sec[1])}) · 차례 ${t.turns[0]} → ${t.turns[1]}`
   md.push(`## 견주기: ${head(A)} → ${head(B)}`, '')
-  md.push(`양쪽에 돈 채널 ${total.channels} · 합 $${total.usd[0].toFixed(3)} → $${total.usd[1].toFixed(3)} (${pct(total.usd[0], total.usd[1])}) · 바탕 포함 $${total.usdWithBase[0].toFixed(3)} → $${total.usdWithBase[1].toFixed(3)} (${pct(...total.usdWithBase)}) · ${total.sec[0]}초 → ${total.sec[1]}초 (${pct(total.sec[0], total.sec[1])}) · 차례 ${total.turns[0]} → ${total.turns[1]}${total.modelDiffer.length ? ` · 모델 다름: ${total.modelDiffer.join(' · ')}(그 채널의 차이에는 모델 몫이 섞여 있다)` : ''}`, '')
-  md.push('### 시간 · 비용', '', '| 채널 | 모델(앞 → 뒤) | $ 앞 → 뒤 | Δ$ | 초 앞 → 뒤 | Δ초 | 차례 | 토큰 in | 토큰 out | 토큰 cR | 토큰 cW | 들어감 | 바탕 $ |', '|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+  const fix = [A.rowRule?.endsWith('(recounted)') ? '앞 결과의 건 수는 지금 규칙으로 다시 셌다' : '', A.rescored ? `앞 결과의 채점은 지금 채점으로 다시 매겼다(채널 ${A.rescored})` : ''].filter(Boolean)
+  if (fix.length) md.push(`맞춤: ${fix.join(' · ')}`, '')
+  if (total.rules.length) md.push(`셈 규칙이 다르다: ${total.rules.map((k) => `${k}(앞 ${ruleOf(A, RULE_FIELD[k]) || '없음'} · 뒤 ${ruleOf(B, RULE_FIELD[k]) || '없음'})`).join(' · ')}`, '')
+  md.push(`양쪽에 돈 채널 ${total.channels} · 합 ${sumTxt(total)}`)
+  md.push(`조건이 같은 채널 ${total.same.channels} · 합 ${sumTxt(total.same)}${total.modelDiffer.length ? ` · 모델 다름: ${total.modelDiffer.join(' · ')}` : ''}${total.ruleDiffer.length ? ` · 규칙 다름: ${total.ruleDiffer.join(' · ')}` : ''}${total.feedDiffer.length ? ` · 원천 다름: ${total.feedDiffer.join(' · ')}` : ''}(조건이 다른 채널의 차이에는 모델 · 셈 규칙 · 넣은 것의 몫이 섞여 있다)`, '')
+  md.push('### 시간 · 비용', '', '| 채널 | 조건 | 모델(앞 → 뒤) | $ 앞 → 뒤 | Δ$ | 초 앞 → 뒤 | Δ초 | 차례 | 토큰 in | 토큰 out | 토큰 cR | 토큰 cW | 들어감 | 바탕 $ |', '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
   const arrow = (p, d = 3) => `${num(p[0], d)} → ${num(p[1], d)}`
-  for (const r of rows) md.push(`| ${r.name} | ${r.models.before.join(',') || '-'} → ${r.models.after.join(',') || '-'}${r.models.differ ? ' (모델 다름)' : ''} | ${arrow(r.usd)} | ${pct(...r.usd)} | ${arrow(r.sec, 0)} | ${pct(...r.sec)} | ${arrow(r.turns, 0)} | ${arrow(r.tokens.input, 0)} | ${arrow(r.tokens.output, 0)} | ${arrow(r.tokens.cacheRead, 0)} | ${arrow(r.tokens.cacheWrite, 0)} | ${r.put[0]} → ${r.put[1]} | ${arrow(r.baseUsd)} |`)
-  md.push('', '### 품질(채널이 넣은 골든 원천 범위 · score.scope)', '', '| 채널 | 알갱이 범위 | F1 | 빠짐 | 지금 값 | 성격 | 알갱이 자리 | 중복 |', '|---|---|---|---|---|---|---|---|')
+  const cond = (r) => (!r.both ? '한쪽만' : r.same ? '같음' : [r.models.differ ? '모델 다름' : '', r.rules.length ? `규칙 다름(${r.rules.join(' · ')})` : '', r.feed ? `원천 다름(${JSON.stringify(r.feed.before)} → ${JSON.stringify(r.feed.after)}${r.feed.rev[0] !== r.feed.rev[1] ? ` · 넣는 법 ${r.feed.rev[0]} → ${r.feed.rev[1]}` : ''}${r.feed.note ? ' · 설명 다름' : ''})` : ''].filter(Boolean).join(' · '))
+  for (const r of rows) md.push(`| ${r.name} | ${cond(r)} | ${r.models.before.join(',') || '-'} → ${r.models.after.join(',') || '-'} | ${arrow(r.usd)} | ${pct(...r.usd)} | ${arrow(r.sec, 0)} | ${pct(...r.sec)} | ${arrow(r.turns, 0)} | ${arrow(r.tokens.input, 0)} | ${arrow(r.tokens.output, 0)} | ${arrow(r.tokens.cacheRead, 0)} | ${arrow(r.tokens.cacheWrite, 0)} | ${r.put[0]} → ${r.put[1]} | ${arrow(r.baseUsd)} |`)
+  md.push('', '### 품질(채널이 넣은 골든 원천 범위 · score.scope)', '', '| 채널 | 조건 | 알갱이 범위 | F1 | 빠짐 | 지금 값 | 성격 | 알갱이 자리 | 중복 |', '|---|---|---|---|---|---|---|---|---|')
   const qd = (p) => `${p[0] ?? '-'} → ${p[1] ?? '-'}${typeof p[0] === 'number' && typeof p[1] === 'number' && p[0] !== p[1] ? ` (${p[1] - p[0] > 0 ? '+' : ''}${r4(p[1] - p[0])})` : ''}`
-  for (const r of rows) md.push(`| ${r.name} | ${r.scope[0] || '-'} → ${r.scope[1] || '-'} | ${qd(r.quality.f1)} | ${qd(r.quality.missRate)} | ${qd(r.quality.valueRate)} | ${qd(r.quality.nature)} | ${qd(r.quality.factPlaced)} | ${qd(r.quality.dupRate)} |`)
+  for (const r of rows) md.push(`| ${r.name} | ${cond(r)}${r.rescored ? ' · 다시 채점' : ''} | ${r.scope[0] || '-'} → ${r.scope[1] || '-'} | ${qd(r.quality.f1)} | ${qd(r.quality.missRate)} | ${qd(r.quality.valueRate)} | ${qd(r.quality.nature)} | ${qd(r.quality.factPlaced)} | ${qd(r.quality.dupRate)} |`)
   return { rows, total, md }
 }
 async function report() {
   const ci = process.argv.indexOf('--compare')
   if (ci > 0) {
     const [fa, fb] = process.argv.slice(ci + 1, ci + 3)
-    if (!fa || !fb) { console.error('쓰는 법: channel-eval.mjs report --compare <before.json> <after.json>'); process.exit(2) }
-    const [A, B] = await Promise.all([fa, fb].map(async (f) => JSON.parse(await fs.readFile(path.resolve(f), 'utf8'))))
+    if (!fa || !fb) { console.error('쓰는 법: channel-eval.mjs report --compare <before.json> <after.json> [--no-rescore]'); process.exit(2) }
+    const [A0, B0] = await Promise.all([fa, fb].map(async (f) => JSON.parse(await fs.readFile(path.resolve(f), 'utf8'))))
+    // 셈 규칙이 다른 옛 결과는 저장된 rows 로 다시 세고(recountRun) · 지식 폴더가 남아 있으면 지금 채점으로 다시 매긴다(rescoreRun · --no-rescore 로 끈다)
+    const fit = async (J) => (process.argv.includes('--no-rescore') ? recountRun(J) : rescoreRun(recountRun(J)))
+    const [A, B] = [await fit(A0), await fit(B0)]
     console.log(compareOf(A, B).md.join('\n'))
     return
   }
@@ -1624,7 +1730,7 @@ async function main() {
   if (cmd === 'plan') return plan()
   if (cmd === 'run') return run()
   if (cmd === 'report') return report()
-  console.error('쓰는 법: channel-eval.mjs plan | run --channel <ch>[,…]|all --tag <판> [--fake] [--model <m>] [--model-commit <m>] [--confirm-cost] | report [<결과 json>…] | report --compare <before.json> <after.json>')
+  console.error('쓰는 법: channel-eval.mjs plan | run --channel <ch>[,…]|all --tag <판> [--fake] [--model <m>] [--model-commit <m>] [--confirm-cost] | report [<결과 json>…] | report --compare <before.json> <after.json> [--no-rescore]')
   process.exit(2)
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().then(() => process.exit(process.exitCode || 0), (e) => { console.error(e); process.exit(1) })

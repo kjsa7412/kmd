@@ -721,6 +721,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       await fs.appendFile(f, JSON.stringify(line) + '\n')
     })
   }
+  // 저장 줄의 대상(채널 평가 harness 검토) — 고칠 항목마다 coord 또는 「문서#머리」 · 걸린 저장과 뒤에 넣은 저장이 같은 항목인지 대 보는 열쇠(앞 50)
+  const saveTargets = (input) => (Array.isArray(input?.sections) ? input.sections : []).slice(0, 50).map((x) => (x?.coord != null ? String(x.coord).trim().normalize('NFC') : x?.doc ? `${String(x.doc).trim().normalize('NFC')}#${String(x.heading ?? '').replace(/^#+\s*/, '').trim().normalize('NFC')}` : null)).filter(Boolean)
   // 비용 줄(채널 평가 P12) — Claude 를 부른 일의 돈 · 부름 수 · 차례. 세션 · 부름이 끝나야 알므로 저장 줄과 따로 한 줄(stage cost).
   //   저장으로 세지 않는다(put 0 · mode 없음 · 지표 · 채널 셈은 stage cost 를 비용에만 더한다). 커밋 뒤라 던지지 않는다
   async function costLine(id, { ch, usd = 0, calls = 0, ...rest }) {
@@ -1899,7 +1901,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       // 측정 줄(S-D29) — conflictWith 는 E_CONFLICT 때만 · 들이기 비용은 S7
       //   ok — 넣은 자리
       //   cost — 들이기 일감이면 일꾼이 알린 claude 비용 합 · 횟수(S-D29 · 2-5) · warn — 새 항목을 세우며 names 를 싣지 않았다(names-missing · S-D32)
-      try { await savelog(id, { ...logLine, rec: r0.id, n: Array.isArray(input?.sections) ? input.sections.length : 0, put, ok: proposals.filter((p) => p.applied).map((p) => p.coord), stale: [], conflictWith: [], same: false, ms: Date.now() - t0, err: null, cost: intake?.cost || null, ...(intake?.warn?.length ? { warn: intake.warn } : {}), ...(human ? { mode: 'approve', accepted: bag.accepted.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, rounds: roundsTake(ctx, id) } : {}), ...(un ? { mode: 'approve', warned: bag.values.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, ...(un.fix ? { fix: un.fix } : {}), ...(un.conflict ? { conflict: un.conflict } : {}) } : {}), ...(opt.shape ? { mode: 'approve', warned: (r0.warnings || []).map((w) => /^값 대조\(([a-z-]+)\)/.exec(String(w))?.[1]).filter(Boolean) } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+      try { await savelog(id, { ...logLine, rec: r0.id, n: Array.isArray(input?.sections) ? input.sections.length : 0, put, ok: proposals.filter((p) => p.applied).map((p) => p.coord), targets: saveTargets(input), stale: [], conflictWith: [], same: false, ms: Date.now() - t0, err: null, cost: intake?.cost || null, ...(intake?.warn?.length ? { warn: intake.warn } : {}), ...(human ? { mode: 'approve', accepted: bag.accepted.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, rounds: roundsTake(ctx, id) } : {}), ...(un ? { mode: 'approve', warned: bag.values.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, ...(un.fix ? { fix: un.fix } : {}), ...(un.conflict ? { conflict: un.conflict } : {}) } : {}), ...(opt.shape ? { mode: 'approve', warned: (r0.warnings || []).map((w) => /^값 대조\(([a-z-]+)\)/.exec(String(w))?.[1]).filter(Boolean) } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
     }
     // 그 사람의 「오늘 바뀐 것」 한 줄 — 본인 줄만(남에게 알리지 않는다 · K-D13)
     const title = input?.record?.title || ''
@@ -2055,7 +2057,16 @@ ${genRulesBlock({ profile: 'shape' })}`
     for (const x of p.dropped) intakeLine(j, 'sys', `뺀 항목: ${x.heading} · ${x.why}`)
     if (!p.input.sections.length) return close(p.dropped.length ? `넣을 항목이 없다: ${p.dropped.slice(0, 3).map((x) => `${x.heading}(${x.why})`).join(' · ')}` : '고칠 것이 없다')
     const cost = { usd: Math.round((j.cost || 0) * 1e4) / 1e4, calls: j.calls }
-    const r = await hub.save(ctx, id, p.input, { channel: 'polish', intake: { job: j.id, tags: intakeTagsOf(j), cost } })
+    // 저장 문이 입력 오류로 막으면(꼴 · 값 검사 · 지문) 일감을 도는 채로 두지 않는다 — 마지막이 아니면 고쳐 쓰기 · 마지막이면 까닭과 함께 닫는다(채널 평가 harness 검토)
+    let r
+    try {
+      r = await hub.save(ctx, id, p.input, { channel: 'polish', intake: { job: j.id, tags: intakeTagsOf(j), cost } })
+    } catch (e) {
+      if (!(e instanceof KmdError) || !['E_INPUT', 'E_FORMAT', 'E_CONFLICT', 'E_NOTFOUND'].includes(e.code)) throw e
+      const why = `${e.code}: ${String(e.message || '').replace(/\s+/g, ' ').slice(0, 200)}`
+      if (!last && e.code !== 'E_CONFLICT') { intakeLine(j, 'err', `✗ 저장 문에 걸렸다: ${why} · 고쳐 쓴다`); saveJobs(); return { fix: why } }
+      return close(`저장 문에 걸려 넣지 않았다: ${why}`)
+    }
     return close(p.dropped.length ? `뺀 항목 ${p.dropped.length}: ${p.dropped.slice(0, 3).map((x) => x.heading).join(' · ')}` : null, r)
   }
   // 들어온 길(views.js routeOf 에 들이기 · 바로잡기를 더한다) — 화면 말 「세션 · 정정 · 파일 · 가져올 곳 · 보내기 · 팀 일꾼」
@@ -2764,7 +2775,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         if (took) await giveBack(id, took)
         // 저장 전체가 실패한 것도 측정 줄로(rec 없음 · S-D29)
         if (channel && e instanceof KmdError) {
-          try { await savelog(id, { ...logLine, n: Array.isArray(input?.sections) ? input.sections.length : 0, stale: e.details?.stale || [], conflictWith: e.conflictWith || [], ms: Date.now() - t0, err: e.code, mode: 'approve', ...(e.unproposed ? { unproposed: true } : {}), ...(e.approveMiss ? { approve: e.approveMiss } : {}) }) } catch (x) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${x.message}`) }
+          try { await savelog(id, { ...logLine, n: Array.isArray(input?.sections) ? input.sections.length : 0, stale: e.details?.stale || [], conflictWith: e.conflictWith || [], ms: Date.now() - t0, err: e.code, targets: saveTargets(input), mode: 'approve', ...(e.unproposed ? { unproposed: true } : {}), ...(e.approveMiss ? { approve: e.approveMiss } : {}) }) } catch (x) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${x.message}`) }
         }
         throw e
       }

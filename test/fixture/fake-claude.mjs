@@ -182,12 +182,12 @@ function answer() {
     })
     return say({ structured_output: { items, why: '출처 글로 지었다' } })
   }
-  // 문서 다듬기(S13 · core/ingest.js polishPromptOf) — 항목마다 끝에 「(다듬음)」 한 줄 · 첫 항목만 값을 바꾼다(서버가 그 항목을 빼는지 본다)
+  // 문서 다듬기(S13 · core/ingest.js polishPromptOf) — 항목마다 끝에 「(다듬음)」 한 줄 · 첫 항목만 값을 바꾼다(서버가 그 항목을 빼는지 본다) · 까닭(why)에도 그 값을 적는다(기록 글에 실리면 값 검사가 다듬기 전체를 막는다)
   if (prompt.startsWith('문서 「') && prompt.includes('의 항목 글을 다듬는다')) {
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'polish\n')
     const part = prompt.split('항목(base 는 그대로 돌려준다):\n')[1] || ''
     const secs = [...part.matchAll(/^## (.+)\n\(base ([0-9a-f]{16})\)\n([\s\S]*?)(?=\n\n## |(?![\s\S]))/gm)].map((m) => ({ h: m[1].trim(), base: m[2], body: m[3] }))
-    return say({ structured_output: { updates: secs.map((s, i) => ({ heading: s.h, base: s.base, content: `${s.body.trim()}${i === 0 ? ' 999초' : ''}\n\n(다듬음)` })), why: '문장을 짧게' } })
+    return say({ structured_output: { updates: secs.map((s, i) => ({ heading: s.h, base: s.base, content: `${s.body.trim()}${i === 0 ? ' 999초' : ''}\n\n(다듬음)` })), why: '문장을 짧게 · 첫 항목은 999초로 고쳤다' } })
   }
   // 들이기(S7 · core/ingest.js intakePromptOf) — 기록 + 항목 글 초안 하나
   //   커밋: 「바뀐 값: A → B」 의 A 가 든 후보 항목을 B 로(꼭 한 번이면 바꿀 곳 · 아니면 새 글) · 없으면 updates 비움

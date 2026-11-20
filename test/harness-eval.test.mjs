@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadKnowledge } from '../core/knowledge.js'
 import { scoreKnowledge, gateOf, itemsOf, factText, natureOf } from '../scripts/harness-eval.mjs'
-import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf } from '../scripts/channel-eval.mjs'
+import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES } from '../scripts/channel-eval.mjs'
 
 const FIX = path.resolve('test/fixture/harness/빈지식')
 const gold = JSON.parse(fs.readFileSync(path.join(FIX, 'gold.json'), 'utf8'))
@@ -159,10 +159,10 @@ test('H19 · 견주기 · --model-commit: edit-source 채널 몫 점수 · repor
   assert.deepEqual(c.total.usd, [2.26, 1.13])
   assert.deepEqual(c.total.modelDiffer, ['session'])
   const md = c.md.join('\n')
-  assert.match(md, /\| session \| opus-4-6 → sonnet-4-6 \(모델 다름\) \| 1\.600 → 0\.800 \| -50% \|/)
-  assert.match(md, /\| intake-file \| sonnet-4-6 → sonnet-4-6 \| 0\.660 → 0\.330 \| -50% \| 304 → 200 \| -34\.2% \|/)
+  assert.match(md, /\| session \| 모델 다름 \| opus-4-6 → sonnet-4-6 \| 1\.600 → 0\.800 \| -50% \|/)
+  assert.match(md, /\| intake-file \| 같음 \| sonnet-4-6 → sonnet-4-6 \| 0\.660 → 0\.330 \| -50% \| 304 → 200 \| -34\.2% \|/)
   assert.match(md, /1\/2 → 2\/2/)
-  assert.match(md, /\| session \| 3\/31 → 3\/31 \| 0\.95 → 1 \(\+0\.05\) \|/)
+  assert.match(md, /\| session \| 모델 다름 \| 3\/31 → 3\/31 \| 0\.95 → 1 \(\+0\.05\) \|/)
 
   assert.equal(modelsOf('', ''), null)
   assert.deepEqual(modelsOf('', 'haiku'), { agentCommit: 'haiku', commit: 'haiku' })
@@ -170,4 +170,104 @@ test('H19 · 견주기 · --model-commit: edit-source 채널 몫 점수 · repor
   const { modelOf, sessionRole } = await import('../core/models.js')
   assert.equal(modelOf(sessionRole({ type: 'commit' }), modelsOf('', 'haiku')), 'haiku', '커밋 들이기 세션만 haiku')
   assert.equal(modelOf(sessionRole({ type: 'file' }), modelsOf('', 'haiku')), 'sonnet', '파일 들이기는 기본 그대로')
+})
+
+// harness 검토 지적 — 판정 · 계측 규칙(H1 · H2 · H4 · H10 · H17)을 순수 함수로 꺼내 저장 줄 · 계측 줄 견본으로 본다
+test('H1 저장 줄 판정: 같은 대상을 뒤에 넣었을 때만 회복 · 다른 원천의 들어감은 걸린 원천을 덮지 않는다 · 대상 없는 옛 줄은 남은 오류', () => {
+  const ok = (rec, targets, extra = {}) => ({ ch: 'bulk', rec, put: targets.length, err: null, targets, ok: extra.ok || [], ...extra })
+  const bad = (err, targets) => ({ ch: 'bulk', err, n: targets?.length || 0, ...(targets ? { targets } : {}) })
+  // 같은 대상을 다시 propose 해 넣었다 → 회복
+  let j = saveJudgeOf([bad('E_APPROVE', ['모듈:수집기']), ok('r1', ['모듈:수집기'])], { fromSavelog: true })
+  assert.deepEqual([j.put, j.codes, j.recoveredCodes, j.putRecs], [true, [], ['E_APPROVE'], 1])
+  // 원천 A(전송기)가 걸리고 원천 B(버퍼)만 들어갔다 → A 의 오류는 남는다 · 들어간 원천 1
+  j = saveJudgeOf([bad('E_FORMAT', ['docs/게이트웨이 설계.md#전송기']), ok('r2', ['docs/게이트웨이 설계.md#버퍼'])], { fromSavelog: true })
+  assert.deepEqual([j.put, j.codes, j.recoveredCodes, j.putRecs], [true, ['E_FORMAT'], [], 1])
+  // 섞임: 하나는 회복 · 하나는 남음 · 같은 코드가 둘 다면 남은 쪽으로만
+  j = saveJudgeOf([bad('E_APPROVE', ['a']), bad('E_APPROVE', ['b']), bad('E_INPUT', ['c']), ok('r1', ['a']), ok('r2', ['c'])], { fromSavelog: true })
+  assert.deepEqual([j.codes, j.recoveredCodes, j.putRecs], [['E_APPROVE'], ['E_INPUT'], 2])
+  // 뒤 줄의 ok(넣은 자리)로도 대 본다 · 대상이 없는 옛 줄은 회복으로 세지 않는다
+  j = saveJudgeOf([bad('E_APPROVE', ['게이트웨이 설계 › 버퍼']), ok('r1', [], { ok: ['게이트웨이 설계 › 버퍼'], put: 1 })], { fromSavelog: true })
+  assert.deepEqual(j.recoveredCodes, ['E_APPROVE'])
+  j = saveJudgeOf([bad('E_APPROVE'), ok('r1', ['x'])], { fromSavelog: true })
+  assert.deepEqual([j.codes, j.recoveredCodes], [['E_APPROVE'], []])
+  // 넣은 줄이 앞에만 있으면 회복이 아니다 · 무인 고쳐 받기 줄(unattended)은 오류로 세지 않는다
+  j = saveJudgeOf([ok('r1', ['a']), bad('E_CONFLICT', ['a']), { err: 'unattended', put: 0 }], { fromSavelog: true })
+  assert.deepEqual([j.put, j.codes], [true, ['E_CONFLICT']])
+  // 세션 길이 아니면 들어감은 fn 이 정한 값 그대로 · 걸린 줄만 있으면 못 넣음
+  assert.equal(saveJudgeOf([ok('r1', ['a'])], { put: false }).put, false)
+  assert.deepEqual(saveJudgeOf([bad('E_APPROVE', ['a'])], { fromSavelog: true }), { put: false, codes: ['E_APPROVE'], recoveredCodes: [], putRecs: 0 })
+})
+
+test('H17 · H4 계측 줄: 한 프로세스의 result 여럿은 비용 마지막 · 토큰 · 차례 합 · self 는 serverCost null 이고 costGap 없음', () => {
+  const ml = [
+    { run: 'p1', cost: 0.049, turns: 3, tokens: { input: 10, output: 100, cacheRead: 1000, cacheWrite: 200 }, model: 'claude-sonnet-4-6' },
+    { run: 'p1', cost: 0.069, turns: 2, tokens: { input: 5, output: 50, cacheRead: 500, cacheWrite: 0 }, model: 'claude-sonnet-4-6' },
+    { run: 'p2', cost: 0.01, turns: 1, tokens: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }, model: 'claude-opus-4-6' },
+  ]
+  const m = meterRowOf({ cost: 0.05, calls: 1 }, ml)
+  assert.equal(m.cost, 0.079, '프로세스마다 마지막 result 의 cost 를 더한다')
+  assert.equal(m.turns, 6, '차례는 result 마다 더한다')
+  assert.deepEqual(m.tokens, { input: 16, output: 151, cacheRead: 1500, cacheWrite: 200 })
+  assert.deepEqual([m.calls, m.meter.multiResultProcs, m.serverCost, m.costGap], [2, 1, 0.05, 0.029])
+  assert.deepEqual(m.models, ['claude-sonnet-4-6', 'claude-opus-4-6'])
+  const self = meterRowOf({ cost: 0.05, calls: 1 }, ml, { selfCost: true })
+  assert.deepEqual([self.serverCost, self.costSource, 'costGap' in self], [null, 'self', false])
+  assert.deepEqual(meterRowOf({ cost: 0.1234, calls: 2 }, []), { serverCost: 0.1234, serverCalls: 2, cost: 0.1234 }, '계측 줄이 없으면 제품 값')
+})
+
+test('H2 · H10 일감 들어감 · 채널 합: 넣은 것 0 · 기록 없음은 빈 것 · 앞 걸음(aux)은 건 수에서 빠진다', () => {
+  assert.deepEqual(jobPutOf({ state: 'done', result: { put: 0, rec: null } }), { put: false, empty: true })
+  assert.deepEqual(jobPutOf({ state: 'done', result: { put: 2, rec: 'r1' } }), { put: true, empty: false })
+  assert.deepEqual(jobPutOf({ state: 'done', result: { put: 0, rec: 'r1', same: true } }), { put: true, empty: false }, '기록이 남은 일감(같음)은 들어감')
+  assert.deepEqual(jobPutOf({ state: 'done', result: { empty: true } }), { put: false, empty: true })
+  assert.deepEqual(jobPutOf({ state: 'failed', result: { put: 0, rec: null } }), { put: false, empty: false })
+  assert.deepEqual(jobPutOf({ state: 'done', result: { aborted: true, put: 0, rec: null } }), { put: false, empty: false })
+  const t = totalsOf([
+    { aux: true, cost: 0.1, ms: 1000, put: false, costSource: 'self', serverCost: null },
+    { cost: 0.2, ms: 2000, put: true, serverCost: 0.2 },
+    { cost: 0.3, ms: 3000, put: true, sources: 2, putRecs: 1, serverCost: null, costSource: 'self' },
+  ])
+  assert.deepEqual([t.rows, t.auxRows, t.put, t.cost, t.ms, t.serverCost, t.selfCostRows, t.sources, t.putSources], [2, 1, 2, 0.6, 6000, 0.2, 2, 2, 1])
+})
+
+test('견주기: 셈 규칙 · 넣은 것이 다른 채널을 가르고 · 옛 결과(aux 없음)는 지금 규칙으로 다시 센다', () => {
+  const row = (step, put, extra = {}) => ({ step, put, cost: 0.1, ms: 1000, turns: 1, ...extra })
+  const ch = (rows, extra = {}) => ({ total: totalsOf(rows), base: { cost: 0 }, rows, fed: [1, 2, 3], note: '같은 설명', ...extra })
+  // real-1 꼴: 옛 tokensRule · rowRule · putRule 없음 · 앞 걸음에 aux 가 없다 · shape-pc 는 result 가 여럿인 프로세스
+  const A = { tag: 'real-1', tokensRule: 'last-result-per-process (unverified)', scoreRule: 'gold subset by fed sources (score.scope)', channels: {
+    shape: ch([row('조사(올린 묶음)', false), row('구조안(shape-plan · Claude)', false), row('글 짓기(shape-write · 문서 3)', false), row('연습 판 → 넣기(짜임 걸음)', false)]),
+    'shape-pc': ch([row('글 짓기(세션 · 문서 3)', false, { meter: { procs: 3, results: 4 } }), row('연습 판 → 넣기(짜임 걸음)', true)]),
+    session: ch([row('사람 세션', true)], { score: { f1: 0.8 } }),
+    polish: ch([row('다듬기', true)], { fed: [1, 3], note: '들인 문서 둘' }),
+    http: ch([row('A', true)], { fed: [1, 3] }),
+  } }
+  const B = { tag: 'real-2', tokensRule: RULES.tokens, rowRule: RULES.rows, putRule: RULES.put, scoreRule: 'new', channels: {
+    shape: ch([row('조사(올린 묶음)', false, { aux: true }), row('구조안', false, { aux: true }), row('글 짓기', false, { aux: true }), row('연습 판 → 넣기(짜임 걸음)', true)]),
+    'shape-pc': ch([row('글 짓기', false, { aux: true }), row('연습 판 → 넣기(짜임 걸음)', true)]),
+    session: ch([row('사람 세션', true, { putBy: 'savelog' })], { score: { f1: 0.9 } }),
+    polish: ch([row('다듬기', true)], { fed: [1, 3], note: '결함을 심은 문서', feedRev: 2 }),
+    http: ch([row('A', true)], { fed: [1, 3], feedRev: 1 }),
+  } }
+  const A2 = recountRun(A)
+  assert.equal(A2.channels.shape.total.rows, 1, '옛 결과의 앞 걸음(조사 · 구조안 · 글 짓기)을 건 수에서 뺀다')
+  assert.equal(A2.channels['shape-pc'].total.rows, 1)
+  assert.equal(A.channels.shape.rows[0].aux, undefined, '원본은 그대로')
+  assert.equal(recountRun(B), B, '지금 규칙이면 그대로')
+  const c = compareOf(A2, B)
+  const by = Object.fromEntries(c.rows.map((r) => [r.name, r]))
+  assert.deepEqual(by.shape.put, ['0/1', '1/1'])
+  assert.deepEqual(by.shape.rules, [], '건 수는 다시 세어 맞췄다')
+  assert.deepEqual(by['shape-pc'].rules, ['토큰 · 차례'], 'result 가 여럿인 프로세스가 있는 채널만 토큰 규칙이 걸린다')
+  assert.deepEqual(by.session.rules, ['들어감 판정', '채점'])
+  assert.ok(by.polish.feed?.note, 'feedRev 없는 옛 결과는 설명이 다르면 원천 다름')
+  assert.equal(by.http.feed, null)
+  assert.equal(by.http.same, true)
+  assert.deepEqual(c.total.ruleDiffer.sort(), ['session', 'shape-pc'])
+  assert.deepEqual(c.total.feedDiffer, ['polish'])
+  assert.equal(c.total.same.channels, 2, '조건이 같은 채널(shape · http)만의 합을 따로 낸다')
+  const md = c.md.join('\n')
+  assert.match(md, /셈 규칙이 다르다: tokens\(앞 last-result-per-process/)
+  assert.match(md, /\| shape-pc \| 규칙 다름\(토큰 · 차례\) \|/)
+  assert.match(md, /\| polish \| 원천 다름\(\[1,3\] → \[1,3\] · 넣는 법 1 → 2 · 설명 다름\) \|/)
+  assert.match(md, /조건이 같은 채널 2 · 합/)
 })

@@ -316,7 +316,9 @@ export function polishToSave(k, g, draft) {
     sections.push({ doc: g.doc, heading: h, base: seen.base, content: u.content })
   }
   const name = String(g.doc).replace(/^docs\/|\.md$/g, '')
-  const why = String(draft.why || '').replace(/\s+/g, ' ').trim().slice(0, 200)
+  // 일꾼의 까닭(why)에 값이 들면(바꾼 값 「14일」 같은) 기록 글에 싣지 않는다 — 실으면 저장 문의 값 검사가 다듬기 전체를 막는다(채널 평가 harness 검토 · H14 의 남은 길)
+  const why0 = String(draft.why || '').replace(/\s+/g, ' ').trim().slice(0, 200)
+  const why = valuesOf(why0).size ? '' : why0
   const record = {
     title: `다듬기: ${g.title || name}`.slice(0, 200),
     body: [`문서 ${name} 의 문체 · 짜임을 정돈했다(값은 그대로).${why ? ` ${why}` : ''}`, sections.length ? `## 다듬은 항목\n${sections.map((s) => `- ${s.heading}`).join('\n')}` : '', dropped.length ? `## 넣지 않은 항목\n${dropped.map((d) => `- ${d.heading}: ${d.brief || d.why}`).join('\n')}` : ''].filter(Boolean).join('\n\n'),

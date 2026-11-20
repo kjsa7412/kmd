@@ -168,4 +168,9 @@ test('다듬기 저장: 백틱 · 수준 표시 정돈은 값이 바뀐 것이 �
   assert.deepEqual(r.input.sections.map((x) => x.heading), ['gw_log'])
   assert.equal(r.dropped.length, 1)
   assert.match(r.dropped[0].why, /값이 바뀐다.*\+send_interval_sc/)
+  // harness 검토 지적 — 일꾼의 까닭(why)에 값이 들면(바꾼 값) 기록 글에 싣지 않는다 · 값이 없는 까닭은 싣는다
+  const w = polishToSave(k, g, { updates: [{ heading: 'gw_log', base: sha16(old), content: '로그는 `gw_log` 테이블에 쌓인다.\n1. 수집\n2. 전송' }], why: '보존 기간을 14일로 맞췄다' })
+  assert.doesNotMatch(w.input.record.body, /14일/)
+  const w2 = polishToSave(k, g, { updates: [{ heading: 'gw_log', base: sha16(old), content: '로그는 `gw_log` 테이블에 쌓인다.\n1. 수집\n2. 전송' }], why: '번호 표기를 맞췄다' })
+  assert.match(w2.input.record.body, /번호 표기를 맞췄다/)
 })

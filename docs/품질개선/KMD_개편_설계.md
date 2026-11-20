@@ -197,6 +197,7 @@ E_CONFLICT details: `{ stale: ['배포절차#롤백'], proposals }` · E_RATE de
 
 - `kit`: 세션 스킬 판(MCP 가 넘긴 수 · 없으면 null). `ok`: 넣은 자리(응답 `proposals[].applied` 의 coord · 「다시 넣은 비율」 이 같은 자리를 짝짓는다 · S6 에 더함). `held[].why`: 까닭 앞 40자(까닭 상위 · S6 에 더함).
 - `err`: `E_CONFLICT` · `E_FORMAT` · `E_RATE` 처럼 저장 전체가 실패했을 때(이때 `rec` 없음). `conflictWith`: stale 조각마다 `{ coord, by }`(그 항목 지금 applied 기록의 author · K12-4). `cost`: 들이기 일감이면 일꾼이 보고한 claude 비용 합 · 횟수 `{ usd, calls }`.
+- `targets`: 넣은 줄 · 저장 전체가 실패한 줄 모두 고칠 항목마다 `coord` 또는 `문서#머리`(앞 50) — 걸린 저장이 뒤에 넣은 저장으로 회복됐는지 같은 항목으로 대 본다(채널 평가 harness 검토 · `scripts/channel-eval.mjs` `saveJudgeOf`).
 
 ### 2-6. 들이기 일감 (`jobs.json` 의 한 줄)
 
