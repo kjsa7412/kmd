@@ -108,7 +108,7 @@ test('읽기 길: 찾기 · 문서 · MCP brief/section 은 읽기 이상 · 없
 
 test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 같은 저장 문(검사를 넘은 항목 글은 그 순간 문서에) · 읽은 뒤 바뀌면 E_CONFLICT', async () => {
   // 지식 생성 가드 — 화면 · 세션의 save 는 건드린 항목(touches)이나 항목이 없는 까닭(touchesEmpty)이 있어야 한다
-  const rec = { record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다', touchesEmpty: '시험 — 롤백 순서 메모' } }
+  const rec = { record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다', changes: ['롤백 순서: 앱 먼저'], touchesEmpty: '시험 — 롤백 순서 메모' } }
   assert.equal((await req('/api/k/dpms/propose', P.wr, { record: { title: '항목 없음', body: 'x' } })).j.errors?.length > 0, true, '건드린 항목도 까닭도 없는 기록은 받지 않는다')
   const r1 = await req('/api/k/dpms/save', P.rd, rec)
   assert.deepEqual([r1.status, r1.j.error], [403, 'E_FORBIDDEN'])
@@ -117,7 +117,12 @@ test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 같은 저장 문(검�
   // 모든 팀 지식은 승인 저장(P11) — 제안 없이는 428 · 승인한 제안으로 200
   assert.equal((await req('/api/k/dpms/save', P.wr, rec)).status, 428)
   const pr0 = await req('/api/k/dpms/propose', P.wr, rec)
-  assert.equal((await req('/api/k/dpms/save', P.wr, { ...rec, proposal: pr0.j.proposal })).status, 200, JSON.stringify(pr0.j.errors))
+  const sv0 = await req('/api/k/dpms/save', P.wr, { ...rec, proposal: pr0.j.proposal })
+  assert.equal(sv0.status, 200, JSON.stringify(pr0.j.errors))
+  // http 길은 기록 서식 칸을 엮는다(채널 평가 P7 · D3): 바뀐 것이 기록에 남고 · 칸을 실었는데 바뀐 것이 없으면 E_INPUT(말없이 버리지 않는다)
+  assert.match(fs.readFileSync(path.join(root, 'dpms', 'work', `${sv0.j.id || sv0.j.saved}.md`), 'utf8'), /## 바뀐 것\n- 롤백 순서: 앱 먼저/)
+  const noChange = await req('/api/k/dpms/propose', P.wr, { record: { title: '롤백: 까닭만', body: '까닭만 적었다', why: ['앱이 DB 를 잡고 있다'], touchesEmpty: '시험' } })
+  assert.deepEqual([noChange.status, noChange.j.error], [400, 'E_INPUT'])
   // 저장 제안(P2 · P-D31) — 쓰지 않아도 저장과 같은 자리: 없음 404 · 읽기 403 · 쓰기 200 · MCP 도 같다
   assert.equal((await req('/api/k/dpms/propose', P.no, rec)).status, 404)
   assert.deepEqual([(await req('/api/k/dpms/propose', P.rd, rec)).j.error, (await mcp('propose', { knowledge: 'dpms', ...rec }, P.rd)).error, (await mcp('propose', { knowledge: 'dpms', ...rec }, P.no)).error], ['E_FORBIDDEN', 'E_FORBIDDEN', 'E_NOTFOUND'])

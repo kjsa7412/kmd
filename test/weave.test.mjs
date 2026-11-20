@@ -55,7 +55,7 @@ test('빈 지식: 판례 0 건에서도 항목마다 짝이 선다 · 종류는 
       { doc: '게이트웨이 설계', heading: '개요', act: 'new' },
       { doc: '게이트웨이 설계', heading: '수집기', act: 'new', kind: '모듈', gist: 'PLC 값을 모아 묶음으로 넘기는 프로세스', aliases: ['collector', '수집기'] },
       { doc: '게이트웨이 설계', heading: '테이블 gw_log', act: 'new', kind: '테이블', id: 'gw_log', gist: '보낸 묶음의 결과를 한 줄씩 남기는 테이블' },
-      { doc: '게이트웨이 설계', heading: '게이트 A', act: 'new', kind: '게이트', kindGist: '현장에 놓인 출입 게이트 한 대', gist: '정문의 출입 게이트' },
+      { doc: '게이트웨이 설계', heading: '게이트 A', act: 'new', kind: '게이트', kindGist: '현장에 놓인 출입 게이트 한 대', gist: '정문에 놓인 사람 · 차량 출입 게이트' },
       { doc: '회의록', heading: '2026-11-10 주간 회의', act: 'new', kind: '회의', gist: '전송 주기를 10초로 정한 주간 회의' },
     ],
   })

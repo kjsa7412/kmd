@@ -13,7 +13,7 @@ import { ensureRepo, tryGit } from '../core/git.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { parsePut, renderPut, parseReverted, renderReverted, dropPart } from '../core/parts.js'
 import { isReservedTag } from '../core/names.js'
-import { valueDiff } from '../core/values.js'
+import { valueDiff, rowsAdded } from '../core/values.js'
 import { httpStatusOf } from '../core/errors.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
 import { startServer } from '../server/http.js'
@@ -53,6 +53,13 @@ test('칸 쓰고 읽기: 넣은 것 · 되돌린 항목 · 떼기(json 칸은 �
     { doc: DOC, heading: '값: 설명', from: '', to: '3', isNew: false },
     { doc: 'docs/회의록.md', heading: '2026-10-21 HNC 통화', from: '', to: '', isNew: true },
   ])
+  // 새 값만 · 새 표 행 · 뺀 값만(채널 평가 P16): 줄표 없이 「새로: 행 이름 값」 · 「뺌: 옛 값」 · 옛 기록의 「— → 새」 도 읽는다
+  const put2 = renderPut([{ doc: DOC, heading: '점검', from: '', to: '09:00, 21:00', rows: ['정기 점검 09:00', '야간 점검 21:00'] }, { doc: DOC, heading: '값: 설명', from: '3', to: '' }])
+  assert.equal(put2, `## 넣은 것\n- ${DOC} › 점검: 새로: 정기 점검 09:00 · 새로: 야간 점검 21:00\n- ${DOC} › 값: 설명: 뺌: 3`)
+  assert.ok(!put.includes('—') && !put2.includes('—'))
+  assert.deepEqual(parsePut(put2).map((x) => [x.heading, x.from, x.to]), [['점검', '', '정기 점검 09:00, 야간 점검 21:00'], ['값: 설명', '3', '']])
+  assert.deepEqual(parsePut(`## 넣은 것\n- ${DOC} › 값: 설명: — → 3`).map((x) => [x.heading, x.from, x.to]), [['값: 설명', '', '3']])
+  assert.deepEqual(rowsAdded('| 일 | 때 |\n|---|---|\n| 백업 | 02:00 |', '| 일 | 때 |\n|---|---|\n| 백업 | 02:00 |\n| 정기 점검 | 09:00 |\n| 야간 점검 | `21:00` |', '09:00, 21:00'), ['정기 점검 09:00', '야간 점검 21:00'])
   // json 칸(받아들인 경고)은 울타리 끝까지 뗀다(울타리 안의 「## 」 줄에서 멈추지 않는다)
   const held = '## 받아들인 경고\n```json\n[{ "id": "x",\n## "why": "가짜" }]\n```'
   const rv = renderReverted([{ rec: '2026-1103-롤백', doc: DOC, heading: '롤백' }])
@@ -160,7 +167,7 @@ test('intake: 사람 kmd · 저장 문이 붙이는 태그 · 참고 줄을 단�
   const w = (await load()).byWork.get(r.id)
   assert.equal(w.author, 'kmd')
   assert.ok(['intake', 'job/j-1', 'code-change', 'put'].every((t) => w.tags.includes(t)), w.tags.join(' '))
-  assert.ok(read('docs/백업절차.md').includes('[가져옴](../work/'), 'kmd 가 써도 항목 출처 줄')
+  assert.ok(read('docs/백업절차.md').includes('[가져옴: 백업 시각](../work/'), 'kmd 가 써도 항목 출처 줄')
   assert.equal(await code(() => save(dir, { record: { title: '주석 넣기', body: '주석.' }, sections: [{ coord: 'proc:매일 백업', content: '매일 02:00.\n<!-- 몰래 -->' }] }, { user: 'kmd', intake: { tags: [] } })), 'E_FORMAT')
   assert.equal(await code(() => save(dir, { record: { title: 'x', body: 'y' } }, { user: 'kmd' })), 'E_FORBIDDEN', 'intake 없이 kmd')
   assert.equal(await code(() => save(dir, { record: { title: 'x', body: 'y' } }, { user: 'kmd-auto', intake: {} })), 'E_FORBIDDEN', 'kmd-auto 는 아니다')

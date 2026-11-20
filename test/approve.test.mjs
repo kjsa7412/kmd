@@ -204,13 +204,16 @@ test('approve: touchesEmpty = 기록 모음 달 항목(없으면 저장 문이 �
 })
 
 test('approve: 쓰기 자리 새 문서 · 새 항목(장부 · P-D8) · 「## 새로 세움」 · fresh 는 14일 뒤 떨어짐', async () => {
-  const inp = { knowledge: 'apv', record: { title: '점검표: 배포 전 점검', changes: ['배포 전 점검: 세 가지'], touches: ['proc:배포전점검'] }, names: [{ coord: 'proc:배포전점검', label: '배포 전 점검', doc: 'docs/점검표.md', heading: '배포 전 점검' }], sections: [{ doc: '점검표', heading: '배포 전 점검', content: '배포 전 점검은 세 가지다: 디스크 · 인증서 · 백업.' }] }
+  const inp = { knowledge: 'apv', record: { title: '점검표: 배포 전 점검', changes: ['배포 전 점검: 세 가지'], touches: ['proc:배포전점검'] }, names: [{ coord: 'proc:배포전점검', label: '배포 전 점검', doc: 'docs/점검표.md', heading: '배포 전 점검', gist: '배포하기 앞서 디스크 · 인증서 · 백업을 보는 절차' }], sections: [{ doc: '점검표', heading: '배포 전 점검', content: '배포 전 점검은 세 가지다: 디스크 · 인증서 · 백업.' }] }
   const { p, r } = await approved(inp)
   assert.deepEqual(p.newDocs.map((d) => d.doc), ['docs/점검표.md'])
   assert.ok(r.saved, JSON.stringify(r))
   assert.ok(fs.existsSync(path.join(kdir('apv'), 'docs', '점검표.md')))
   const fresh = parseFresh(recText('apv', r.saved))
   assert.deepEqual(fresh.map((x) => x.kind).sort(), ['문서', '이름', '항목'])
+  // 장부에 오른 새 항목의 줄 머리도 「항목」(채널 평가 P21 · 걷은 말 「이름」 을 새로 쓰지 않는다)
+  assert.match(recText('apv', r.saved), /^- 항목 proc:배포전점검$/m)
+  assert.doesNotMatch(recText('apv', r.saved), /^- 이름 /m)
   const w = { id: r.saved, date: '2026-11-10 10:00', author: 'wr', body: recText('apv', r.saved) }
   assert.equal(freshItems([w], { now: new Date(2026, 10, 12) }).length, 3)
   assert.equal(freshItems([w], { now: new Date(2026, 10, 25) }).length, 0, '14일 뒤 저절로 떨어진다')
@@ -289,7 +292,7 @@ test('반박 검토: 있는 장부 항목 덮기(쓰기 자리) · 종류만 · 
   const rec = await mcp('propose', { ...base, sections: [{ doc: '기록 모음', heading: '아무거나', content: '글.' }] })
   assert.deepEqual(rec.errors.map((e) => e.code), ['records'])
   // 화면 길 — ingest/ 표지는 대량 넣기만
-  const ing = await req('/api/k/apv/save', P.wr, { record: { title: '카나리: 경위 2', body: '경위만.', touches: ['proc:카나리'], tags: ['ingest/가짜.md', 'md/0123456789abcdef'] }, proposal: 'a'.repeat(64) })
+  const ing = await req('/api/k/apv/save', P.wr, { record: { title: '카나리: 경위 2', body: '경위만.', changes: ['카나리: 경위'], touches: ['proc:카나리'], tags: ['ingest/가짜.md', 'md/0123456789abcdef'] }, proposal: 'a'.repeat(64) })
   assert.equal(ing.status, 400)
   assert.match(ing.j.message, /ingest\//)
   // 보내기(기기 열쇠 · sent/ 표지) — 제안은 sent/ 없이 받고 같은 해시로 들어간다

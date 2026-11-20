@@ -1,14 +1,14 @@
 // kmd 가 쓰는 기록 칸 · 판정 기록(docs/kmd_문서_작성기준.md 2-3 · docs/품질개선/KMD_개편_설계.md 2-2 · 3-1).
 //
-//   `## 넣은 것`     저장 문이 넣은 항목 한 줄씩(「docs/x.md › 머리: 옛 값 → 새 값」 · 「(새 항목)」) — 태그 put 이 있는 기록만 읽는다
+//   `## 넣은 것`     저장 문이 넣은 항목 한 줄씩(「docs/x.md › 머리: 옛 값 → 새 값」 · 「: 새로: 행 이름 값」 · 「: 뺌: 옛 값」 · 「(새 항목)」) — 태그 put 이 있는 기록만 읽는다
 //   `## 되돌린 항목` 되돌림 기록이 되돌린 항목 한 줄씩(「<기록 id>: docs/x.md › 머리」) — 태그 revert
 //   (저장 승인 P3 · approve 모드 저장 문이 단다 · 사람 입력에는 쓰지 못한다)
 //   `## 받아들인 경고` 사람이 승인한 제안서의 경고(```json``` 목록 { id, code, at, why }) — 승인 = 경고 받아들임(P-D5 · P-D27)
 //   `## 값 대조`     무인 채널의 값 경고(같은 꼴 · 측정만 · P-D2 · P-D37 · P6 부터 쓴다)
 //   `## 이은 항목`   글을 바꾸지 않고 이 기록을 이은 항목 한 줄씩(「docs/x.md › 머리」 · 글 그대로 · P-D12 · 기록 모음 달 항목 P-D29)
 //   `## 지은 근거`   이 저장의 판단 칸(조문 번호 · 과거 결정에 대한 태도 · 까닭) 한 줄씩 — 지식 생성 하네스 H-D18 · 값 대조에 걸리지 않는다
-//   `## 새로 세움`   이 저장이 새로 세운 것 한 줄씩(「문서 docs/x.md」 · 「항목 docs/x.md › 머리」 · 「이름 종류:값」 · 「갈래 이름」 · 「종류 이름」 · 「성격 문서: 성격」)
-//                    (「이름」 줄은 장부에 오른 새 항목이다 · 저장 꼴이라 줄 머리는 옛 말 그대로 쓰고 읽는다 · 화면은 「새 항목(장부)」 로 보인다)
+//   `## 새로 세움`   이 저장이 새로 세운 것 한 줄씩(「문서 docs/x.md」 · 「항목 docs/x.md › 머리」 · 「항목 종류:값」 · 「갈래 이름」 · 「종류 이름」 · 「성격 문서: 성격」)
+//                    (「항목 종류:값」 은 장부에 오른 새 항목이다 · 옛 기록의 「이름 종류:값」 도 읽는다 · 화면은 「새 항목(장부)」 로 보인다)
 //                    점검 지표 「새로 생긴 것」(P-D27) · fresh 표지는 기록 날짜에서 FRESH_DAYS 가 지나면 저절로 떨어진다(P-D10 · Q15)
 //
 //   칸은 본문 끝에 붙는다. 읽을 때는 그 칸의 **마지막** 것만 본다(사람 글에 같은 머리가 있어도 위조가 되지 않게 ·
@@ -27,7 +27,10 @@ export const KMD_PART_RE = /^## (넣은 것|넣지 못함|되돌린 항목|고�
 // 울타리(json) 칸 — 떼기(dropPart)가 울타리 끝까지 본다
 const JSON_PARTS = new Set([ACCEPTED_PART, VALUES_PART])
 const NEW_MARK = ' (새 항목)'
+// 옛 기록의 빈 값 표시(읽기만 · 새로 쓰지 않는다)
 const EMPTY = '—'
+const NEW_LEAD = '새로: '
+const DROP_LEAD = '뺌: '
 
 // 항목 열쇠 — 「docs/x.md › 머리」(k.revertedItems 의 값 · 넣은 것 줄과 같은 꼴)
 export const itemKey = (doc, heading) => `${doc} › ${heading}`
@@ -51,10 +54,15 @@ function lineBlock(body, name) {
 // json 칸의 울타리: 글 안 가장 긴 백틱 줄보다 하나 길게(최소 3)
 const fenceFor = (text) => '`'.repeat(Math.max(3, ...[...String(text).matchAll(/`+/g)].map((m) => m[0].length + 1)))
 
+//   한 줄 꼴(채널 평가 P16 · 줄표를 쓰지 않는다): 값 바뀜 「: 옛 → 새」 · 새 값만 「: 새로: 새 값」(새 표 행이면 행마다 「새로: 행 이름 값」 을 「 · 」 로) ·
+//   뺀 값만 「: 뺌: 옛 값」 · 새 항목 「 (새 항목)」. 옛 기록의 「: — → 새」 · 「: 옛 → —」 도 읽는다
 export function renderPut(rows) {
   if (!rows?.length) return ''
   const line = (r) => {
-    const diff = !r.isNew && (r.from || r.to) ? `: ${r.from || EMPTY} → ${r.to || EMPTY}` : ''
+    let diff = ''
+    if (!r.isNew && r.from && r.to) diff = `: ${r.from} → ${r.to}`
+    else if (!r.isNew && r.to) diff = `: ${(r.rows?.length ? r.rows : [r.to]).map((x) => `${NEW_LEAD}${x}`).join(' · ')}`
+    else if (!r.isNew && r.from) diff = `: ${DROP_LEAD}${r.from}`
     return `- ${itemKey(r.doc, r.heading)}${diff}${r.isNew ? NEW_MARK : ''}`
   }
   return `## ${PUT_PART}\n${rows.map(line).join('\n')}`
@@ -72,9 +80,15 @@ export function parsePut(body) {
     let heading = rest
     let from = ''
     let to = ''
-    const arrow = isNew ? -1 : rest.lastIndexOf(' → ')
+    const lead = isNew ? -1 : Math.max(rest.indexOf(`: ${NEW_LEAD}`), rest.indexOf(`: ${DROP_LEAD}`))
+    const arrow = isNew || lead > 0 ? -1 : rest.lastIndexOf(' → ')
     const colon = arrow < 0 ? -1 : rest.lastIndexOf(': ', arrow)
-    if (colon > 0) {
+    if (lead > 0) {
+      heading = rest.slice(0, lead)
+      const tail = rest.slice(lead + 2)
+      if (tail.startsWith(NEW_LEAD)) to = tail.split(' · ').map((x) => x.replace(NEW_LEAD, '').trim()).join(', ')
+      else from = tail.slice(DROP_LEAD.length)
+    } else if (colon > 0) {
       heading = rest.slice(0, colon)
       from = rest.slice(colon + 2, arrow)
       to = rest.slice(arrow + 3)
@@ -159,21 +173,24 @@ export function parseLinked(body) {
   return b.split('\n').map((l) => l.match(/^- (docs\/.+?\.md) › (.+)$/)).filter(Boolean).map((m) => ({ doc: m[1], heading: m[2].trim() }))
 }
 
-// 새로 세움 — 「- 문서 docs/x.md」 · 「- 항목 docs/x.md › 머리」 · 「- 이름 종류:값」 · 「- 갈래 이름」 · 「- 종류 이름」
-//   kind 「항목」 = 문서에 새로 선 `##` 머리 · kind 「이름」 = 장부에 새로 오른 `종류:값`(둘 다 새 항목이다 · 저장 꼴은 바꾸지 않는다)
+// 새로 세움 — 「- 문서 docs/x.md」 · 「- 항목 docs/x.md › 머리」 · 「- 항목 종류:값」 · 「- 갈래 이름」 · 「- 종류 이름」 · 「- 성격 문서: 성격」
+//   kind 「항목」 = 문서에 새로 선 `##` 머리 · kind 「이름」 = 장부에 새로 오른 `종류:값`(안의 가름 · 둘 다 새 항목이다)
 export const FRESH_DAYS = 14
 const FRESH_KINDS = ['문서', '항목', '이름', '갈래', '종류', '성격']
 // 보이는 말 — 줄 머리(저장 꼴)는 그대로 두고 화면 · 지표에는 새 말로
 //   「성격」 = 문서 성격 줄(「문서: 성격」): 새 문서와 같이 세운다(저장 입력 natures · kmd-migrate 엮기)
 export const FRESH_LABEL = Object.freeze({ 문서: '문서', 항목: '항목(문서)', 이름: '항목(장부)', 갈래: '갈래', 종류: '종류', 성격: '문서 성격' })
+//   줄 머리는 「항목」 하나다(채널 평가 P21): 문서의 새 머리는 「- 항목 docs/x.md › 머리」 · 장부에 오른 새 항목은 「- 항목 종류:값」(모양으로 가른다) ·
+//   읽으면 장부 항목은 kind 「이름」(안의 가름 · FRESH_LABEL 「항목(장부)」) · 옛 기록의 「- 이름 종류:값」 도 같이 읽는다
+const ITEM_AT = /^docs\/.+?\.md › /
 export function renderFresh(rows) {
   const xs = (rows || []).filter((r) => FRESH_KINDS.includes(r?.kind) && r.name && !/[\r\n]/.test(String(r.name)))
-  return xs.length ? `## ${FRESH_PART}\n${xs.map((r) => `- ${r.kind} ${r.name}`).join('\n')}` : ''
+  return xs.length ? `## ${FRESH_PART}\n${xs.map((r) => `- ${r.kind === '이름' ? '항목' : r.kind} ${r.name}`).join('\n')}` : ''
 }
 export function parseFresh(body) {
   const b = lineBlock(body, FRESH_PART)
   if (b == null) return []
-  return b.split('\n').map((l) => l.match(/^- (문서|항목|이름|갈래|종류|성격) (.+)$/)).filter(Boolean).map((m) => ({ kind: m[1], name: m[2].trim() }))
+  return b.split('\n').map((l) => l.match(/^- (문서|항목|이름|갈래|종류|성격) (.+)$/)).filter(Boolean).map((m) => ({ kind: m[1] === '항목' && !ITEM_AT.test(m[2].trim()) ? '이름' : m[1], name: m[2].trim() }))
 }
 // fresh 표지 — 최근 days 안에 선 기록이 새로 세운 것(그 뒤 저절로 떨어진다 · 지식관리자의 조치를 기다리지 않는다)
 //   works — [{ id, date('YYYY-MM-DD HH:MM'), author, body }] → [{ kind, name, rec, date, author }]

@@ -25,6 +25,7 @@ import * as V from './views.js'
 import * as kit from '../core/kit.js'
 import { logoSvg } from '../app/logo.js'
 import * as teamkit from '../core/teamkit.js'
+import { RECORD_PARTS } from '../core/guard.js'
 import { KEY_EXE_CS, KEY_EXE_VER } from '../core/keyexe.js'
 import * as sendLib from '../core/send.js'
 import { pcLogin, makeTeamLogin } from '../core/claudelogin.js'
@@ -1292,20 +1293,25 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const body = await readBody(req)
       // 저장 문(S4) — 채널은 서버가 정한다: 본문에서는 channel: 'send'(보내기) 하나만 읽고 나머지 opt 칸은 받지 않는다(S-D54) ·
       //   보내기는 기기 열쇠(화면 쿠키 아님)로 오고 기록에 sent/<16자 지문> 표지가 있을 때만 · 아니면 http 로 받고 left 는 버린다(끝 검토 3)
+      // http 저장 · 제안의 기록 서식(채널 평가 P7 · D3): 화면(쿠키)은 늘 · 기기 열쇠(API 열쇠 · 보내기 창)는 서식 칸(changes · why …)을 실었을 때 ·
+      //   보내기(sent/)는 보내기 판이 기록 글을 짓는다. 제안과 저장이 같은 규칙이라 지문이 맞는다
+      const httpForm = (ctx, rec, send) => !send && (!ctx.device || RECORD_PARTS.some(([x]) => rec?.[x] != null))
       if (what === 'save') {
         const { channel, kit, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
         const tags = Array.isArray(input.record?.tags) ? input.record.tags : []
         const send = channel === 'send' && !!ctx.device && tags.some((t) => /^sent\/[0-9a-f]{16}$/.test(String(t).trim()))
         if (!send) delete input.left
         // 보내기 판(kit · 저장 승인 P7) — 측정 줄에 싣는다(없으면 null 로 센다 · 옛 판 안내)
-        return out(200, await hub.save(ctx, id, input, { guard: 'strict', channel: send ? 'send' : 'http', ...(send && Number.isInteger(kit) && kit >= 0 && kit < 1000 ? { kit } : {}) }))
+        //   http 는 기록 서식 칸(changes · why · refs …)을 세션처럼 엮는다: 바뀐 것이 없으면 E_INPUT(채널 평가 P7 · D3 · 말없이 칸을 버리지 않는다)
+        return out(200, await hub.save(ctx, id, input, { guard: 'strict', channel: send ? 'send' : 'http', ...(httpForm(ctx, input.record, send) ? { form: 'http' } : {}), ...(send && Number.isInteger(kit) && kit >= 0 && kit < 1000 ? { kit } : {}) }))
       }
       // 저장 제안(저장 승인 설계 P-D3 · P-D31 · P2) — 쓰지 않는다 · 자리(읽기 미만 404 · 쓰기 미만 403) · 입력 모양은 hub.propose 가 본다 ·
       //   본문의 channel 등 opt 칸은 받지 않는다(제안서 머리의 길은 서버가 정한다)
       if (what === 'propose') {
         const { channel: _c, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
         // 기기 열쇠로 온 제안은 개인 프로그램의 보내기 확인 창(P-D22 · P7) · 막힌 제안의 측정 줄 채널도 서버가 정한다(send · http · 채널 평가 P19)
-        return out(200, await hub.propose(ctx, id, input, { path: ctx.device ? '보내기' : '화면', channel: ctx.device ? 'send' : 'http' }))
+        //   화면 길(http)의 제안도 저장과 같은 서식 칸 엮기(채널 평가 P7 · D3: 제안과 저장의 기록 글이 같아야 지문이 맞는다)
+        return out(200, await hub.propose(ctx, id, input, { path: ctx.device ? '보내기' : '화면', channel: ctx.device ? 'send' : 'http', ...(httpForm(ctx, input.record, false) ? { form: 'http' } : {}) }))
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       // 문서 고치기(S9) — 화면 길은 이미 있는 항목의 지문(base)을 꼭 받는다

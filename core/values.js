@@ -144,6 +144,25 @@ export function valueDiff(oldText, newText) {
   return { from: from.join(', '), to: to.join(', ') }
 }
 
+// 새 값만 든 표 행(채널 평가 P16) — 옛 글에 없던 표 행마다 「행 이름 새 값」(첫 칸 + 그 행에 든 새 값) · 새 값이 없는 행은 뺀다
+//   「## 넣은 것」 이 새 행 둘을 「— → 09:00」 로 뭉뚱그리지 않게 행마다 「새로: 정기 점검 09:00」 로 적는다(core/parts.js renderPut)
+export function rowsAdded(oldText, newText, to) {
+  const want = new Set(String(to || '').split(', ').filter(Boolean))
+  if (!want.size) return []
+  const had = new Set(String(oldText || '').split('\n').map((l) => l.trim()))
+  const lines = String(newText || '').split('\n')
+  const out = []
+  lines.forEach((l, i) => {
+    const t = l.trim()
+    if (!/^\|.*\|$/.test(t) || had.has(t) || /^\|[\s:|-]+\|$/.test(t)) return
+    if (lines[i + 1] && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1]) && /-/.test(lines[i + 1])) return // 표 머리 줄
+    const cells = t.replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map((x) => x.trim().replace(/[`*]/g, ''))
+    const vals = [...new Set(valueList(t))].filter((v) => want.has(v))
+    if (vals.length && cells[0]) out.push(`${cells[0]} ${vals.join(', ')}`)
+  })
+  return out.slice(0, DIFF_MAX)
+}
+
 // 지식에 있는 말 — 그 문서의 항목 머리(「값: 설명」 이면 값도) · 항목 장부의 항목(종류:값) · 라벨 · 별칭(값과 같이 빈칸을 뺀다)
 export const squeeze = (s) => String(s).replace(/\s+/g, '')
 export function namesIn(k, doc) {

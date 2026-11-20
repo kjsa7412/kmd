@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { workOnce } from '../core/worker.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
+import { parseFresh } from '../core/parts.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, wk
@@ -103,7 +104,8 @@ test('되돌림이 그 기록이 세운 장부 줄을 거둔다(지식관리자�
   s.hub.forget('dpms')
   let k = await s.hub.get('dpms')
   const w = k.byWork.get(j.result.rec)
-  const made = [...w.body.matchAll(/^- 이름 (\S+)$/gm)].map((m) => m[1]).filter((c) => k.vocab.coords.has(c) && !k.vocab.coords.get(c).deprecated)
+  // 이 기록이 장부에 세운 항목(「## 새로 세움」 의 「- 항목 종류:값」 · 채널 평가 P21)
+  const made = parseFresh(w.body).filter((x) => x.kind === '이름').map((x) => x.name).filter((c) => k.vocab.coords.has(c) && !k.vocab.coords.get(c).deprecated)
   if (!made.length) return // 앞 시험이 같은 항목을 이미 세웠으면 이 기록이 세운 장부 줄이 없다
   const reg = () => fs.readFileSync(path.join(KD(), '_managed.md'), 'utf8')
   assert.ok(made.some((c) => reg().includes(`\`${c}\``)))

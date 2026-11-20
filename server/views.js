@@ -11,6 +11,7 @@ import { sha16 } from '../core/text.js'
 import { parseRefLine, headingMatches } from '../core/sections.js'
 import { levelOf, eachLive } from '../core/levels.js'
 import { RECORDS_DOC } from '../core/guard.js'
+import { slugOf } from '../core/docformat.js'
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -76,14 +77,8 @@ export function linkTarget(k, fromPath, href) {
   return md ? { t: 'missing', d: want } : dead
 }
 
-// GitHub 꼴 앵커 — 소문자 · 글자 · 숫자 · 빈칸 · - · _ 만 남기고 빈칸은 - 로(「원격 제어 확인 창 (DPA020 · DPC010 공통)」 → 원격-제어-확인-창-dpa020--dpc010-공통)
-export const slugOf = (s) =>
-  String(s ?? '')
-    .normalize('NFC')
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, '')
-    .replace(/ /g, '-')
+// GitHub 꼴 앵커 — 저장 검사(core/docformat.js deadLinks)와 같은 셈 · 그곳의 것을 다시 내보낸다
+export { slugOf }
 // 문서 하나의 머리 — [{ h(## 이름), sub(### 이름 · ## 이면 null) }] (코드 울타리 밖 · 항목 글 안의 ###)
 const headIdx = new WeakMap()
 function headsOfDoc(d) {

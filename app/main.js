@@ -2464,7 +2464,7 @@ async function palAliasGo() {
   if (!coord) return
   const it = hits.find((i) => i.coord === coord)
   const kadm = lvOf(KN(k)) === 'admin' || !isTeam()
-  const input = { record: { title: `별칭 더하기: ${q} → ${it.name}`.slice(0, 120), body: `찾기에서 「${q}」 로 찾은 것이 없어 ${it.name}(${coord}) 의 별칭으로 더한다.`, touches: [coord] }, names: [{ coord, label: it.name, aliases: [q] }] }
+  const input = { record: { title: `별칭 더하기: ${q} → ${it.name}`.slice(0, 120), body: `찾기에서 「${q}」 로 찾은 것이 없어 ${it.name}(${coord}) 의 별칭으로 더한다.`, changes: ['항목 장부: 별칭 하나 더함'], touches: [coord] }, names: [{ coord, label: it.name, aliases: [q] }] }
   try {
     await postJSON(`/api/k/${encodeURIComponent(k)}/learn`, { q, coord })
     // 항목 장부의 별칭은 지식관리자가 저장 확인 창에서 넣는다(저장 승인 P5) · 쓰기 자리는 찾기에 배운 것까지

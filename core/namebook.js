@@ -222,7 +222,11 @@ export function cleanForms(list) {
         props.push({ name: pn, src: one(p.src, 60) || null, how: one(p.how, 160) || null, must: p.must === true })
       }
     }
-    out.push({ name, aliases: Array.isArray(x.aliases) ? x.aliases.map((a) => one(a, 40).replace(/,/g, ' ')).filter(Boolean).slice(0, 20) : [], folder: one(x.folder, 120).replace(/^docs\//, '').replace(/\/+$/, ''), kind: FORM_KINDS.includes(x.kind) ? x.kind : '대상', pattern: pattern || null, form: one(x.form, 40) || null, ...(props ? { props } : {}) })
+    const kind = FORM_KINDS.includes(x.kind) ? x.kind : '대상'
+    // 사건 · 보고 갈래의 서식 칸은 작업기록이다(비었거나 지식문서로 오면 · 채널 평가 P10 · 서식 안내 formGuide 가 이 칸으로 고른다)
+    const form0 = one(x.form, 40) || null
+    const form = (kind === '사건' || kind === '보고') && (!form0 || form0 === '지식문서') ? '작업기록' : form0
+    out.push({ name, aliases: Array.isArray(x.aliases) ? x.aliases.map((a) => one(a, 40).replace(/,/g, ' ')).filter(Boolean).slice(0, 20) : [], folder: one(x.folder, 120).replace(/^docs\//, '').replace(/\/+$/, ''), kind, pattern: pattern || null, form, ...(props ? { props } : {}) })
   }
   return out
 }

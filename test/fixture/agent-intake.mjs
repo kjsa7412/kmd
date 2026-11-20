@@ -49,6 +49,8 @@ export default async function ({ prompt, kn, files, read, mcp, env }) {
     record: { title: `${file}: 들임`, body: `${file} 을 들였다.`, changes: items.map((i) => `${i.fresh ? '새로' : '고침'}: ${i.heading}`), touches: [...new Set(items.flatMap((i) => i.coords || []))] },
     sections: (bad ? items.map((i, n) => (n ? i : { ...i, content: `${i.content}\n\n## 본문이 아닌 머리` })) : items).map(({ fresh: _f, coords: _c, ...x }) => x),
     ...(fresh && !docs.some((d) => d.doc === file) ? { forms: [{ name: file, kind: '서술' }] } : {}),
+    // 새 머리는 장부 짝과 뜻 한 줄을 같이(생성 룰 R7-1 · R5-3 · 채널 평가 P3 · P4)
+    ...(fresh ? { names: items.filter((i) => i.fresh).map((i) => ({ coord: `주제:${i.heading.replace(/\s+/g, '_').replace(/[`|]/g, '').slice(0, 60)}`, label: i.heading, doc: file, heading: i.heading, gist: `${file} 에서 들인 글이 다루는 주제 하나(테스트)` })) } : {}),
   }))
   return `${items.length} 항목`
 }

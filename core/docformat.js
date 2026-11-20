@@ -102,6 +102,56 @@ export function formatCheck(content, { doc = null, old = null, origins = [] } = 
   const kept = out.filter((p) => had.has(String(lines[p.line - 1] ?? '').trim()))
   return { problems: out.filter((p) => !kept.includes(p)), kept }
 }
+// ── 문서 · 항목 링크(작성기준 4절 · 채널 평가 P11) ──
+// GitHub 꼴 앵커 — 소문자 · 글자 · 숫자 · 빈칸 · - · _ 만 남기고 빈칸은 - 로(화면 linkTarget 과 같은 셈 · server/views.js 가 다시 내보낸다)
+export const slugOf = (s) =>
+  String(s ?? '')
+    .normalize('NFC')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, '')
+    .replace(/ /g, '-')
+// 코드 울타리 밖 · `코드` 밖 줄 조각에만 f 를 댄다(old 에 있던 줄은 그대로)
+function mapProse(text, f, old = null) {
+  const had = old == null ? null : new Set(String(old).split('\n').map((l) => l.trim()).filter(Boolean))
+  let fence = null
+  return String(text ?? '').split('\n').map((ln) => {
+    const fc = ln.match(FENCE)
+    if (fc) { fence = !fence ? fc[1] : fc[1][0] === fence[0] && fc[1].length >= fence.length ? null : fence; return ln }
+    if (fence || (had && had.has(ln.trim()))) return ln
+    return ln.split(/((`+)[^`\n]*?\2)/).map((seg, i, a) => (i % 3 === 0 ? f(seg) : i % 3 === 1 ? seg : '')).join('')
+  }).join('\n')
+}
+// 빈칸 든 문서 링크의 빈칸을 %20 으로(「[결정](결정 기록.md#2026-11-10 주간)」 → 결정%20기록.md#2026-11-10%20주간) · 바깥 주소 · <…> 꼴은 그대로
+//   old — 지금 항목 글(이미 있던 줄은 손대지 않는다 · 보낸 사람이 넣은 줄만)
+export function spaceLinks(text, old = null) {
+  return mapProse(text, (seg) => seg.replace(/\]\(([^()<>\n]*?\.md(?:#[^()\n]*)?)\)/g, (m, href) => (/\s/.test(href.trim()) && !/^[a-z][a-z0-9+.-]*:/i.test(href.trim()) ? `](${href.trim().replace(/\s/g, '%20')})` : m)), old)
+}
+// 새로 든 문서 · 항목 링크 가운데 가리키는 것이 없는 것 — [{ href, doc(docs/x.md), heading(없으면 null) }]
+//   doc — 그 항목의 문서(링크를 그 자리에서 푼다) · old — 지금 항목 글(이미 있던 줄은 보지 않는다)
+//   has(docPath, heading|null) → 있나(이번에 세우는 문서 · 머리도 있는 것으로 부른 쪽이 센다)
+//   바깥 주소 · 기록 · 시스템 주소(formatCheck 몫) · 확장자 없는 경로는 보지 않는다
+export function deadLinks(text, { doc, old = null, has }) {
+  const out = []
+  const from = docRelOf(doc)
+  if (!from) return out
+  mapProse(text, (seg) => {
+    for (const href of hrefsIn(seg)) {
+      const h = String(href).trim()
+      if (!h || /^[a-z][a-z0-9+.-]*:/i.test(h) || h.startsWith('//') || /^(#\/|\/api\/)/i.test(h) || isRecordLink(h, from)) continue
+      const at = h.indexOf('#')
+      const part = (at < 0 ? h : h.slice(0, at)).split('?')[0]
+      const frag = at < 0 ? '' : safeDec(h.slice(at + 1)).normalize('NFC').trim()
+      if (part && !/\.md$/i.test(part)) continue
+      const p = part ? path.posix.normalize(path.posix.join(path.posix.dirname(from), safeDec(part).normalize('NFC').replace(/\\/g, '/'))) : from
+      if (!p.startsWith('docs/')) continue
+      if (!has(p, frag || null)) out.push({ href: h, doc: p, heading: frag || null })
+    }
+    return seg
+  }, old)
+  return out
+}
+
 // 사람이 읽는 한 줄 — 어느 항목 · 몇째 줄 · 무엇
 export function formatMessage(name, probs) {
   const xs = probs.slice(0, 5).map((p) => `${p.line}째 줄 ${p.what}`)

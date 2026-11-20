@@ -112,7 +112,7 @@ test('세션 일감의 열쇠: 그 지식에만 · 팀 서버는 세션 일감�
     knowledge: 'dpms',
     record: { title: '둘째 통화: 펄스 길이 400ms', body: '둘째 통화에서 펄스 길이를 바꿨다.', changes: ['펄스 길이: 400ms'], refs: ['근거 날짜: 2026-10-22'], touches: ['통화:2026-10-22_둘째_통화'] },
     forms: [{ name: '통화 기록', aliases: ['통화'], kind: '사건' }],
-    names: [{ coord: '통화:2026-10-22_둘째_통화', label: '2026-10-22 둘째 통화', doc: '통화 기록', heading: '2026-10-22 둘째 통화' }],
+    names: [{ coord: '통화:2026-10-22_둘째_통화', label: '2026-10-22 둘째 통화', doc: '통화 기록', heading: '2026-10-22 둘째 통화', gist: '펄스 길이를 400ms 로 바꾼 둘째 업체 통화' }],
     sections: [{ doc: '통화 기록', heading: '2026-10-22 둘째 통화', content: '펄스 길이를 400ms 로 바꾼다.' }],
   })).j.result.structuredContent
   assert.ok(v2.saved, JSON.stringify(v2))

@@ -36,7 +36,7 @@ test('경과 가르기: 끝의 목록만 경과 · 뒤에 글이 오면 본문�
   assert.equal(joinLog('본문', []), '본문')
   assert.equal(joinLog('본문', ['- 줄']), '본문\n\n**경과**\n- 줄')
   // 링크는 그 문서에서 본 상대 경로 · 괄호는 링크를 끊지 않게
-  assert.equal(logLine('docs/a/X.md', { id: '2026-1027-가(나)', title: '가: 나', date: '2026-10-27 10:00' }), '- 2026-10-27 [가](../../work/2026-1027-%EA%B0%80%28%EB%82%98%29.md)')
+  assert.equal(logLine('docs/a/X.md', { id: '2026-1027-가(나)', title: '가: 나', date: '2026-10-27 10:00' }), '- 2026-10-27 [가: 나](../../work/2026-1027-%EA%B0%80%28%EB%82%98%29.md)')
 })
 
 test('저장이 참고 줄을 단다. 사람의 기록은 그 자신 · 옛 줄은 보낸 글에 없어도 지킨다 · 들이기(reflects)는 넣은 기록', async () => {
@@ -47,7 +47,8 @@ test('저장이 참고 줄을 단다. 사람의 기록은 그 자신 · 옛 줄�
   // 본문에는 본문만 · 줄은 문서 끝 참고 블록(항목 이름 아래)
   assert.equal(s.body, '첫 30분 요청 20% 로 보낸다.')
   assert.equal(s.log.length, 1)
-  assert.match(s.log[0], /^- \d{4}-\d{2}-\d{2} \[카나리\]\(\.\.\/work\/.+\.md\)$/)
+  // 링크 글은 기록 제목 그대로(채널 평가 P21)
+  assert.match(s.log[0], /^- \d{4}-\d{2}-\d{2} \[카나리: 첫 30분 20%\]\(\.\.\/work\/.+\.md\)$/)
   assert.ok(s.log[0].includes(`/${encodeURI(a.id)}.md)`))
   const raw = fs.readFileSync(path.join(dir, 'docs', '배포절차.md'), 'utf8')
   assert.match(raw, /<!-- kmd:참고[^\n]*-->\n\*\*참고\*\*\n\n(- .+\n(  - .+\n)+)+<!-- \/kmd:참고 -->\n$/)

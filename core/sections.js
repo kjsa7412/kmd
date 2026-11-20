@@ -347,7 +347,9 @@ const linkId = (id) => encodeURI(id).replace(/\(/g, '%28').replace(/\)/g, '%29')
 // 기록 하나의 참고 줄: 링크는 그 문서에서 본 상대 경로(docs/X.md 면 ../work/…) · note 는 뒤에 붙는 한 마디
 export function logLine(docRel, w, note = '') {
   const up = '../'.repeat(String(docRel).split('/').length - 1)
-  const title = String(w.title || w.id).split(/: /)[0].replace(/[[\]]/g, '').trim()
+  // 링크 글은 기록 제목 그대로(「대상: 어떻게」 · 앞 조각만 쓰면 같은 항목에 「수집기」 만 줄지어 선다 · 채널 평가 P21) · 80자까지
+  const t0 = String(w.title || w.id).replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim()
+  const title = t0.length > 80 ? `${t0.slice(0, 79)}…` : t0
   return `- ${String(w.date || '').slice(0, 10)} [${title}](${up}${w.sub || 'work'}/${linkId(w.id)}.md)${note ? ` · ${note}` : ''}`
 }
 export const logHas = (log, id) => log.some((l) => l.includes(`/${linkId(id)}.md)`) || l.includes(`/${id}.md)`))

@@ -43,7 +43,7 @@ import { ensureRepo, commitPaths, headSha } from './git.js'
 import { begin, recover, writeAtomic } from './journal.js'
 import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, formsAfter, formsText, cleanForms, cleanNatures, placeExact, ledgerOps, dropRegistryRows, dropFormRows, dropNatureRows } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
-import { valuesOf, valueDiff, sameValues } from './values.js'
+import { valuesOf, valueDiff, sameValues, rowsAdded } from './values.js'
 import { renderPut, renderAccepted, renderValues, renderLinked, renderFresh, KMD_PART_RE } from './parts.js'
 import { RECORDS_DOC_PATH } from './guard.js'
 
@@ -474,7 +474,9 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
       const old = cur && findHeading(parseDoc(cur, '').sections, p.heading)
       const d = old ? valueDiff(old.body, p.content ?? '') : null
-      putRows.push({ doc: p.rel, heading: p.heading, isNew: !old, ...(d || {}) })
+      // 새 값만 든 새 표 행은 행마다 「새로: 행 이름 값」(채널 평가 P16)
+      const rows = d && !d.from && d.to ? rowsAdded(old.body, p.content ?? '', d.to) : []
+      putRows.push({ doc: p.rel, heading: p.heading, isNew: !old, ...(d || {}), ...(rows.length ? { rows } : {}) })
     }
   }
   // 첨부(S-D30) — 같은 경로가 있으면 같은 글이면 건너뛰고 다르면 덮지 않는다(아무것도 쓰기 전에 본다)

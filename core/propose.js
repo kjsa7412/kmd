@@ -16,6 +16,40 @@ import { createHash } from 'node:crypto'
 import { guardRecord, guardNames, guardNewDoc, nearOf, nameNear, nearKey, RECORDS_DOC, RECORDS_DOC_PATH } from './guard.js'
 import { mustValues } from './values.js'
 import { formsAfter, upsertForms } from './namebook.js'
+import { locate } from './registry.js'
+import { isFrameHead } from './weave.js'
+import { spaceLinks, deadLinks, slugOf } from './docformat.js'
+
+// 저장 문의 장부 짝 · 뜻 한 줄 · 근거 날짜 · 링크(채널 평가 P3 · P4 · P5 · P11 · 생성 룰 R5-3 · R7-1 · R2-5 · 작성기준 4절)
+export const GIST_MIN = 15
+const docKey = (doc, heading) => 'docs/' + String(doc ?? '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/^docs\//, '').replace(/\.md$/, '').trim().normalize('NFC') + '.md\n' + String(heading ?? '').trim().replace(/^#{1,6}\s+/, '').trim().normalize('NFC')
+// 새 항목의 뜻 한 줄이 받을 꼴인가 — 까닭(못 받으면) · null(받는다)
+export function gistWhy(n, coord) {
+  const g = String(n?.gist ?? '').replace(/\s+/g, ' ').trim()
+  const ex = '예: { coord: "모듈:수집기", label: "수집기", gist: "PLC 값을 읽어 묶음으로 만들어 전송기에 넘기는 프로세스" }'
+  if (!g) return `새 항목 「${coord}」 에 뜻 한 줄(gist)이 없다. 그 항목이 무엇인가를 ${GIST_MIN} ~ 60자 한 문장으로 names 에 같이 싣는다(생성 룰 R5-3 · R7-1). ${ex}`
+  const v = coord.slice(coord.indexOf(':') + 1)
+  if ([v, n.label, n.heading, coord].some((x) => x && nearKey(x) === nearKey(g))) return `새 항목 「${coord}」 의 뜻 한 줄 「${g}」 이 이름을 되풀이한다. 이름이 아니라 그 항목이 무엇인가를 ${GIST_MIN} ~ 60자 한 문장으로 적는다(생성 룰 R5-3). ${ex}`
+  if ([...g].length < GIST_MIN) return `새 항목 「${coord}」 의 뜻 한 줄 「${g}」 이 ${GIST_MIN}자보다 짧다. 그 항목이 무엇인가를 ${GIST_MIN} ~ 60자 한 문장으로 적는다(생성 룰 R5-3). ${ex}`
+  return null
+}
+// 기록 본문의 칸 글(## 머리 다음 줄부터 다음 ## 앞까지 · 마지막 칸)
+const partText = (body, head) => {
+  const L = String(body ?? '').split('\n')
+  let a = -1
+  L.forEach((l, i) => { if (l.trim() === '## ' + head) a = i })
+  if (a < 0) return null
+  const out = []
+  for (let i = a + 1; i < L.length && !/^## /.test(L[i]); i++) out.push(L[i])
+  return out.join('\n')
+}
+// 원천 글에 그 날짜가 있나(2026-11-19 · 2026.11.19 · 2026/11/19 · 2026년 11월 19일 · 20261119)
+export function dateInText(text, ymd) {
+  const [y, m, d] = String(ymd).split('-')
+  const re = new RegExp(y + '\\s*[-./년]\\s*0?' + Number(m) + '\\s*[-./월]\\s*0?' + Number(d) + '(?!\\d)|' + y + m + d + '(?!\\d)')
+  return re.test(String(text ?? ''))
+}
+const todayOf = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 // 바꿀 곳 대는 법은 core/edits.js 에 있다 — 부르는 곳을 바꾸지 않게 다시 내보낸다
 export { EDIT_MAX, EDIT_CHARS, validEdits, applyEdits } from './edits.js'
@@ -134,7 +168,7 @@ export function proposalHash(x) {
 //     되돌림 잦은 문서(opt.reverts(doc) ≥ 2)의 값 바꿈은 경고(reverts) · 새 문서 갈래는 같은 제안의 forms 까지 본다(P-D9)
 //   → 더해 linked([{ doc, heading }] 글 그대로 이은 항목) · fresh([{ kind, name }] 새로 세운 것)
 //   opt.curator — 지식관리자(approve 모드에서 있는 항목 · 갈래의 장부 고침을 받는다 · 「장부 고침」 줄)
-export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors = [], approve = false, reverts = null, month = null, curator = false } = {}) {
+export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors = [], approve = false, reverts = null, month = null, curator = false, today = null } = {}) {
   const rec = input.record && typeof input.record === 'object' ? input.record : {}
   const record = { title: String(rec.title || ''), body: String(rec.body || '') }
   const secs = Array.isArray(input.sections) ? input.sections : []
@@ -222,11 +256,49 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
     items.push({ kind: '고침', ...(coord ? { coord } : {}), doc: at.doc, heading: at.heading, at: where, base: sha16(before), before, after, changed: j.changed || [] })
     texts.push({ heading: at.heading, content: after, coord })
   }
+  // 문서 · 항목 링크(작성기준 4절 · 채널 평가 P11) — 새로 든 줄의 빈칸 든 링크는 %20 으로 맞추고, 가리키는 문서 · 머리가 없으면 오류
+  //   (있는 것이거나 이번에 세우는 것이면 된다 · 이미 있던 줄은 보지 않는다 · 무인은 고쳐 받기 · 사람은 제안 막음)
+  if (approve) {
+    const docsBy = new Map(k.docs.filter((d) => d.path).map((d) => [d.path.normalize('NFC').toLowerCase(), d]))
+    const fresh = new Map()
+    for (const x of items) if (x.kind === '신설') { const p = x.doc.normalize('NFC').toLowerCase(); if (!fresh.has(p)) fresh.set(p, []); fresh.get(p).push(x.heading) }
+    const subsOf = (d) => d.sections.flatMap((sec) => [...String(sec.body || '').matchAll(/^###\s+(.+?)\s*#*\s*$/gm)].map((m) => m[1].trim()))
+    const has = (p0, frag) => {
+      const p = p0.normalize('NFC').toLowerCase()
+      const d = docsBy.get(p)
+      if (!d && !fresh.has(p)) return false
+      if (!frag) return true
+      const hs = [...(d ? d.sections.map((sec) => sec.h) : []), ...(fresh.get(p) || [])]
+      if (hs.some((h) => String(h).normalize('NFC') === frag)) return true
+      const want = slugOf(frag)
+      return !!want && [...hs, ...(d ? subsOf(d) : [])].some((h) => slugOf(h) === want)
+    }
+    for (const x of items) {
+      if (x.kind === '잇기' || typeof x.after !== 'string') continue
+      // 링크 주소는 값으로 세지 않는다(valuesOf) — 빠진 값 셈(texts)은 그대로 둔다
+      x.after = spaceLinks(x.after, x.before || null)
+      for (const l of deadLinks(x.after, { doc: x.doc, old: x.before || null, has })) {
+        const name = l.doc.replace(/^docs\//, '').replace(/\.md$/, '')
+        const docGone = !docsBy.has(l.doc.normalize('NFC').toLowerCase()) && !fresh.has(l.doc.normalize('NFC').toLowerCase())
+        const near = docGone ? k.docs.filter((d) => d.path && nearKey(d.id.split('/').pop()) === nearKey(name.split('/').pop())).map((d) => d.path.replace(/^docs\//, '')) : []
+        err('link', x.at, docGone
+          ? `링크 「${l.href}」 가 가리키는 문서 「${name}」 가 없다${near.length ? `(있는 문서: ${near.slice(0, 2).join(' · ')} · 빈칸은 %20 으로)` : ''}. 있는 문서나 이번에 세우는 문서를 가리키거나 링크를 뺀다(작성기준 4절)`
+          : `링크 「${l.href}」 가 가리키는 항목 「${name} › ${l.heading}」 이 없다. 있는 머리나 이번에 세우는 머리를 가리키거나 링크를 뺀다(작성기준 4절)`)
+      }
+    }
+  }
   // 빠진 값(고칠 항목이 여럿) — 기록이 적은 새 값을 넣는 모든 글을 합친 데서 한 번(gatePrepare 와 같은 셈)
   if (spread && texts.length) {
     const all = valuesOf(texts.map((x) => `${x.heading || ''}\n${x.content}`).join('\n') + ' ' + texts.map((x) => x.coord || '').join(' '))
     const missing = mustValues(record.body).filter((v) => !all.has(v))
     if (missing.length) warnings.push({ id: judgeId('missing', '', '', ...[...missing].sort()), code: 'missing', at: '기록', why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}`, values: missing })
+  }
+  // 근거 날짜(채널 평가 P5 · 생성 룰 R2-5 · R6-4): 들인 날(오늘)과 같고 원천 글에 없으면 측정 표시(막지 않는다 · 무인은 `## 값 대조` · 사람은 받아들일 경고)
+  //   원천 칸(`## 원천` · 들이기 · 보내기가 단다)이 있는 기록만 본다: 원천이 없으면 그 날짜가 어디서 왔는지 가릴 수 없다
+  if (approve) {
+    const asOf = /근거 날짜\s*[:：]\s*(\d{4}-\d{2}-\d{2})/.exec(partText(record.body, '근거') || '')?.[1]
+    const src = partText(record.body, '원천')
+    if (asOf && src != null && asOf === (today || todayOf()) && !dateInText(src, asOf)) warnings.push({ id: judgeId('asof', '', '', asOf), code: 'asof', at: '기록', why: `근거 날짜 ${asOf} 는 들인 날이고 원천 글에 없다: 원천에 날짜가 없으면 근거 날짜를 비운다(생성 룰 R2-5 · R6-4)` })
   }
   // 문서 성격 줄(R3-4 · 세울 때 한 번 정한다): 이 제안이 세우는 새 문서에만 · 한 문서에 하나
   //   갈래가 없는 새 문서에 성격이 없으면 경고(점검의 「성격 없음」 이 된다)
@@ -259,6 +331,32 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
     newNames.push({ coord: c, label: String(n.label || ''), ...(n.doc ? { doc: String(n.doc) } : {}), ...(n.heading ? { heading: String(n.heading) } : {}), near: [...r.same, ...r.similar].slice(0, 5) })
     const t = c.slice(0, Math.max(0, c.indexOf(':')))
     if (t && !kinds.has(t)) kindsWanted.set(t, null)
+  }
+  if (approve) {
+    // 뜻 한 줄(채널 평가 P3 · 생성 룰 R5-3 · R7-1): 새 항목의 gist 가 비거나 · 이름을 되풀이하거나 · 15자보다 짧으면 오류(무인 고쳐 받기 · 사람 제안 막음)
+    for (const n of names) {
+      const c = n.coord.trim().normalize('NFC')
+      if (k.vocab.coords.has(c)) continue
+      const why = gistWhy(n, c)
+      if (why) err('gist', c, why)
+    }
+    // 장부 짝(채널 평가 P4 · 생성 룰 R7-1): 새 머리는 그 자리를 가리키는 장부 항목(이 제안의 names 또는 이미 장부에 있는 항목)과 같이 선다.
+    //   모으는 문서(사건 · 대장 갈래의 항목 패턴 줄 `회의:*`)의 새 머리도 names 가 있어야 한다(패턴 줄은 자리만 정하고 뜻 한 줄이 없다)
+    const paired = new Set()
+    const made = new Set(names.map((n) => n.coord.trim().normalize('NFC')))
+    for (const n of names) {
+      const c = n.coord.trim().normalize('NFC')
+      const loc = n.doc && n.heading ? { doc: n.doc, heading: n.heading } : locate(k.registry || { rows: [] }, c)
+      if (loc) paired.add(docKey(loc.doc, loc.heading))
+    }
+    let known = null
+    for (const x of items) {
+      // 짜임 머리(개요 · 변경 이력 …)는 짝을 세우지 않는다(H-O13 · R7-1 「올리지 않는 것」)
+      if (x.kind !== '신설' || isFrameHead(x.heading) || (x.coord && (k.vocab.coords.has(x.coord) || made.has(x.coord))) || paired.has(docKey(x.doc, x.heading))) continue
+      known ||= new Set([...k.vocab.coords.keys()].map((c) => locate(k.registry || { rows: [] }, c)).filter(Boolean).map((l) => docKey(l.doc, l.heading)))
+      if (known.has(docKey(x.doc, x.heading))) continue
+      err('pair', x.at, `새 머리 「${x.heading}」 에 장부 짝이 없다. 머리만 세우지 않는다: names 에 { coord: "종류:값", label, gist, doc: "${x.doc.replace(/^docs\//, '').replace(/\.md$/, '')}", heading: "${x.heading}" } 를 같이 싣는다(생성 룰 R7-1 · 회의록 같은 모으는 문서의 새 항목도 같다)`)
+    }
   }
   for (const x of Array.isArray(input.kinds) ? input.kinds : []) {
     const t = String(typeof x === 'string' ? x : x?.name || '').trim().normalize('NFC')
@@ -362,7 +460,7 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   const fresh = [
     ...newDocs.map((d) => ({ kind: '문서', name: d.doc })),
     ...items.filter((x) => x.kind === '신설').map((x) => ({ kind: '항목', name: `${x.doc} › ${x.heading}` })),
-    ...newNames.map((n) => ({ kind: '이름', name: n.coord })), // 장부에 오른 새 항목 — 저장 꼴(기록 칸 줄 머리)은 「이름」 그대로(core/parts.js)
+    ...newNames.map((n) => ({ kind: '이름', name: n.coord })), // 장부에 오른 새 항목 — 기록 칸 줄은 「- 항목 종류:값」 로 쓴다(core/parts.js renderFresh · 채널 평가 P21)
     ...newForms.map((x) => ({ kind: '갈래', name: x.name })),
     ...newKinds.map((x) => ({ kind: '종류', name: x.name })),
     ...naturesIn.filter((x) => !k.forms.natures?.has(x.doc)).map((x) => ({ kind: '성격', name: `${x.doc}: ${x.nature}` })),

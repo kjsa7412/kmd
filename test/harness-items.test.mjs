@@ -61,7 +61,7 @@ test('2판(items · docs · skip)은 걷었다: 스키마에 없고 · 보내면
 })
 
 test('지금 꼴은 그대로 지난다 · 새 문서의 성격 줄(natures)은 새 문서에만 · depart · judge 는 받지 않는다 · 「## 지은 근거」 는 거절', async () => {
-  const input = { knowledge: 'dpms', record: { title: '새 항목: 시험 항목', body: '지금 꼴로 보낸다.', changes: ['새로: 시험 항목'], touchesEmpty: '첫 문서' }, sections: [{ doc: '테스트 문서', heading: '시험 항목', content: '시험 항목이다.' }], forms: [{ name: '테스트 문서', kind: '서술' }] }
+  const input = { knowledge: 'dpms', record: { title: '새 항목: 시험 항목', body: '지금 꼴로 보낸다.', changes: ['새로: 시험 항목'], touchesEmpty: '첫 문서' }, sections: [{ doc: '테스트 문서', heading: '시험 항목', content: '시험 항목이다.' }], forms: [{ name: '테스트 문서', kind: '서술' }], names: [{ coord: '주제:시험_항목', label: '시험 항목', doc: '테스트 문서', heading: '시험 항목', gist: '저장 입력 꼴을 시험하려고 세운 주제 하나(테스트)' }] }
   const p = await mcp('propose', input)
   assert.deepEqual(p.errors, [], JSON.stringify(p.errors))
   assert.ok(p.proposal)

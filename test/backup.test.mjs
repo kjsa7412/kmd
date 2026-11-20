@@ -133,7 +133,7 @@ test('남이 앞서 민 백업 → 읽기만(E_BEHIND) → 백업에서 받기 �
   G(other, 'push', '-q', 'origin', 'HEAD:main')
   await backup.enqueue(kn)
   assert.equal(backup.stateOf(kn).verdict, 'behind')
-  const res = await fetch(s.url + '/api/k/dpms/save', { method: 'POST', headers: { 'content-type': 'application/json', cookie: me.cookie }, body: JSON.stringify(rec('막힐 저장')) })
+  const res = await fetch(s.url + '/api/k/dpms/save', { method: 'POST', headers: { 'content-type': 'application/json', cookie: me.cookie }, body: JSON.stringify({ record: { ...rec('막힐 저장').record, changes: ['막힐 저장: 시험'] } }) })
   assert.equal(res.status, 409)
   assert.equal((await res.json()).error, 'E_BEHIND')
   const p = await s.hub.backupPull(ADMIN, 'dpms')

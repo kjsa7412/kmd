@@ -130,7 +130,7 @@ export const TOOLS = [
         },
         names: {
           type: 'array',
-          description: '세울 항목(장부에 올린다): 종류는 그 지식의 종류(brief 의 kinds · 영문 소문자 또는 한글). 값은 빈칸 없는 열쇠(60자 안 · 문장 금지 · 설명은 label 에). 이미 장부에 있는 항목은 싣지 않는다(있는 항목의 자리 · 별칭 고침은 지식관리자만 · 그 항목을 건드리려면 touches 에 단다). doc · heading 을 주면 문서 장부에 그 문서의 그 머리가 이 항목의 자리로 오른다',
+          description: '세울 항목(장부에 올린다): 종류는 그 지식의 종류(brief 의 kinds · 영문 소문자 또는 한글). 값은 빈칸 없는 열쇠(60자 안 · 문장 금지 · 설명은 label 에). 이미 장부에 있는 항목은 싣지 않는다(있는 항목의 자리 · 별칭 고침은 지식관리자만 · 그 항목을 건드리려면 touches 에 단다). doc · heading 을 주면 문서 장부에 그 문서의 그 머리가 이 항목의 자리로 오른다. sections 가 세우는 새 머리는 그 자리를 가리키는 항목을 꼭 같이 싣는다(회의록 같은 모으는 문서의 새 항목도 · 짜임 머리 「개요」 · 「변경 이력」 은 빼고 · 없으면 저장 검사 pair 오류 · R7-1)',
           items: { type: 'object', properties: { coord: str('종류:값: 예 table:tb_user · proc:배포승인 · 이슈:DPMS-ISS-20'), label: str('라벨: 예 사용자 테이블'), gist: str('뜻 한 줄(새 항목마다 꼭 · R5-3 · R7-1): 그 항목이 무엇인가를 15 ~ 60자 한 문장으로 · 이름 · 라벨을 되풀이하지 않는다. 예 "사용자 계정과 로그인 상태를 한 줄씩 두는 테이블" · 반례 "사용자 테이블"'), kindGist: str('새 종류를 세울 때만: 그 종류의 뜻 한 줄(R5-1 라 · 씨앗 종류는 적지 않는다)'), aliases: { type: 'array', items: { type: 'string' }, description: '별칭' }, doc: str('그 항목의 머리가 든 문서'), heading: str('그 항목 머리') }, required: ['coord', 'label'] },
         },
       },

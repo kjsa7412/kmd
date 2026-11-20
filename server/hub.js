@@ -1745,7 +1745,8 @@ ${genRulesBlock({ profile: 'shape' })}`
     if (opt.ruleLog) logLine = { ...logLine, ...opt.ruleLog }
     // form — 세션(MCP)의 기록 글은 서식 칸으로(작성기준 6절 · 템플릿/기록.md) · 칸을 kmd 가 머리를 달아 엮는다 · 메모는 바뀐 것이 없어도 된다
     if (opt.form && input?.record && typeof input.record === 'object') {
-      const b = recordBody(input.record, { trail: humanSave(ctx, id, opt, channel) })
+      //   http 길(opt.form 'http' · 화면 · API 열쇠)은 바뀐 것(changes)이 꼭 있다(채널 평가 P7 · D3) · 세션은 요약만인 기록도 받는다
+      const b = recordBody(input.record, { trail: opt.form !== 'http' && humanSave(ctx, id, opt, channel) })
       if (b.error) throw new KmdError('E_INPUT', b.error)
       input = { ...input, record: { ...Object.fromEntries(Object.entries(input.record).filter(([x]) => !RECORD_PARTS.some(([p]) => p === x))), body: b.body } }
     }
@@ -2748,7 +2749,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (input.record == null || typeof input.record !== 'object' || Array.isArray(input.record)) throw new KmdError('E_INPUT', 'record 는 { title, … } 이다')
       let rec = input.record
       if (opt.form) {
-        const b = recordBody(rec, { trail: true })
+        const b = recordBody(rec, { trail: opt.form !== 'http' })
         if (b.error) throw new KmdError('E_INPUT', b.error)
         rec = { ...Object.fromEntries(Object.entries(rec).filter(([x]) => !RECORD_PARTS.some(([p]) => p === x))), body: b.body }
       }
