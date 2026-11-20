@@ -785,6 +785,8 @@ const settleSeed = async (hub, ctx, id, n = 3000) => {
   for (let i = 0; i < n; i++) { const v = await hub.seedView(ctx, id); if (!v.run || v.run.state !== 'running') return v; await sleep(100) }
   throw Object.assign(new Error('도는 일이 끝나지 않았다'), { code: 'TIMEOUT' })
 }
+// 스키마 일감(구조안 · 글 짓기)의 고쳐 받기 · 실패한 부름 · 까닭(T7): 일꾼 로그로(calls 에는 실패한 부름도 들어 calls-1 로는 둘이 섞인다)
+export const shapeLogFix = (logs) => { const x = fixOf([], logs); return { fix: x.fix, fails: x.failCalls, failCalls: x.failCalls, ...(x.fixWhy ? { fixWhy: x.fixWhy } : {}), ...(x.failCalls ? { codes: ['SCHEMA_FAIL'] } : {}) } }
 async function runShapeTeam(E, C) {
   const t = await team(E, 'shape', { fresh: false })
   const rows = []
@@ -797,8 +799,6 @@ async function runShapeTeam(E, C) {
     t.kn = id
     const dir = path.join(t.root, id)
     const jobsOf = (type) => t.s.hub.intakesOf(id).filter((j) => j.type === type)
-    // 고쳐 받기 · 실패한 부름 — 일꾼 로그로(calls 에는 실패한 부름도 들어 calls-1 로는 둘이 섞인다)
-    const lf = (logs) => { const x = fixOf([], logs); return { fix: x.fix, fails: x.failCalls, failCalls: x.failCalls, ...(x.failCalls ? { codes: ['SCHEMA_FAIL'] } : {}) } }
     const jobSum = (js) => ({ cost: r4(sum(js.map((j) => j.cost))), calls: sum(js.map((j) => j.calls)), tries: sum(js.map((j) => j.tries)) })
     rows.push(await measure(E, t, { channel: 'shape', step: '조사(올린 묶음)', aux: true, dir, kid: id, file: o.srcs.map((s) => s.n).join(','), expectCh: 'shape' }, async () => {
       await t.s.hub.seedSurvey(t.ADMIN, id, { group: o.up.group })
@@ -813,7 +813,7 @@ async function runShapeTeam(E, C) {
       for (let i = 0; i < 6 && !E.over && (await work(logs)); i++);
       const v = await t.s.hub.seedView(t.ADMIN, id)
       const js = jobSum(jobsOf('shape-plan'))
-      return { ms: Date.now() - t0, ...js, ...lf(logs), started: !!pl.started, runState: v.run?.state, check: v.work?.check ? { ok: v.work.check.ok, errors: (v.work.check.errors || []).slice(0, 5) } : null, docs: (v.work?.plan?.docs || []).map((d) => `${d.id}(${(d.items || []).length})`), put: false, ...(v.work?.check?.ok ? {} : { codes: ['PLAN_CHECK'] }) }
+      return { ms: Date.now() - t0, ...js, ...shapeLogFix(logs), started: !!pl.started, runState: v.run?.state, check: v.work?.check ? { ok: v.work.check.ok, errors: (v.work.check.errors || []).slice(0, 5) } : null, docs: (v.work?.plan?.docs || []).map((d) => `${d.id}(${(d.items || []).length})`), put: false, ...(v.work?.check?.ok ? {} : { codes: ['PLAN_CHECK'] }) }
     }))
     let v = await t.s.hub.seedView(t.ADMIN, id)
     // 지을 문서 — 있는 문서(was)는 빼고(hub.seedWrite 와 같은 셈) · 처음 min(3, n) 은 하나씩 짓고 승인한 뒤 나머지를 all 로(채널 평가 H5 · shape-pc 와 같은 꼴)
@@ -841,7 +841,7 @@ async function runShapeTeam(E, C) {
         const v2 = await t.s.hub.seedView(t.ADMIN, id)
         const js = jobSum(jobsOf('shape-write'))
         const ds = v2.work?.docs || []
-        const lfo = lf(logs)
+        const lfo = shapeLogFix(logs)
         return { ms: Date.now() - t0, ...js, ...lfo, docState: ds.map((d) => `${d.id}:${d.state}${d.values?.length ? `:값경고${d.values.length}` : ''}`), valueWarn: sum(ds.map((d) => d.values?.length || 0)), put: false, ...(approveErr.length ? { approveErr } : {}), codes: [...(lfo.codes || []), ...(err ? [err.code || 'THROW'] : []), ...(approveErr.length ? ['APPROVE'] : [])], why: [...(err ? [String(err.message).slice(0, 300)] : []), ...approveErr] }
       }))
       rows.push(await measure(E, t, { channel: 'shape', step: '연습 판 → 넣기(짜임 걸음)', dir, kid: id, expectCh: 'shape' }, async () => {
@@ -869,6 +869,8 @@ async function runShapeFolder(E, C) {
   } finally { await t.close() }
 }
 // 문서마다 새로 연 동작 내역의 비용 합(T8 · real-2 글 짓기 serverCost 0.0576 대 계측 0.2094: 마지막 문서 몫만 셌다)
+// fixWhy 는 있을 때만 칸을 싣는다(빈 배열이 measure 의 savelog 대체 길을 막지 않게 · fixOf 와 같은 규칙)
+export const whyOf = (xs = []) => (xs.length ? { fixWhy: xs } : {})
 export const feedDocsCost = (list = []) => r4(sum(list.map((x) => x?.feedCost || 0)))
 async function runShapePc(E, C) {
   const { makeHub } = await import('../server/hub.js')
@@ -886,7 +888,7 @@ async function runShapePc(E, C) {
   const dir = path.join(root, id)
   const t = { kn: id, dir, savelogFile: () => path.join(dataDir, 'savelog', `${encodeURIComponent(id)}.jsonl`) }
   const rows = []
-  const feedSum = async () => { const f = await hub.seedFeed(ctx, id).catch(() => null); const rs = f?.rows || []; return { sessions: rs.filter((r) => r.k === 'start').length, said: rs.filter((r) => r.k === 'me').length, fixAsk: rs.filter((r) => r.k === 'kmd' && r.tone === 'warn').length, fixWhy: rs.filter((r) => r.k === 'kmd' && r.tone === 'warn').map((r) => String(r.text || '').slice(0, 200)), feedCost: r4(sum(rs.filter((r) => r.k === 'result').map((r) => r.cost))), feedTail: rs.filter((r) => r.k === 'kmd' || r.tone === 'err' || r.k === 'err').slice(-4).map((r) => String(r.text || '').slice(0, 200)) } }
+  const feedSum = async () => { const f = await hub.seedFeed(ctx, id).catch(() => null); const rs = f?.rows || []; return { sessions: rs.filter((r) => r.k === 'start').length, said: rs.filter((r) => r.k === 'me').length, fixAsk: rs.filter((r) => r.k === 'kmd' && r.tone === 'warn').length, ...whyOf(rs.filter((r) => r.k === 'kmd' && r.tone === 'warn').map((r) => String(r.text || '').slice(0, 200))), feedCost: r4(sum(rs.filter((r) => r.k === 'result').map((r) => r.cost))), feedTail: rs.filter((r) => r.k === 'kmd' || r.tone === 'err' || r.k === 'err').slice(-4).map((r) => String(r.text || '').slice(0, 200)) } }
   // 제품 비용 장부(feed 의 result 줄 cost)를 걸음마다 serverCost 로 옮긴다 — 앞 걸음에서 이미 센 몫은 뺀다(채널 평가 H4 · 앞 판은 0 이라 늘 costGap)
   let feedSeen = 0
   const feedStep = (f) => { const c = f.feedCost >= feedSeen ? r4(f.feedCost - feedSeen) : f.feedCost; feedSeen = f.feedCost; return c }
@@ -900,7 +902,7 @@ async function runShapePc(E, C) {
       await hub.seedPlan(ctx, id, { mode: 'claude' })
       const v = await settleSeed(hub, ctx, id)
       const f = await feedSum()
-      return { put: false, cost: feedStep(f), fixWhy: f.fixWhy, runState: v.run?.state, runWhy: v.run?.why || v.run?.error || null, tries: v.run?.tries ?? null, check: v.work?.check ? { ok: v.work.check.ok, errors: (v.work.check.errors || []).slice(0, 5) } : null, docs: (v.work?.plan?.docs || []).map((d) => d.id), ...f, fix: f.fixAsk, ...(v.work?.check?.ok ? {} : { codes: ['PLAN_CHECK'] }) }
+      return { put: false, cost: feedStep(f), runState: v.run?.state, runWhy: v.run?.why || v.run?.error || null, tries: v.run?.tries ?? null, check: v.work?.check ? { ok: v.work.check.ok, errors: (v.work.check.errors || []).slice(0, 5) } : null, docs: (v.work?.plan?.docs || []).map((d) => d.id), ...f, fix: f.fixAsk, ...(v.work?.check?.ok ? {} : { codes: ['PLAN_CHECK'] }) }
     }))
     const v = await hub.seedView(ctx, id)
     const docIds = (v.work?.plan?.docs || []).filter((d) => !d.was).map((d) => d.id)
@@ -921,7 +923,7 @@ async function runShapePc(E, C) {
         // 비용(T8) — 글 짓기는 문서마다 동작 내역(feed)을 새로 연다(hub feedNew): 끝에 한 번 읽으면 마지막 문서 몫만 남는다 · 문서마다 읽은 몫을 더한다
         const cost = feedDocsCost(fs0)
         feedSeen = fs0.length ? fs0[fs0.length - 1].feedCost : feedSeen
-        return { put: false, cost, perDoc: fs0.map((x, i) => ({ doc: docIds[i], cost: x.feedCost, fix: x.fixAsk })), fixWhy: fs0.flatMap((x) => x.fixWhy), ...(approveErr.length || err ? { codes: [...(err ? [err.code || 'THROW'] : []), ...(approveErr.length ? ['APPROVE'] : [])], why: [...(err ? [String(err.message).slice(0, 300)] : []), ...approveErr] } : {}), sessions: sum(fs0.map((x) => x.sessions)), fix: sum(fs0.map((x) => x.fixAsk)), docState: (v2.work?.docs || []).map((d) => `${d.id}:${d.state}`), docWhy: (v2.work?.docs || []).map((d) => JSON.stringify(d).slice(0, 400)), feedTail: fs0.flatMap((x) => x.feedTail) }
+        return { put: false, cost, perDoc: fs0.map((x, i) => ({ doc: docIds[i], cost: x.feedCost, fix: x.fixAsk })), ...whyOf(fs0.flatMap((x) => x.fixWhy || [])), ...(approveErr.length || err ? { codes: [...(err ? [err.code || 'THROW'] : []), ...(approveErr.length ? ['APPROVE'] : [])], why: [...(err ? [String(err.message).slice(0, 300)] : []), ...approveErr] } : {}), sessions: sum(fs0.map((x) => x.sessions)), fix: sum(fs0.map((x) => x.fixAsk)), docState: (v2.work?.docs || []).map((d) => `${d.id}:${d.state}`), docWhy: (v2.work?.docs || []).map((d) => JSON.stringify(d).slice(0, 400)), feedTail: fs0.flatMap((x) => x.feedTail) }
       }))
       rows.push(await measure(E, t, { channel: 'shape-pc', step: '연습 판 → 넣기(짜임 걸음)', expectCh: 'shape' }, async () => {
         const tr = await hub.seedTry(ctx, id)
@@ -1110,8 +1112,9 @@ async function runBulk(E, C) {
     }
     files.push({ name: 'index.json', data: JSON.stringify(index, null, 1) })
     const save0 = t.s.hub.save
-    let filled = 0
-    t.s.hub.save = (ctx, id, input, opt) => save0.call(t.s.hub, ctx, id, input && Array.isArray(input.attach) ? { ...input, attach: input.attach.map((a) => { const k = String(a?.b64 || '').trim(); if (!refs.has(k)) return a; filled++; return { ...a, b64: refs.get(k) } }) } : input, opt)
+    // attachRaw · attachRawKb: 참조가 아니라 세션이 base64 를 손수 실은 첨부(T5 · 첨부 생성 몫이 정말 0 인가) · .b64 는 일 폴더에 없어 b64Reads 는 늘 0 이다
+    const att = { filled: 0, raw: 0, rawKb: 0 }
+    t.s.hub.save = (ctx, id, input, opt) => save0.call(t.s.hub, ctx, id, input && Array.isArray(input.attach) ? { ...input, attach: input.attach.map((a) => { const k = String(a?.b64 || '').trim(); if (!refs.has(k)) { if (k) { att.raw++; att.rawKb += k.length / 1024 } return a } att.filled++; return { ...a, b64: refs.get(k) } }) } : input, opt)
     try {
       rows.push(await measure(E, t, { channel: 'bulk', step: `대량 넣기 세션(원천 ${srcs.length} · 한 세션)`, file: srcs.map((s) => s.n).join(','), expectCh: 'bulk', selfCost: true }, async () => {
         const { r, tools, proxy, toolTrace } = await humanSession(E, t, {
@@ -1121,7 +1124,7 @@ async function runBulk(E, C) {
           extra: '- 파서(kmd-parse)를 받지 않는다: 일 폴더의 index.json 이 파서 출력이다(rel · mdFile 글 · sha · tags · attachRef 원본 첨부 표).\n- 규칙 표 승인은 사람이 미리 했다: propose errors 가 0 이면 묻지 않고 파일마다 save 한다. save 의 record.tags 는 index.json 의 tags 그대로 · attach 는 [{ path: attachPath, b64: attachRef 글자 그대로(예: 「@원본/1」) }]. 원본 바이트는 이 시험이 채워 넣는다: base64 를 짓거나 원본 파일을 찾지 않는다.\n- 빈 지식이어도 기초 세우기를 기다리지 않고 이어 간다.',
           prompt: `일 폴더의 파일들을 팀 지식(knowledge id: ${t.kn})에 대량으로 넣어 줘. index.json 을 먼저 읽는다. 규칙 표는 승인한 것으로 본다.`,
         })
-        return { putFromSavelog: true, proxy, toolTrace, attachVia: 'ref', attachFilled: filled, b64Reads: tools.filter((x) => /\.b64\b/.test(x)).length, cost: r.cost || 0, turns: r.turns ?? null, calls: 1, agentOk: !!r.ok, toolCalls: tools.length, saveCalls: tools.filter((x) => x.startsWith('저장')).length, perFileCost: r4((r.cost || 0) / srcs.length), sources: srcs.length, answer: String(r.text || r.message || '').slice(0, 800), ...(r.ok ? {} : { codes: [`AGENT_${r.error || 'fail'}`], why: [String(r.message || '').slice(0, 300)] }) }
+        return { putFromSavelog: true, proxy, toolTrace, attachVia: 'ref', timeScope: 'tool', attachFilled: att.filled, attachRaw: att.raw, attachRawKb: Math.round(att.rawKb), b64Reads: tools.filter((x) => /\.b64\b/.test(x)).length, cost: r.cost || 0, turns: r.turns ?? null, calls: 1, agentOk: !!r.ok, toolCalls: tools.length, saveCalls: tools.filter((x) => x.startsWith('저장')).length, perFileCost: r4((r.cost || 0) / srcs.length), sources: srcs.length, answer: String(r.text || r.message || '').slice(0, 800), ...(r.ok ? {} : { codes: [`AGENT_${r.error || 'fail'}`], why: [String(r.message || '').slice(0, 300)] }) }
       }))
       rows.push(await measure(E, t, { channel: 'bulk', step: '같은 묶음 다시(모두 same 이어야)', expectCh: 'bulk', selfCost: true }, async () => {
         if (!E.fake) return { ran: false, why: ['진짜 판에서는 다시 돌리지 않는다(돈) · 가짜 판에서만 본다'] }

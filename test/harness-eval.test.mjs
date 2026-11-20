@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadKnowledge } from '../core/knowledge.js'
 import { scoreKnowledge, gateOf, itemsOf, factText, natureOf } from '../scripts/harness-eval.mjs'
-import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost } from '../scripts/channel-eval.mjs'
+import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf } from '../scripts/channel-eval.mjs'
 
 const FIX = path.resolve('test/fixture/harness/빈지식')
 const gold = JSON.parse(fs.readFileSync(path.join(FIX, 'gold.json'), 'utf8'))
@@ -355,6 +355,15 @@ test('T6 · T7 · T8: 코드는 앞 원인 · 뒤 원인 순으로 쌓이고 · 
   assert.equal(f.fix, 2)
   assert.deepEqual(f.fixWhy, ['docs[1].items[2]: 머리 「X: X」 꼴 · 재료 3 이 어느 문서에도 없다', 'pair · gist'])
   assert.equal(fixOf([], []).fixWhy, undefined, '고쳐 받기가 없으면 칸도 없다')
+  // T7: shape 채널(runShapeTeam)의 구조안 · 글 짓기 행도 일꾼 로그의 까닭을 싣는다(앞 판은 lf 가 fixWhy 를 버렸다)
+  const sl = shapeLogFix(['kn: 구조안: 검사에 걸렸다 · 고쳐 쓴다(docs[0]: 재료 2 가 어느 문서에도 없다)', 'kn: 구조안: 초안을 받지 못했다(시간 넘김)'])
+  assert.equal(sl.fix, 1)
+  assert.deepEqual(sl.fixWhy, ['docs[0]: 재료 2 가 어느 문서에도 없다'])
+  assert.deepEqual(sl.codes, ['SCHEMA_FAIL'])
+  assert.equal('fixWhy' in shapeLogFix(['kn: 넣음 3']), false, '고쳐 받기가 없으면 칸도 없다')
+  // T8: shape-pc 는 까닭이 비면 칸을 싣지 않는다(빈 배열이 measure 의 savelog 대체 길을 막았다)
+  assert.deepEqual(whyOf([]), {})
+  assert.deepEqual(whyOf(['x']), { fixWhy: ['x'] })
   // T8 — 글 짓기는 문서마다 동작 내역을 새로 연다: 끝에 한 번 읽은 마지막 문서 몫(0.0576)이 아니라 문서마다 더한다
   assert.equal(feedDocsCost([{ feedCost: 0.0712 }, { feedCost: 0.0806 }, { feedCost: 0.0576 }]), 0.2094)
   assert.equal(feedDocsCost([]), 0)
