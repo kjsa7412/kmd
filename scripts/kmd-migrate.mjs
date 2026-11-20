@@ -265,18 +265,21 @@ async function trail(dir, docPath, heading, o) {
   }
 }
 
-// 사라지는 표 행(첫 열 열쇠) · 문장(3-gram 겹침 0.6 미만)
+// 사라지는 표 행(첫 열 열쇠) · 문장(옛 문장의 3-gram 이 새 글 전체에 든 몫 0.6 미만 · 채널 평가 P15)
 const grams = (s) => {
   const t = s.replace(/\s+/g, '')
   const g = new Set()
   for (let i = 0; i < t.length - 2; i++) g.add(t.slice(i, i + 3))
   return g
 }
-const jac = (a, b) => {
+// a 의 3-gram 가운데 b 에 든 몫(포함률)
+const contain = (a, b) => {
   let n = 0
   for (const x of a) if (b.has(x)) n++
-  return n / (a.size + b.size - n || 1)
+  return a.size ? n / a.size : 1
 }
+// 문장으로 나눈다 — 마침표 · 물음표 · 느낌표 · 「。」 뒤 빈칸에서(수 · 판 번호 속 점은 뒤에 빈칸이 없어 나누지 않는다)
+const sentencesOf = (line) => String(line).split(/(?<=[.!?。])\s+/).map((t) => t.trim()).filter(Boolean)
 const rowKeys = (body) => {
   const keys = new Map()
   for (const l of String(body).split('\n')) {
@@ -293,9 +296,11 @@ export function dropsOf(oldBody0, newBody0) {
   const ok = rowKeys(oldBody0)
   const nk = new Set([...rowKeys(newBody).keys()])
   const rows = [...ok.keys()].filter((x) => ok.get(x) === 1 && !nk.has(isoDates(x)))
-  const newG = proseLines(newBody).map(grams)
+  // 문장 단위 포함률(채널 평가 P15) — 줄 단위 Jaccard 는 줄을 합치거나 나눈 글 · 말만 바꾼 줄을 빠짐으로 잡았다.
+  //   옛 글을 문장으로 나눠 문장마다 그 3-gram 이 새 글 전체(문장 · 표)에 얼마나 드나를 본다
   const newFlat = newBody.replace(/\s+/g, '')
-  const lines = proseLines(oldBody0).filter((t) => t.replace(/\s+/g, '').length >= 20).filter((t) => { const u = isoDates(t); return !newFlat.includes(u.replace(/\s+/g, '')) && !newG.some((g) => jac(grams(u), g) >= 0.6) })
+  const newG = grams(newBody)
+  const lines = proseLines(oldBody0).flatMap(sentencesOf).filter((t) => t.replace(/\s+/g, '').length >= 10).filter((t) => { const u = isoDates(t); return !newFlat.includes(u.replace(/\s+/g, '')) && contain(grams(u), newG) < 0.6 })
   return { rows, lines }
 }
 

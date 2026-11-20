@@ -7,7 +7,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { readStructure } from '../core/restructure.js'
 import { loadKnowledge } from '../core/knowledge.js'
-import { cleanPlan, shapeFp, readShape, diffPlan, planCheck, stepsOf, SEED_PLAN_SCHEMA, seedPlanPromptOf } from '../core/shape.js'
+import { cleanPlan, shapeFp, readShape, diffPlan, planCheck, stepsOf, SEED_PLAN_SCHEMA, seedPlanPromptOf, seedBatchPromptOf, SEED_RULES, seedCover, seedPriorOf, seedWriteMaterial, seedWriteSessionPromptOf, shapeWritePromptOf, seedPlanOfDraft } from '../core/shape.js'
 
 const git = (dir, ...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: dir, encoding: 'utf8' })
 function make(files) {
@@ -219,7 +219,14 @@ test('서버: GET shape · POST shape/check — 쓰기 자리 403 · 지식관�
     assert.match(g.j.fp, /^[0-9a-f]{16}$/)
     assert.equal(g.j.work, null)
     assert.ok(g.j.docs.some((d) => d.id === '배포절차' && d.items.length))
-    const plan = { v: 1, kind: 'reshape', base: g.j.fp, docs: g.j.docs.map((d) => ({ id: d.id, was: d.id, items: d.items.map((it) => ({ h: it.h, from: [{ doc: d.id, h: it.h }] })) })) }
+    const same = { v: 1, kind: 'reshape', base: g.j.fp, docs: g.j.docs.map((d) => ({ id: d.id, was: d.id, items: d.items.map((it) => ({ h: it.h, from: [{ doc: d.id, h: it.h }] })) })) }
+    // 바뀐 것 없는 구조안은 일을 열지 않는다(채널 평가 P20 · 화면만 막던 것을 API 길에서도)
+    const c0 = await req('/api/k/dpms/shape/check', kim, { plan: same })
+    assert.equal(c0.status, 400, JSON.stringify(c0.j))
+    assert.match(c0.j.message, /바뀐 것이 없는 구조안/)
+    assert.equal(fs.existsSync(s.hub.shapeFile('dpms')), false, '장부를 쓰지 않았다')
+    // 항목 차례 하나를 바꾼 구조안(배포절차의 앞 두 항목)
+    const plan = { ...same, docs: same.docs.map((d) => (d.id === '배포절차' && d.items.length > 1 ? { ...d, items: [d.items[1], d.items[0], ...d.items.slice(2)] } : d)) }
     assert.equal((await req('/api/k/dpms/shape/check', lee, { plan })).status, 403)
     assert.equal((await req('/api/k/dpms/shape/check', kim, { plan: { v: 1 } })).status, 400)
     const c = await req('/api/k/dpms/shape/check', kim, { plan })
@@ -267,4 +274,81 @@ test('바탕 세우기 구조안 names 의 gist: 스키마 · 프롬프트 · cl
   assert.equal(p.names[0].gist, 'PLC 값을 읽어 묶음으로 만드는 프로세스')
   assert.equal('gist' in p.names[1], false)
   assert.match(cleanPlan({ v: 1, kind: 'seed', docs: [], names: [{ coord: 'a:b', doc: 'a', h: 'b', gist: 3 }] }).error, /gist/)
+})
+
+// 채널 평가 P4 — 바탕 세우기 판단 기준 3 · 4 를 생성 룰 R3-2 · R7-1 로: 모으는 문서는 한 건으로도 서고 · 세우는 항목마다 장부 짝 · 짝 없는 새 항목은 알림
+test('바탕 세우기 판단 기준: R3-2 · R7-1 · 짝 없는 새 항목 알림', () => {
+  assert.match(SEED_RULES, /처음 한 건으로도 선다\(생성 룰 R3-2\)/)
+  assert.match(SEED_RULES, /세우는 항목마다 종류와 뜻 한 줄\(gist\)을 적어 짝을 같이 세운다\(생성 룰 R7-1/)
+  assert.doesNotMatch(SEED_RULES, /셋 이상 되풀이될 때만|둘 이상 파일 · 문서에서 가리키는/)
+  assert.doesNotMatch(seedPlanPromptOf({ mats: [] }), /둘 이상 재료에서 가리키는 고유물만/)
+  assert.match(seedBatchPromptOf({ i: 0, docs: [{ id: 'a', src: [] }] }, { mats: [] }), /세우는 항목마다 하나 · 생성 룰 R7-1/)
+  const plan = { v: 1, kind: 'seed', docs: [{ id: '회의록', was: null, items: [{ h: '2026-11-10 주간 회의', from: [], src: ['m:' + 'a'.repeat(16)] }, { h: '2026-11-17 주간 회의', from: [], src: ['m:' + 'a'.repeat(16)] }] }], names: [{ coord: '회의:2026-11-10 주간 회의', label: '', doc: '회의록', h: '2026-11-10 주간 회의' }], skip: [] }
+  const c = seedCover(plan, [{ src: 'm:' + 'a'.repeat(16), path: 'x.md', pick: '넣음' }])
+  assert.deepEqual(c.warnings.filter((w) => w.code === 'pair').map((w) => w.where), ['회의록 › 2026-11-17 주간 회의'])
+})
+
+// 채널 평가 P6 — 구조안의 문서 성격 칸 · 글 짓기의 앞선 값(R2-5)
+test('바탕 세우기: 문서 성격 칸(cleanPlan · 스키마 · 초안) · 앞선 값 재료(R2-5)', () => {
+  assert.deepEqual(SEED_PLAN_SCHEMA.properties.docs.items.properties.nature.enum.includes('사건'), true)
+  assert.match(seedPlanPromptOf({ mats: [] }), /nature\(으뜸 성격\)/)
+  const ok = cleanPlan({ v: 1, kind: 'seed', docs: [{ id: '회의록', was: null, nature: '사건', items: [] }] })
+  assert.equal(ok.plan.docs[0].nature, '사건')
+  assert.match(cleanPlan({ v: 1, kind: 'seed', docs: [{ id: 'a', nature: '아무거나', items: [] }] }).error, /nature/)
+  const d = seedPlanOfDraft({ docs: [{ id: '게이트웨이/설계', nature: '대상', items: [{ h: '수집기', src: ['m:' + 'b'.repeat(16)] }] }], why: '' })
+  assert.equal(d.plan.docs[0].nature, '대상')
+  // 앞선 값 — 다른 문서로 가는 날짜 있는 재료만(이 문서 재료 · 날짜 없는 재료 · 구조안 밖 재료는 빼고 늦은 날짜 먼저)
+  const A = 'm:' + 'a'.repeat(16), B = 'm:' + 'b'.repeat(16), C = 'm:' + 'c'.repeat(16), D = 'm:' + 'd'.repeat(16), E = 'm:' + 'e'.repeat(16)
+  const p = { docs: [{ id: '게이트웨이/설계', items: [{ h: '수집기', src: [B] }] }, { id: '회의록', items: [{ h: '2026-11-10 회의', src: [A] }, { h: '2026-11-17 회의', src: [C] }, { h: '메모', src: [D] }] }] }
+  const rows = [{ src: A, path: '회의_1110.md', date: '2026-11-10' }, { src: B, path: '설계서.md', date: '2026-10-01' }, { src: C, path: '회의_1117.md', date: '2026-11-17' }, { src: D, path: '메모.md', date: null }, { src: E, path: '밖.md', date: '2026-12-01' }]
+  const text = { [A]: '수집기 전송 주기를 10초로 정했다. 3초 안은 버렸다.', [B]: '수집기 전송 주기는 5초다.', [C]: '수집기 담당을 정했다.', [E]: '수집기 밖 이야기.' }
+  const tx = (s) => text[s] ?? null
+  assert.deepEqual(seedPriorOf(p, '게이트웨이/설계', rows, tx).map((x) => x.src), [C, A])
+  assert.deepEqual(seedPriorOf(p, '게이트웨이/설계', rows), [], '글을 읽을 수 없으면 고르지 않는다')
+  const g = seedWriteMaterial({ docs: p.docs.map((x) => ({ ...x, was: null })) }, '게이트웨이/설계', rows, tx)
+  assert.deepEqual(g.prior.map((x) => [x.date, x.body]), [['2026-11-17', text[C]], ['2026-11-10', text[A]]])
+  assert.match(shapeWritePromptOf(g), /지금 값\(생성 룰 R2-5\)[\s\S]*\[prior 2026-11-10 회의_1110\.md\]\n수집기 전송 주기를 10초로/)
+  const sp = seedWriteSessionPromptOf(g, [{ file: 'b.md', path: '설계서.md', chars: 9 }], { prior: [{ file: `${A.slice(2)}.md`, path: '회의_1110.md', date: '2026-11-10' }] })
+  assert.match(sp, /앞선 값 재료[\s\S]*md\/a{16}\.md · 회의_1110\.md · 2026-11-10/)
+  assert.doesNotMatch(seedWriteSessionPromptOf(g, [{ file: 'b.md', path: '설계서.md' }]), /R2-5/, '앞선 값 재료가 없으면 싣지 않는다')
+})
+
+// 검토 고침(shape-edit) — 앞선 값은 목표 대상이 나오는 재료만 · 그 줄 둘레만(관계없는 회의가 자리 · 값 대조 근거를 먹지 않게)
+test('앞선 값 재료: 목표 대상이 나오는 재료만 · 줄 둘레만 · heads 로 좁힘', async () => {
+  const { seedPriorOf: prior, priorExcerpt } = await import('../core/shape.js')
+  const m = (i) => 'm:' + i.toString(16).padStart(16, '0')
+  const own = m(1), oldHit = m(2)
+  const noise = Array.from({ length: 14 }, (_, i) => m(100 + i))
+  const p = {
+    docs: [
+      { id: '게이트웨이/설계', items: [{ h: '수집기', src: [own] }, { h: '전송기', src: [own] }] },
+      { id: '회의록', items: [{ h: '2026-01-05 착수 회의', src: [oldHit] }, ...noise.map((s, i) => ({ h: `2026-11-${String(i + 1).padStart(2, '0')} 주간 회의`, src: [s] }))] },
+    ],
+    names: [{ coord: '모듈:collector', label: 'COL', doc: '게이트웨이/설계', h: '수집기' }],
+  }
+  const rows = [{ src: own, path: '설계서.md', date: null }, { src: oldHit, path: '착수.md', date: '2026-01-05' }, ...noise.map((s, i) => ({ src: s, path: `주간${i}.md`, date: `2026-11-${String(i + 1).padStart(2, '0')}` }))]
+  const filler = Array.from({ length: 20 }, (_, i) => `안건 ${i}: 일정 확인 99${i}건`).join('\n')
+  const text = { [oldHit]: `${filler}\ncollector 주기를 10초로 정했다\n${filler.replace(/안건/g, '뒤 안건')}`, ...Object.fromEntries(noise.map((s) => [s, `${filler}\n예산 4200만 원`])) }
+  const tx = (s) => text[s] ?? null
+  const got = prior(p, '게이트웨이/설계', rows, tx)
+  assert.deepEqual(got.map((x) => x.src), [oldHit], '관계없는 늦은 회의 14건은 빠지고 오래된 관련 회의는 든다(장부 값으로 찾음)')
+  assert.match(got[0].body, /collector 주기를 10초로/)
+  assert.doesNotMatch(got[0].body, /^안건 15:|뒤 안건 4:/m,'대상 줄 둘레(앞뒤 3줄)만')
+  assert.ok(got[0].body.split('\n').length <= 9)
+  assert.deepEqual(prior(p, '게이트웨이/설계', rows, tx, { heads: ['전송기'] }), [], 'heads 로 좁히면 다른 항목의 재료는 빠진다')
+  assert.equal(priorExcerpt('a\nb', ['수집기']), '')
+})
+
+// 검토 고침(shape-edit) — 다시 잡기는 장부 짝을 옮기기만 한다: 프롬프트 판단 기준 4 와 SHAPE_PLAN_SCHEMA names({ coord, doc, h })가 맞는다
+test('다시 잡기 판단 기준 4 는 스키마와 맞는다(gist 를 요구하지 않음)', async () => {
+  const { RESHAPE_RULES, SHAPE_PLAN_SCHEMA, shapePlanPromptOf, planOfDraft } = await import('../core/shape.js')
+  assert.deepEqual(Object.keys(SHAPE_PLAN_SCHEMA.properties.names.items.properties).sort(), ['coord', 'doc', 'h'])
+  assert.doesNotMatch(RESHAPE_RULES, /gist|R7-1/)
+  assert.match(RESHAPE_RULES, /4\. 장부\(names · 종류:값\): 장부 항목은 옮긴 항목을 따라간다/)
+  assert.match(RESHAPE_RULES, /처음 한 건으로도 선다\(생성 룰 R3-2\)/)
+  const pr = shapePlanPromptOf({ fp: 'f', docs: [{ id: 'a', title: 'A', items: [{ h: '수집기', lines: 3, first: '', names: ['모듈:수집기'] }] }] })
+  assert.doesNotMatch(pr, /gist|뜻 한 줄\(gist\)/)
+  assert.match(SEED_RULES, /R7-1/)
+  const d = planOfDraft({ fp: 'f'.repeat(16) }, { docs: [{ id: 'b', was: 'a', items: [{ h: '수집기', from: [{ doc: 'a', h: '수집기' }] }] }], names: [{ coord: '모듈:수집기', doc: 'b', h: '수집기' }], why: '' })
+  assert.deepEqual(d.plan.names, [{ coord: '모듈:수집기', label: '', doc: 'b', h: '수집기' }])
 })

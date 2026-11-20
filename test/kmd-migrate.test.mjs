@@ -135,6 +135,9 @@ test('사라지는 표 행 · 문장', () => {
   assert.deepEqual(r.rows, ['mybatis'])
   assert.equal(r.lines.length, 1)
   assert.deepEqual(dropsOf(old, old), { rows: [], lines: [] })
+  // 문장 단위 포함률(채널 평가 P15) — 두 문장을 한 문장으로 합친 글은 빠짐이 아니다 · 한 줄 안의 뒤 문장을 뺀 것은 빠짐이다
+  assert.deepEqual(dropsOf('수집기는 PLC 값을 읽어 묶음으로 만든다. 묶음은 전송기에 넘긴다.', '수집기는 PLC 값을 읽어 묶음으로 만들고 전송기에 넘긴다.').lines, [])
+  assert.deepEqual(dropsOf('헬스 체크는 30초마다 게이트웨이에 보낸다. 실패하면 세 번 다시 시도한다.', '헬스 체크는 30초마다 게이트웨이에 보낸다.').lines, ['실패하면 세 번 다시 시도한다.'])
 })
 
 test('검사 · 넣기: 값이 빠지면 걸림 · 사라지는 문장은 사람 확인 · 걸리면 아무것도 안 씀 · 넣으면 기록 + 표지 + 커밋', async () => {

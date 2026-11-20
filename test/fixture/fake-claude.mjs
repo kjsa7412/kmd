@@ -70,7 +70,9 @@ function session() {
     } else if (kind === 'batch') {
       const rows = tsv()
       const docs = [...(session.batch ||= text).matchAll(/^\[doc (.+?)\](?: 종류: \S+)?(?: \(.*?\))? 재료: (.*)$/gm)].map((x) => ({ id: x[1], src: [...x[2].matchAll(/m:[0-9a-f]{16}/g)].map((y) => y[0]) }))
-      const out2 = docs.map((d) => ({ id: d.id, items: d.src.filter((s) => rows.find((r) => r.src === s)?.pick === '넣음').map((s) => ({ h: headOf(rows.find((r) => r.src === s).path), src: [s], note: '파일 하나가 대상 하나' })) }))
+      // 문서 성격(채널 평가 P6) — 프롬프트가 nature 를 물으면 서술로
+      const nat = text.includes('nature(으뜸 성격)') ? { nature: '서술' } : {}
+      const out2 = docs.map((d) => ({ id: d.id, ...nat, items: d.src.filter((s) => rows.find((r) => r.src === s)?.pick === '넣음').map((s) => ({ h: headOf(rows.find((r) => r.src === s).path), src: [s], note: '파일 하나가 대상 하나' })) }))
       const first = out2.find((d) => d.items.length)?.items[0]
       o = { docs: out2, names: first ? [{ coord: 'topic:' + first.h.replace(/\s+/g, ''), label: first.h, doc: out2.find((d) => d.items.length).id, h: first.h }] : [], skip: [], why: '재료마다 항목' }
     } else if (kind === 'write') {

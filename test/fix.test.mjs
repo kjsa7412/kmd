@@ -62,6 +62,10 @@ test('기록 고치기: 그 기록이 넣은 항목을 고치면 고친 그대�
 test('자리: 남의 기록은 쓰기 자리가 고치지 못한다(403) · 내 기록은 쓰기 자리도 · 없는 기록 404', async () => {
   assert.equal(await code(fixEdit(LEE, '2026-1017-카나리', '카나리', '33%', '34%')), 'E_FORBIDDEN')
   assert.equal(await code(fixEdit(KIM, '없는-기록', '카나리', '33%', '34%')), 'E_NOTFOUND')
+  // 바로잡을 기록이 지금 든 항목만(채널 평가 P8) — 카나리에는 이제 바로잡은 기록이 들어 있다 · 옛 기록의 정정으로 다시 고치지 않는다
+  const e = await fixEdit(KIM, '2026-1017-카나리', '카나리', '33%', '34%').catch((x) => x)
+  assert.equal(e.code, 'E_CONFLICT')
+  assert.match(e.message, /지금 든 기록/)
   assert.match((await secOf('카나리')).body, /33%/, '아무것도 쓰지 않았다')
 })
 

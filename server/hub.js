@@ -25,7 +25,7 @@ import { WRITE_RULES } from '../core/writerules.js'
 import { checkProposal, placeOf, buildProposal } from '../core/propose.js'
 import { metricsOf, readKnLines, daysOf, sinceOf } from '../core/metrics.js'
 import { checkSection, checkShape, judgeShape } from '../core/gate.js'
-import { valuesOf, mustValues } from '../core/values.js'
+import { valuesOf, mustValues, sameValues, changesOf } from '../core/values.js'
 import { validEdits, judgeEdits } from '../core/edits.js'
 import { runClaude, claudeSession, checkClaude } from '../core/claude.js'
 import { kindOf, formBlock, formFixOf } from '../core/forms.js'
@@ -49,7 +49,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
-import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, pickOf } from '../core/shape.js'
+import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, seedPriorOf, pickOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -1119,13 +1119,20 @@ ${genRulesBlock({ profile: 'shape' })}`
         await fs.writeFile(path.join(dir, 'md', `${x.slice(2)}.md`), body)
         files.push({ file: `${x.slice(2)}.md`, path: pathOf.get(x) || x, chars: body.length })
       }
+      // 앞선 값 재료(생성 룰 R2-5 · 채널 평가 P6) — 다른 문서로 가는 날짜 있는 재료 가운데 목표 대상이 나오는 것 · 그 줄 둘레만(seedPriorOf · 값 대조 근거와 같은 글)
+      const prior = []
+      for (const p of seedPriorOf(w.plan, doc, mats.rows, mats.text)) {
+        f.names.set(p.src.slice(2), p.path)
+        await fs.writeFile(path.join(dir, 'md', `${p.src.slice(2)}.md`), p.body)
+        prior.push({ file: `${p.src.slice(2)}.md`, path: p.path, date: p.date })
+      }
       s = steadySession(id, run, async () => claudeSession({ cwd: dir, schema: SHAPE_WRITE_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
       run.sessions?.add(s)
-      feedPush(id, { k: 'kmd', text: `글 짓기: ${doc} · 항목 ${g.targets.length} · 재료 ${files.length}` }, tag)
+      feedPush(id, { k: 'kmd', text: `글 짓기: ${doc} · 항목 ${g.targets.length} · 재료 ${files.length}${prior.length ? ` · 앞선 값 재료 ${prior.length}` : ''}` }, tag)
       const meta = await hub.meta(id, ctx)
       const k0 = await hub.get(id, ctx)
       const kd = kindOf(seedFormsOf(k0, readShape(k0, await readStructure(meta.dir))), doc)
-      let msg = seedWriteSessionPromptOf(g, files, { writeRules: WRITE_RULES, form: formBlock(kd.kind, { name: kd.form || doc.split('/').pop(), props: kd.props }) })
+      let msg = seedWriteSessionPromptOf(g, files, { writeRules: WRITE_RULES, form: formBlock(kd.kind, { name: kd.form || doc.split('/').pop(), props: kd.props }), prior })
       let summary = ''
       for (let n = 0; n <= INTAKE_FIX; n++) {
         const r = await s.ask(msg)
@@ -1382,6 +1389,17 @@ ${genRulesBlock({ profile: 'shape' })}`
     const seedNames = seed && strict
     if (!seed || seedNames) for (const x of plan.names) if (u0.targets.some((t) => t.doc === x.doc && t.h === x.h)) touches.add(x.coord)
     const seedSrc = seed ? [...new Set(u0.targets.flatMap((t) => t.src || []))] : []
+    // 앞선 값 재료(R2-5) — 글 짓기가 견준 다른 문서의 날짜 있는 재료도 값 대조의 근거다(그 값을 지어낸 값으로 재지 않게) ·
+    //   이 단위의 목표 항목이 나오는 재료의 그 줄 둘레만(seedPriorOf heads · 관계없는 수가 근거에 들어 지어낸 값을 덮지 않게)
+    const priorGround = []
+    if (seed && mats?.text) {
+      const seenP = new Set(seedSrc)
+      for (const doc of [...new Set(u0.targets.map((t) => t.doc))]) {
+        for (const p of seedPriorOf(plan, doc, mats.rows || [], mats.text, { heads: u0.targets.filter((t) => t.doc === doc).map((t) => t.h) })) if (!seenP.has(p.src)) { seenP.add(p.src); priorGround.push(p.body) }
+      }
+    }
+    // 문서 성격 줄(생성 룰 R3-4 · 채널 평가 P6) — 구조안이 적은 새 문서의 으뜸 성격과 요약을 갈래 장부 「## 문서 성격」 표에(있는 줄은 저장 문이 고치지 않는다)
+    const natures = seed ? [...new Set(u0.targets.map((t) => t.doc))].map((doc) => plan.docs.find((x) => x.id === doc)).filter((x) => x?.nature && x.id !== RECORDS_DOC).map((x) => ({ doc: rel(x.id), nature: x.nature, summary: String(intros[x.id] ?? x.intro?.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 300) })) : []
     const body = seed
       ? `기초 세우기로 세웠다(짜임 일 ${work} · 걸음 ${n}). 글의 값은 재료 글의 값만 쓴다.\n\n## 바뀐 것\n- ${kindWord}: ${what}\n\n## 근거\n${seedSrc.slice(0, 200).map((s) => `- 원본 ${mats?.path?.(s) || s}`).join('\n')}`
       : `문서 짜임으로 다시 썼다(짜임 일 ${work} · 걸음 ${n}). 새 글의 값은 출처 항목의 값만 쓴다.\n\n## 바뀐 것\n- ${kindWord}: ${what}`
@@ -1408,7 +1426,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         // 근거는 재료 글(설계 4-5 · judgeShape unit.ground) — 재료 글이 없으면 지을 근거가 없다
         const gone = seedSrc.find((s) => typeof mats?.text?.(s) !== 'string')
         if (gone) return holdAll('format', `재료 글이 없다: ${mats?.path?.(gone) || gone}`)
-        unit.ground = seedSrc.map((s) => mats.text(s)).join('\n')
+        unit.ground = [...seedSrc.map((s) => mats.text(s)), ...priorGround].filter((x) => typeof x === 'string').join('\n')
       }
       let r
       if (strict) {
@@ -1459,7 +1477,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       }).filter(Boolean)
       return { sections, held: [], place, relink, intros: introRows.map((x) => ({ doc: x.doc, text: x.text })), warnings: r.warnings }
     }
-    return { record, prepare, tags: ['shape', step], names }
+    return { record, prepare, tags: ['shape', step], names, natures }
   }
   // 같은 저장(S-D16 · S-D48) — 같은 파일 지문(md/ + 같은 ingest/) · 보낸 지문(sent/) · 일감(job/)을 단 기록이 이미 있나.
   //   같은 사람이 쓴 기록이거나 서버가 붙인 들이기 기록만 본다 · 넣지 못함 · 바로잡힘이 된 기록은 다시 보낼 수 있다
@@ -1820,7 +1838,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (input?.sections?.length || input?.names?.length) throw new KmdError('E_INPUT', '짜임 걸음은 sections · names 를 입력으로 받지 않는다')
       if (!files.has(id)) files.set(id, new Map())
       // 바탕 세우기의 장부 항목(Z7) — 엔진이 구조안에서 지은 것(opt.shape.names · 서버 코드만 단다 · 입력 names 는 받지 않는다)
-      r0 = await coreSave(meta.dir, { record: input.record, sections: [], ...(input?.forms?.length ? { forms: input.forms } : {}), ...(Array.isArray(opt.shape.names) && opt.shape.names.length ? { names: opt.shape.names } : {}) }, { user: ctx.user, system: !!opt.system, guard: 'hold', marks: true, correction: true, prepare: opt.shape.prepare || null, shape: { tags: opt.shape.tags, strict: true }, onCommit: () => cache.delete(id) })
+      r0 = await coreSave(meta.dir, { record: input.record, sections: [], ...(input?.forms?.length ? { forms: input.forms } : {}), ...(Array.isArray(opt.shape.names) && opt.shape.names.length ? { names: opt.shape.names } : {}), ...(Array.isArray(opt.shape.natures) && opt.shape.natures.length ? { natures: opt.shape.natures } : {}) }, { user: ctx.user, system: !!opt.system, guard: 'hold', marks: true, correction: true, prepare: opt.shape.prepare || null, shape: { tags: opt.shape.tags, strict: true }, onCommit: () => cache.delete(id) })
     } else if (team) {
       // 저장 승인 문 밖의 팀 저장(다듬기 등 서버 코드가 정한 채널) — 같은 항목 판정(gatePrepare) · 하나라도 걸리면 아무것도 쓰지 않는다(입력 오류 · P11)
       sectionShapes(input.sections)
@@ -2976,6 +2994,8 @@ ${genRulesBlock({ profile: 'shape' })}`
           r.ok = false
         }
       }
+      // 바뀐 것 없는 구조안(채널 평가 P20) — 걸음이 마침(seal) 하나뿐이면 일을 열지 않는다(빈 「문서 짜임 마침」 기록이 남지 않게 · 화면만 막던 것을 API 길에서도)
+      const bare = r.ok && stepsOf(r.diff).every((s) => s.kind === 'seal')
       const w = await hub.shapeEdit(id, (w0) => {
         // 끝난 · 그만둔 짜임 일 — 새 일로. 넣기 직전 짜임은 되돌리기 재료(undoable)로 넘긴다(검사가 넘어져도 잃지 않게 · hub.shapeUndo)
         let carry = w0?.undoable || null
@@ -2987,6 +3007,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         // 넣다 선 짜임 일(stopped · rebase) — 지금 짜임에 맞춘 구조안으로 다시 검사한다. 일 · 넣은 걸음 · 넣기 직전 짜임은 그대로 ·
         //   이미 넣은 갈래 장부 · 짜임 걸음은 다시 하지 않는다(그 걸음이 다시 나오면 걸림) · 글 걸음 번호는 넣은 글 걸음 뒤로(off)
         const resumed = !!w0 && (['stopped', 'rebase'].includes(w0.stage) || !!w0.before || !!w0.done?.length)
+        if (bare && !resumed) throw new KmdError('E_INPUT', '바뀐 것이 없는 구조안이다: 짜임 일을 열지 않았다(아무것도 쓰지 않았다)')
         let off = 0
         if (resumed) {
           const done = new Set([...(w0.done || []), ...shapeMarks(k, w0.work)])
@@ -3135,7 +3156,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const strict = true // 짜임 걸음은 늘 엄격(P-D24 · P11 — 넣지 못함이 없다)
       const job = await shapeJob({ dir: meta.dir, k0: await hub.get(id, ctx), loadK: () => loadKnowledge(meta, { cache: files.get(id) }), plan: c.plan, n, fp, texts, intros, work, step, strict, mats })
       if (job.skipped) return { kn: id, skipped: true, id: job.skipped }
-      const r = await hub.save(ctx, id, { record: job.record }, { channel: 'shape', shape: { tags: job.tags, prepare: job.prepare, ...(job.names.length ? { names: job.names } : {}), ...(strict ? { strict: true } : {}) } })
+      const r = await hub.save(ctx, id, { record: job.record }, { channel: 'shape', shape: { tags: job.tags, prepare: job.prepare, ...(job.names.length ? { names: job.names } : {}), ...(job.natures.length ? { natures: job.natures } : {}), ...(strict ? { strict: true } : {}) } })
       return { kn: id, ...r }
     },
 
@@ -3388,7 +3409,10 @@ ${genRulesBlock({ profile: 'shape' })}`
     // 문서 글 판정 — 꼴(결정적 오류 · 고쳐 쓰게)과 값 대조(재료에 없는 값 · 재기만). 근거는 그 문서 재료 글 모두
     seedJudge(k, plan, docId, items, mats) {
       const d = plan.docs.find((x) => x.id === docId)
-      const ground = [...new Set((d?.items || []).flatMap((it) => it.src || []))].map((s) => mats.text(s) || '').join('\n')
+      const own = [...new Set((d?.items || []).flatMap((it) => it.src || []))]
+      // 앞선 값 재료는 이 글의 항목이 나오는 줄 둘레만(seedPriorOf heads · 글 짓기가 본 글과 같다)
+      const prior = seedPriorOf(plan, docId, mats.rows || [], mats.text, { heads: items.map((x) => x.h) }).filter((p) => !own.includes(p.src)).map((p) => p.body)
+      const ground = [...own.map((s) => mats.text(s) || ''), ...prior].join('\n')
       const j = judgeShape(k, { targets: items.map((x) => ({ doc: `docs/${docId}.md`, h: x.h, content: x.content })), sources: [], intros: [], ground })
       return { errors: j.errors.map((e) => ({ code: e.code, why: e.why })), values: j.warnings.filter((x) => x.code === 'invented').map((x) => ({ heading: x.heading, why: x.why })).slice(0, 20) }
     },
@@ -3548,6 +3572,13 @@ ${genRulesBlock({ profile: 'shape' })}`
       const mats = await hub.seedMats(w, plan.docs.flatMap((d) => d.items.flatMap((it) => it.src || [])))
       const chk = hub.seedCheckOf(k, S, plan, mats.rows, w.seed.picks)
       const sig = (d) => sha16(JSON.stringify(d.items.map((it) => [it.h, it.src || []])))
+      // 문서 성격 이어받기(채널 평가 P6) — 손으로 고친 구조안(화면 나무)은 성격 칸을 싣지 않는다: 같은 id 이거나 이름만 바꾼(항목이 같은) 앞 문서의 성격을 잇는다
+      if (w.plan) {
+        const byId = new Map(w.plan.docs.filter((d) => d.nature).map((d) => [d.id, d.nature]))
+        const bySig = new Map()
+        for (const d of w.plan.docs) if (d.nature) bySig.set(sig(d), bySig.has(sig(d)) && bySig.get(sig(d)) !== d.nature ? null : d.nature)
+        for (const d of plan.docs) if (!d.was && !d.nature) { const n = byId.get(d.id) || bySig.get(sig(d)); if (n) d.nature = n }
+      }
       const fresh = {}
       for (const d of plan.docs) {
         if (d.was) continue
@@ -3705,7 +3736,9 @@ ${genRulesBlock({ profile: 'shape' })}`
       let list
       if (all) {
         const first = docs.slice(0, 3)
-        if (w.seed.mode === 'claude' && first.some((x) => !(w.seed.ok || []).includes(x))) throw new KmdError('E_INPUT', '처음 3 문서는 하나씩 짓고 승인한다')
+        // 승인이 남은 문서 이름을 싣는다(채널 평가 P23) — 무엇을 먼저 승인할지 메시지만 보고 안다
+        const waiting = first.filter((x) => !(w.seed.ok || []).includes(x))
+        if (w.seed.mode === 'claude' && waiting.length) throw new KmdError('E_INPUT', `처음 3 문서는 하나씩 짓고 승인한다(승인 남음: ${waiting.join(' · ')})`, { details: { waiting } })
         list = docs.filter((x) => w.seed.texts?.[x]?.state !== 'ok')
       } else {
         if (!one(doc)) throw new KmdError('E_INPUT', '구조안에 없는 문서다')
@@ -3940,7 +3973,7 @@ ${genRulesBlock({ profile: 'shape' })}`
             try {
               const job = await shapeJob({ dir: prac, k0: k, loadK: pk, plan: post, n: s.unit, fp: fps[s.unit], texts: tx.items || [], intros: tx.intros || {}, work: w.work, step, strict, mats })
               if (!job.skipped) {
-                const r = await coreSave(prac, { record: job.record, sections: [], ...(job.names.length ? { names: job.names } : {}) }, { user, marks: true, correction: true, prepare: job.prepare, shape: { tags: job.tags, strict: true } })
+                const r = await coreSave(prac, { record: job.record, sections: [], ...(job.names.length ? { names: job.names } : {}), ...(job.natures.length ? { natures: job.natures } : {}) }, { user, marks: true, correction: true, prepare: job.prepare, shape: { tags: job.tags, strict: true } })
                 if (strict) valueWarn.push(...(r.warnings || []).filter((x) => String(x).startsWith('값 대조(')))
               }
             } catch (e) {
@@ -4013,6 +4046,8 @@ ${genRulesBlock({ profile: 'shape' })}`
         return hub.shapePutRun(ctx, id, { max, again: true, rebased })
       }
       if (w.tried.diag?.blockers?.length) throw new KmdError('E_CONFLICT', `끝 진단에 막는 것이 있다: ${w.tried.diag.blockers[0].what}`)
+      // 바뀐 것 없는 일(P20) — 넣은 걸음도 없고 남은 걸음이 마침(seal)뿐이면 넣지 않는다(빈 「문서 짜임 마침」 기록을 남기지 않는다)
+      if (!done.size && (w.tried.steps || []).every((x) => x.kind === 'seal')) throw new KmdError('E_INPUT', '바뀐 것이 없는 구조안이다: 넣을 걸음이 없다(아무것도 쓰지 않았다)')
       // 넣기 직전 짜임 — 되돌리기 구조안의 재료(처음 한 번 · 넣다 서서 다시 맞춘 일은 처음 것을 그대로)
       if (w.stage === 'tried') {
         const snap = w.before ? null : snapshotOf(S1, w.plan, k1)
@@ -4142,7 +4177,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       return levelFor(id, ctx) === 'admin'
     },
     // 화면의 문서 고치기(K4-1 · 설계 4-2 · S9) — sections(고친 항목) · remove(지운 항목 이름) · rename([{ from, to }] — 글은 그대로 이름만)
-    //   쓰기 이상이면 모두 저장 문 한 번으로 곧바로 문서에(Claude 없음 · 값 검사 없음 · 이력 「고침」 · 넣은 것 칸에 옛 값 → 새 값).
+    //   쓰기 이상이면 모두 저장 문 한 번으로 곧바로 문서에(Claude 없음 · 값 검사 없음 · 넣은 것 칸에 옛 값 → 새 값).
+    //   값 · 사실이 바뀐 고침은 기록(work/ · 참고 블록 출처가 이어진다) · 글자 · 서식만 바뀐 고침과 지움 · 이름 바꿈만은 이력(log/ · 태그 edit) — 작성기준 6절 「기록과 이력」 · 채널 평가 D1(P8)
     //   항목 지우기 · 이름 바꾸기는 지식관리자만(structure · S-D44) · needBase(화면 길)면 이미 있는 항목은 지문(base)이 꼭 있다 ·
     //   같은 사람이 같은 글을 1분 안에 다시 보내면(두 번 누름) 앞의 것을 돌려준다
     //   approve 모드 지식의 화면 길(needBase · 저장 승인 설계 P-D39 · 2-3 · P5): 고친 항목은 저장 제안을 거친다 — dry 면 쓰지 않고 그 제안({ dry, propose })을,
@@ -4167,6 +4203,11 @@ ${genRulesBlock({ profile: 'shape' })}`
         fixOf = k.byWork.get(fixes[0])
         if (!fixOf || k.logs.includes(fixOf)) throw new KmdError('E_NOTFOUND', '고칠 기록이 없다')
         if (fixOf.author !== ctx.user && !hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '남의 기록은 그 지식의 지식관리자가 고친다')
+        // 바로잡는 항목은 그 기록이 지금 든 항목이어야 한다(P8) — 그 뒤 다른 기록이 들어간 항목을 옛 기록의 정정으로 고치지 않는다
+        for (const sx of Array.isArray(sections) ? sections : []) {
+          const sec = d.sections.find((y) => y.h === String(sx?.h || '').trim())
+          if (sec && sec.applied !== fixOf.id) throw new KmdError('E_CONFLICT', `「${sec.h}」 에 지금 든 기록은 ${sec.applied ? `「${k.byWork.get(sec.applied)?.title || sec.applied}」` : '없다'}: 바로잡을 기록(「${fixOf.title}」)이 든 항목만 고친다`)
+        }
       }
       if (sections.some((x) => !x || typeof x !== 'object' || Array.isArray(x) || (x.base != null && !(typeof x.base === 'string' && /^[0-9a-f]{16}$/.test(x.base))))) throw new KmdError('E_INPUT', '항목마다 { h, body, base? } 이다(base 는 읽을 때 받은 16자 지문)')
       if (changes != null && (!Array.isArray(changes) || changes.length > 20 || changes.some((x) => typeof x !== 'string' || x.length > 200 || /[\r\n]/.test(x)))) throw new KmdError('E_INPUT', '바뀐 것(changes)은 한 줄 200자 안의 글 20개까지다')
@@ -4198,6 +4239,9 @@ ${genRulesBlock({ profile: 'shape' })}`
       for (let n = what.length - 1; approve && lead.length > 280 && n >= 1; n--) lead = leadOf(n)
       if (approve && lead.length > 280) lead = lead.slice(0, 279) + '…'
       const why1 = why.replace(/[\r\n]+/g, ' ').trim().slice(0, 200)
+      // 값 바뀜(D1 · P8) — 있는 항목의 값(수 · 코드 · 식별자)이 바뀌었나. 바뀐 것을 사람이 적지 않았으면 앞뒤 글에서 「대상 › 속성: 옛 → 새」 로 뽑는다
+      const valued = sections.filter((sx) => { const old = d.sections.find((y) => y.h === String(sx.h || '').trim()); return old && !sameValues(old.body, String(sx.body ?? '')).same })
+      if (!(Array.isArray(changes) && changes.length) && valued.length) changes = valued.flatMap((sx) => { const h = String(sx.h).trim(); return changesOf(h, d.sections.find((y) => y.h === h).body, String(sx.body ?? '')) }).slice(0, 20)
       // approve 모드 기록 글 — 요약 + 칸(바뀐 것 · 까닭) · 제안과 저장이 같은 글을 본다
       let abody = null, accepted = null
       if (approve) {
@@ -4231,7 +4275,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       // 기록(이력 log/ · 태그 edit) + 항목 글 한 저장 — 이 PC 와 지식관리자는 kmd 자신의 쓰기(system)로 표까지 ·
       //   쓰기 자리는 사람의 쓰기(문서 꼴 · 표를 core 가 본다)
       const r = await hub.save(ctx, id, {
-        record: { title, body: abody ?? `${lead}${why1 ? `\n\n## 까닭\n${why1}` : ''}`, ...tch, tags: ['edit'], ...(fixes.length ? { fixes } : {}) },
+        record: { title, body: abody ?? `${lead}${Array.isArray(changes) && changes.length ? `\n\n## 바뀐 것\n${changes.map((x) => `- ${x}`).join('\n')}` : ''}${why1 ? `\n\n## 까닭\n${why1}` : ''}`, ...tch, tags: valued.length ? [] : ['edit'], ...(fixes.length ? { fixes } : {}) },
         sections: [
           ...sections.map((s) => ({ doc: d.path, heading: String(s.h).trim(), content: String(s.body ?? ''), ...(s.base ? { base: s.base } : {}) })),
           ...remove.map((h) => ({ doc: d.path, heading: h, remove: true, base: sha16(d.sections.find((s) => s.h === h).body) })),
@@ -4269,8 +4313,9 @@ ${genRulesBlock({ profile: 'shape' })}`
       const k = await hub.get(id, ctx)
       hub.need(ctx, id, 'write')
       const out = []
-      for (const w of [...k.logs].sort((a, b) => b.date.localeCompare(a.date))) {
-        if (!w.tags.includes('edit') || !/ 지움/.test(w.title)) continue
+      // 값을 같이 바꾼 고침은 기록(work/)으로 간다(P8) — 이력 · 기록 둘 다 본다(「화면에서 고쳤다:」 요약 줄은 hub.edit 만 쓴다)
+      for (const w of [...k.logs, ...k.works].sort((a, b) => b.date.localeCompare(a.date))) {
+        if (!/ 지움/.test(w.title)) continue
         const m = /^화면에서 고쳤다: (.+)$/m.exec(w.body || '')
         if (!m) continue
         for (const part of m[1].split(' · ')) {

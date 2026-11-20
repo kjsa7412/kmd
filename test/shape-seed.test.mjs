@@ -174,7 +174,9 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     assert.equal((await s.hub.seedFeed(s.ctx, id, { after: fd.seq, sid: 'ffffffff' })).rows.length, fd.rows.length, '다른 일이면 처음부터')
     assert.notEqual(await code(s.hub.seedFeed({ user: 'other' }, id)), 'ok', '일을 연 사람이 아니면 못 본다')
     // 짓기 — 처음 3 문서 승인 전에는 모두 짓기 안 됨 · 하나 짓고 승인
-    assert.equal(await code(s.hub.seedWrite(s.ctx, id, { all: true })), 'E_INPUT')
+    const eAll = await s.hub.seedWrite(s.ctx, id, { all: true }).catch((e) => e)
+    assert.equal(eAll.code, 'E_INPUT')
+    assert.match(eAll.message, /승인 남음: 업무 안내/, '승인이 남은 문서 이름을 싣는다(채널 평가 P23)')
     assert.equal(await code(s.hub.seedTry(s.ctx, id)), 'E_INPUT', '글이 없으면 해 보지 않는다')
     const limFile = path.join(s.tmp, 'limit-once')
     fs.writeFileSync(limFile, '1')
@@ -234,6 +236,8 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     assert.ok(!text.includes('hunter2abc'))
     assert.match(fs.readFileSync(path.join(s.root, id, '_vocab.md'), 'utf8'), /topic:반납절차v2/, '구조안 names 가 항목 장부에')
     assert.match(fs.readFileSync(path.join(s.root, id, '_managed.md'), 'utf8'), /topic:반납절차v2.*업무 안내\.md.*## 반납 절차 v2/)
+    // 문서 성격 줄(채널 평가 P6) — 구조안이 적은 으뜸 성격 · 짓기가 받은 요약이 갈래 장부 「## 문서 성격」 표에
+    assert.match(fs.readFileSync(path.join(s.root, id, '_forms.md'), 'utf8'), /## 문서 성격[\s\S]*\| 업무 안내 \| 서술 \| 업무 안내 의 항목을 재료 글로 적는다\. \|/)
     const recs = fs.readdirSync(path.join(s.root, id, 'work')).map((f) => fs.readFileSync(path.join(s.root, id, 'work', f), 'utf8')).join('\n')
     assert.match(recs, /기초 세우기로 세웠다/)
     assert.match(recs, /원본 입사 안내\.md/)

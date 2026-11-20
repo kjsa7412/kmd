@@ -167,6 +167,60 @@ export function rowsAdded(oldText, newText, to) {
   return [...out.slice(0, DIFF_MAX), ...(rest.length ? [rest.join(', ')] : [])]
 }
 
+// 바뀐 것 줄(채널 평가 P8 · 하네스 H-D38 · 생성 룰 R6-4) — 사람이 고친 앞뒤 글에서 값이 바뀐 줄마다
+//   「대상 › 속성: 옛 → 새」 · 새로 든 줄은 「새로: 대상 › 속성 값」 · 빠진 줄은 「뺌: 대상 › 속성 값」. 속성은 표 행의 첫 칸 · 「라벨: …」 의 라벨 · 그 밖은 값을 걷은 줄 앞부분.
+//   줄 짝은 값을 걷은 뼈대가 같은 줄끼리. 값이 바뀌지 않았으면 빈 목록
+const CHANGE_MAX = 200
+function lineSkel(t) {
+  let s = t
+  for (const v of valueList(t)) { const i = s.indexOf(v); if (i >= 0) s = s.slice(0, i) + '#' + s.slice(i + v.length) }
+  return s.replace(/\s+/g, ' ').trim()
+}
+function lineProp(t) {
+  if (/^\|.*\|$/.test(t)) return t.replace(/^\||\|$/g, '').split(/(?<!\\)\|/)[0].replace(/[`*]/g, '').trim()
+  const m = /^(?:[-*]\s+|\d+\.\s+)?([^:：|`]{1,30})\s*[:：]\s+\S/.exec(t)
+  if (m) return m[1].replace(/[*`]/g, '').trim()
+  return '' // 문장 줄은 속성 이름이 없다(대상만)
+}
+// 값을 걷은 줄끼리 낱말이 얼마나 겹치나(0 ~ 1) — 뼈대가 다른 줄(「첫 토요일」 → 「둘째 토요일」)도 같은 줄의 고침이면 짝짓는다
+const wordsOf = (t) => new Set(lineSkel(t).split(/[\s|,.·:()]+/).filter((w) => w && w !== '#'))
+function overlap(a, b) {
+  const x = wordsOf(a), y = wordsOf(b)
+  if (!x.size || !y.size) return 0
+  let n = 0
+  for (const w of x) if (y.has(w)) n++
+  return n / new Set([...x, ...y]).size
+}
+export function changesOf(target, oldText, newText, max = 10) {
+  const valued = (text) => String(text || '').split('\n').map((l) => l.trim()).filter((l) => l && !/^\|[\s:|-]+\|$/.test(l) && valueList(l).length)
+  const a = valued(oldText), b = valued(newText)
+  const oldOnly = minus(a, b), newOnly = minus(b, a)
+  const used = new Set()
+  const out = []
+  const one = (s) => (s.length > CHANGE_MAX ? s.slice(0, CHANGE_MAX - 1) + '…' : s)
+  const at = (t) => { const p = lineProp(t); return p && p !== target ? `${target} › ${p}` : target }
+  for (const nl of newOnly) {
+    let i = oldOnly.findIndex((ol, x) => !used.has(x) && lineSkel(ol) === lineSkel(nl))
+    if (i < 0) {
+      // 뼈대가 같은 줄이 없으면 낱말이 가장 많이 겹치는 줄(절반 가까이 · 속성이 같아야)
+      let best = 0.4
+      oldOnly.forEach((ol, x) => { const o = overlap(ol, nl); if (!used.has(x) && lineProp(ol) === lineProp(nl) && o >= best) { best = o; i = x } })
+    }
+    if (i >= 0) {
+      used.add(i)
+      const d = valueDiff(oldOnly[i], nl)
+      if (d && d.from && d.to) out.push(one(`${at(nl)}: ${d.from} → ${d.to}`))
+      else if (d && d.to) out.push(one(`새로: ${at(nl)} ${d.to}`))
+      else if (d && d.from) out.push(one(`뺌: ${at(nl)} ${d.from}`))
+      continue
+    }
+    out.push(one(`새로: ${at(nl)} ${[...new Set(valueList(nl))].slice(0, DIFF_MAX).join(', ')}`))
+  }
+  oldOnly.forEach((ol, x) => { if (!used.has(x)) out.push(one(`뺌: ${at(ol)} ${[...new Set(valueList(ol))].slice(0, DIFF_MAX).join(', ')}`)) })
+  if (!out.length) { const d = valueDiff(oldText, newText); if (d) out.push(one(`${target}: ${d.from || '-'} → ${d.to || '-'}`)) }
+  return [...new Set(out)].slice(0, max)
+}
+
 // 지식에 있는 말 — 그 문서의 항목 머리(「값: 설명」 이면 값도) · 항목 장부의 항목(종류:값) · 라벨 · 별칭(값과 같이 빈칸을 뺀다)
 export const squeeze = (s) => String(s).replace(/\s+/g, '')
 export function namesIn(k, doc) {

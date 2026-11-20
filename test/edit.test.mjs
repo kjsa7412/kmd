@@ -70,10 +70,18 @@ test('팀 지식: 쓰기 자리의 항목 글도 검사를 넘으면 그 순간 
   assert.equal(d.direct, true)
   const doc = fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '서버목록.md'), 'utf8')
   assert.match(doc, new RegExp(`<!-- applied: ${d.id} -->\\n정기 점검은 매달 둘째 토요일 02:00 ~ 05:00\\.`))
+  // 값이 바뀐 화면 고침은 기록(work/ · 채널 평가 D1 · P8) — 참고 블록 출처가 이어지고 · 바뀐 것은 앞뒤 글에서 「대상 › 속성: 옛 → 새」
   const dw = (await s.hub.get('dpms')).byWork.get(d.id)
-  assert.ok(dw.path.startsWith('log/') && dw.tags.includes('edit') && dw.tags.includes('put'), dw.tags.join(' '))
+  assert.ok(dw.path.startsWith('work/') && !dw.tags.includes('edit') && dw.tags.includes('put'), `${dw.path} ${dw.tags.join(' ')}`)
   assert.equal(dw.author, 'lee')
+  assert.match(dw.body, /## 바뀐 것\n- 점검 시간: 04:00 → 05:00/)
   assert.match(dw.body, /## 넣은 것\n- docs\/서버목록\.md › 점검 시간: 04:00 → 05:00/)
+  // 글자 · 서식만 바뀐 고침은 이력(log/ · 태그 edit)
+  const b1 = sha16((await s.hub.get('dpms')).docs.find((x) => x.id === '서버목록').sections.find((x) => x.h === '점검 시간').body)
+  const f1 = await s.hub.edit(LEE, 'dpms', { doc: '서버목록', sections: [{ h: '점검 시간', base: b1, body: '정기 점검: 매달 둘째 토요일 02:00 ~ 05:00.' }] })
+  const fw = (await s.hub.get('dpms')).byWork.get(f1.id)
+  assert.ok(fw.path.startsWith('log/') && fw.tags.includes('edit'), `${fw.path} ${fw.tags.join(' ')}`)
+  assert.doesNotMatch(fw.body, /## 바뀐 것/)
   // 쓰기 자리는 항목 지우기 · 이름 바꾸기를 못 한다 · 읽은 뒤 바뀐 항목은 E_CONFLICT(아무것도 쓰지 않는다)
   assert.equal(await code(s.hub.edit(LEE, 'dpms', { doc: '서버목록', rename: [{ from: '점검 시간', to: '점검 때' }] })), 'E_FORBIDDEN')
   assert.equal(await code(s.hub.edit(LEE, 'dpms', { doc: '서버목록', sections: [{ h: '점검 시간', base: b0, body: '다른 글.' }] })), 'E_CONFLICT')
@@ -248,7 +256,13 @@ test('저장 승인 P5: approve 지식의 화면 고치기는 저장 제안 — 
   const secs = [{ h: '카나리', base: sha16(c0.body), body: c0.body.replace('10%', '20%') }]
   const logs = () => (fs.existsSync(path.join(dir, 'log')) ? fs.readdirSync(path.join(dir, 'log')) : [])
   // dry — 쓰지 않고 저장 제안(경고: 바뀐 값이 기록에 없다)
-  const d1 = await ed({ sections: secs, dry: true })
+  // 바뀐 것을 적지 않으면 앞뒤 글에서 뽑는다(채널 평가 P8) — 경고 없음
+  const d0 = await ed({ sections: secs, dry: true })
+  assert.deepEqual(d0.propose.warnings, [], JSON.stringify(d0.propose.warnings))
+  assert.match(d0.propose.text, /카나리: 10% → 20%/)
+  // 사람이 값 없는 바뀐 것을 적었다 — 경고(바뀐 값이 기록에 없다) · 넣기가 받아들인다
+  const ch0 = ['카나리 비율을 늘렸다']
+  const d1 = await ed({ sections: secs, changes: ch0, dry: true })
   assert.equal(d1.dry, true)
   assert.ok(d1.propose.proposal && d1.propose.items[0].changed[0].to === '20%', JSON.stringify(d1.propose.items))
   assert.ok(d1.propose.warnings.length >= 1)
@@ -257,7 +271,7 @@ test('저장 승인 P5: approve 지식의 화면 고치기는 저장 제안 — 
   const e1 = await s.hub.edit(P5, 'apv5', { doc: '배포절차', sections: secs }, { needBase: true }).catch((e) => e)
   assert.equal(e1.code, 'E_APPROVE')
   assert.ok(e1.details.propose.proposal)
-  const e2 = await ed({ sections: secs, why: '다른 까닭', proposal: d1.propose.proposal }).catch((e) => e)
+  const e2 = await ed({ sections: secs, changes: ch0, why: '다른 까닭', proposal: d1.propose.proposal }).catch((e) => e)
   assert.equal(e2.code, 'E_APPROVE')
   // 채널 평가 P18 — 화면 고치기의 승인 없음 · 어긋남도 측정 줄(ch edit) · 바뀐 쪽 = 입력(까닭만 바꿨다)
   const sl = fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'savelog', 'apv5.jsonl'), 'utf8').trim().split(/\r?\n/).map((l) => JSON.parse(l)).filter((x) => x.ch === 'edit' && x.err === 'E_APPROVE')
@@ -268,7 +282,7 @@ test('저장 승인 P5: approve 지식의 화면 고치기는 저장 제안 — 
   assert.equal(await code(ed({ sections: secs, changes: ['줄\n바꿈'], dry: true })), 'E_INPUT')
   assert.equal(await code(ed({ sections: secs, proposal: 'x' })), 'E_INPUT')
   // 넣기 = 승인(경고 받아들임) — 기록 「## 받아들인 경고」 · 문서에 들어감
-  const r = await ed({ sections: secs, proposal: d1.propose.proposal })
+  const r = await ed({ sections: secs, changes: ch0, proposal: d1.propose.proposal })
   assert.equal(r.direct, true)
   const w = fs.readFileSync(path.join(dir, r.record), 'utf8')
   assert.match(w, /## 받아들인 경고/)
