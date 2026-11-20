@@ -27,23 +27,23 @@
 
 - [x] `597981f` **P1 보내기 기록만 길의 unreflected.** `hub.js` sendInputOf 의 원천 칸을 intakeSrcPart 꼴(지문)로 · why 는 값 검사 밖 칸으로. 회귀 시험: 초안 없음 + 수 있는 원문 → propose 오류 0.
 - [x] `597981f` **P2 보내기 후보 못 잡음 → held 만.** held 있고 sections 비면 한 번 고쳐 쓰기 · held 는 제안서 경고로 · 머리 없는 원천은 본문 낱말 · search 로 후보 · askClaude 는 받는 팀 지식을 읽는다 · propose 오류의 까닭을 붙여 한 번 다시 짓는다. (검토 고침 `1dbf9a2`: 세션 열쇠는 팀 서버가 내준 읽기 열쇠 · 서버 판정 · 설정 폴더 읽기 막음)
-- [ ] **P3 뜻 한 줄(gist) 없음.** 들이기 · 세션 프롬프트와 MCP save 설명에서 새 항목 names[].gist 필수 · 저장 문은 새 coord 의 gist 가 비거나 머리와 같거나 짧으면 고쳐 받기(무인) · 오류(사람). (프롬프트 몫은 `d51c12a`: 무인 system · 스킬 셋 · MCP save names 에 gist 칸과 반례 · 바탕 세우기 구조안 names 의 gist(스키마 · 프롬프트 꼴 · cleanPlan · 넣기가 장부에 넘김)는 `a22ed8f` · 짜임 다시 잡기는 있는 항목을 옮기기만 해 장부의 뜻 한 줄이 그대로 간다 · 저장 문 몫 남음)
-- [ ] **P4 장부 짝 없는 새 항목.** `core/shape.js` RULES_BASE 를 생성 룰 R3-2 · R7-1 로 · 사건 갈래 새 항목도 names 필수 · 저장 문이 짝 없는 새 머리를 고쳐 받기로.
-- [ ] **P5 근거 날짜에 들인 날.** 프롬프트에 「원천에 날짜가 없으면 비운다」 반례 · 저장 문은 근거 날짜가 들인 날과 같고 원천 글에 없으면 측정 표시. (프롬프트 몫은 `d51c12a`: 반례 · 일 설명의 넣은 때 줄에 「근거 날짜가 아니다」 · 저장 문 측정 표시 남음)
+- [x] `d51c12a` · `a22ed8f` · `c9f4383` **P3 뜻 한 줄(gist) 없음.** 들이기 · 세션 프롬프트와 MCP save 설명에서 새 항목 names[].gist 필수 · 저장 문은 새 coord 의 gist 가 비거나 머리와 같거나 짧으면 고쳐 받기(무인) · 오류(사람). (프롬프트 몫은 `d51c12a`: 무인 system · 스킬 셋 · MCP save names 에 gist 칸과 반례 · 바탕 세우기 구조안 names 의 gist(스키마 · 프롬프트 꼴 · cleanPlan · 넣기가 장부에 넘김)는 `a22ed8f` · 짜임 다시 잡기는 있는 항목을 옮기기만 해 장부의 뜻 한 줄이 그대로 간다 · 저장 문 몫은 `c9f4383`: buildProposal approve 의 gist 오류 · 무인 고쳐 받기 · 사람 제안 막음)
+- [ ] **P4 장부 짝 없는 새 항목.** `core/shape.js` RULES_BASE 를 생성 룰 R3-2 · R7-1 로 · 사건 갈래 새 항목도 names 필수 · 저장 문이 짝 없는 새 머리를 고쳐 받기로. (저장 문 몫은 `c9f4383`: 짝 없는 새 머리 pair 오류 · 패턴 줄 문서의 새 머리도 names · 짜임 머리 빼고 · MCP save names 설명 · shape.js RULES_BASE 남음)
+- [x] `d51c12a` · `c9f4383` **P5 근거 날짜에 들인 날.** 프롬프트에 「원천에 날짜가 없으면 비운다」 반례 · 저장 문은 근거 날짜가 들인 날과 같고 원천 글에 없으면 측정 표시. (프롬프트 몫은 `d51c12a`: 반례 · 일 설명의 넣은 때 줄에 「근거 날짜가 아니다」 · 저장 문 측정 표시는 `c9f4383`: asof 경고 · 무인 `## 값 대조` · savelog warned)
 - [ ] **P6 기초 세우기 값 부딪침 · 성격 없음.** 글 짓기 프롬프트에 R2-5 와 앞선 값 · 구조안에 문서 성격 칸 · 넣기가 `_forms.md` 성격 줄을 쓴다.
-- [ ] **P7 http 저장이 기록 칸을 버림**(D3).
+- [x] `c9f4383` **P7 http 저장이 기록 칸을 버림**(D3). http save · propose 가 같은 규칙으로 recordBody(화면 쿠키는 늘 · 기기 열쇠는 서식 칸을 실었을 때 · changes 없으면 E_INPUT) · 화면 별칭 더하기에 changes.
 - [ ] **P8 값 바꾼 화면 고침이 이력으로**(D1). 바뀐 것은 앞뒤 값에서 「대상 › 속성: 옛 → 새」 · fixes 대상이 지금 applied 인지 확인.
 
 ### medium
 
 - [x] `d51c12a` · `a22ed8f` **P9** 커밋을 원천에 이름 없는 항목에 붙임: 들이기 프롬프트에 R3-5(이름 · 별칭 · 식별자가 나오거나 R2-1 다로 뜻이 같음을 보일 때만 붙인다 · 뜻이 같은 항목이 있으면 새 항목을 세우지 않는다 · 생성 룰 5판 R3-5).
-- [ ] **P10** formcheck 의 「주간」 routine 판정 구멍: 갈래 서식으로만 판정 · pc-intake 길이 lintForm 을 지나는지 · 사건 갈래 서식 칸.
-- [ ] **P11** 끊긴 링크: 저장 검사에서 링크 대상 문서 · 머리가 있거나 이번에 세우는지 · 빈칸 정규화.
+- [x] `c9f4383` **P10** formcheck 의 「주간」 routine 판정 구멍: 갈래 서식으로만 판정 · pc-intake 길이 lintForm 을 지나는지 · 사건 갈래 서식 칸. (routine 은 갈래 이름의 보고 · 정례로만 · pc-intake 는 저장 문 saveNow 의 lintFormNew 알림을 지난다(확정 검사 고쳐 받기는 짓기 길 몫) · cleanForms 가 사건 · 보고 갈래의 빈 서식 칸 · 지식문서를 작업기록으로)
+- [x] `c9f4383` **P11** 끊긴 링크: 저장 검사에서 링크 대상 문서 · 머리가 있거나 이번에 세우는지 · 빈칸 정규화. (core/docformat.js deadLinks · spaceLinks · slugOf 를 core 로 · 새로 든 줄만 · 비슷한 이름의 문서를 알림)
 - [ ] **P12** 비용 장부 구멍: pcAgent · askClaude(보내기) · shape 세션 비용을 일감 · 측정 줄에 · savelog cost 채움 · 「고칠 것 없음」 다듬기도 측정 줄. (보내기 askClaude 몫은 `597981f`: 개인 쪽 측정 줄 `ch send · stage draft · cost · calls` · 나머지 남음)
 - [x] `597981f` **P13** 색인 임시 파일 경합(`core/search.js`): tmp 이름 고유 · 오류 log.
 - [x] `d51c12a` · `a22ed8f` **P14** 기록 칸에 경위 · 커밋 메시지: 프롬프트에 R6-4 반례 · 메타 줄을 근거 재료와 뗌 · kmd-build 7절 `record.title` 「대상: 어떻게」 · `record.body` 지식이 어떻게 바뀌었나(넣은 자리 · 들인 경위는 쓰지 않는다).
 - [ ] **P15** kmd-migrate dropsOf 를 문장 단위 포함률로 · SKILL 에 「꼴 차이라고 단정하지 않는다」.
-- [ ] **P16** 「## 넣은 것」 새 행 요약의 줄표: 행마다 「새로: 행 이름 값」.
+- [x] `c9f4383` **P16** 「## 넣은 것」 새 행 요약의 줄표: 행마다 「새로: 행 이름 값」. (values.js rowsAdded · parts.js renderPut 「새로:」 · 「뺌:」 · 옛 「— →」 읽기 그대로)
 - [x] `d51c12a` · `a22ed8f` **P17** 다듬기 프롬프트 범위: 오기 · 백틱 · 수준 표시를 다듬기 몫으로 · 다듬기 저장(polishToSave)의 값 견주기를 `samePolished`(수준 표시 · 날짜 표기 · 감싼 백틱은 값이 아니다)로.
 
 ### low
@@ -51,7 +51,7 @@
 - [x] `597981f` **P18** E_APPROVE 측정 줄에 어긋남 표지 · 바뀐 쪽 · 해시 앞 8자. (검토 고침 `1dbf9a2`: 화면 고치기 길도 측정 줄 · 바뀐 쪽은 해시가 본 bases 지문으로 · unknown)
 - [x] `597981f` **P19** 채널 이름 정리(D2).
 - [ ] **P20** 바뀐 것 없는 구조안은 API 길에서도 일을 열지 않음.
-- [ ] **P21** 참고 블록 기록 링크 글은 기록 제목 · 「## 새로 세움」 칸 말 「이름」 → 「항목」.
+- [x] `c9f4383` **P21** 참고 블록 기록 링크 글은 기록 제목 · 「## 새로 세움」 칸 말 「이름」 → 「항목」. (sections.js logLine 제목 80자 · parts.js renderFresh 「- 항목 종류:값」 · 옛 「- 이름」 읽기 그대로)
 - [ ] **P22** 원본 메타(문서 번호 · 판)를 요약에 넣지 않고 참고 블록 메모로. (프롬프트 몫은 `d51c12a`: 요약 · 항목 글에 넣지 않고 기록 refs 로 · kmd 가 참고 블록 「(문서)」 메모로 옮기는 코드 몫 남음)
 - [ ] **P23** seedWrite({all}) E_INPUT 메시지에 승인 남은 문서 이름.
 
@@ -81,3 +81,4 @@
 | send 검토 지적 셋(P18 · P2) | `1dbf9a2` | ① 화면 고치기(hub.edit)의 E_APPROVE · 승인 없음도 측정 줄(ch edit · 앞 보고의 「두 곳」 은 저장 문 한 곳뿐이었다) ② 바뀐 쪽 판정을 제안이 낸 해시 → bases 지문(잇기 · 기록 모음 달 항목 포함)으로 · 이 프로세스가 내지 않은 해시는 unknown ③ 보내기 초안 세션은 기기 열쇠 대신 팀 서버가 내준 읽기 열쇠(`/api/k/:id/readkey` · 그 지식 하나 · 읽기 자리 · 20분 · 서버가 propose · save 403) · MCP 설정 폴더 읽기 막음. 시험 approve · edit · send · owners · levels · agent · harness-session · worker · judge · cost · send-ops · propose-tool 통과 |
 | prompts(P3 · P5 프롬프트 몫 · P9 · P14 · P17 · P22 프롬프트 몫) | `d51c12a` | 무인 들이기 system 의 「틀리기 쉬운 칸」 반례(gist · 근거 날짜 · 까닭 · 제목 · 원본 메타 · R3-5) · 코드 바뀜 일 설명 R3-5 · 커밋 메시지는 refs · MCP save names gist · kindGist 칸 · 스킬 셋(kmd-build · kmd-save · kmd-team-save) · polishPromptOf 정돈 거리 · 생성 룰 4판(R3 · R5 · R6 반례) · PC_KIT_REV 11 · TEAM_KIT_REV 17. 시험 genrules · harness-session(다듬기 시험 더함) · harness-words · propose-tool · intake · kit-area · analyze · k0 · approve · pc-propose · agent · worker · pc-ingest 통과. teamkit 은 실제 PowerShell 을 띄우는 한 벌이 spawn EPERM(이 실행 환경 · 바뀐 것과 무관) · 판 표 시험은 통과. 저장 문 몫(P3 고쳐 받기 · P5 측정 표시 · P22 메모 줄)은 남김 |
 | prompts 검토 지적 넷(P17 · P9 · P14 · P3) | `a22ed8f` | ① 다듬기 저장의 값 견주기를 `core/values.js` `samePolished`(sameValues 의 수준 표시 · 날짜 표기 위에 감싼 백틱 · 푼 백틱은 맨글로 같은 글자가 있으면 같은 값)로: 프롬프트가 시키는 백틱 · 「가.」 → 1. 2. 정돈이 통째로 빠지던 것 ② R3-5 일 설명 둘(무인 system 「이을 항목」 · 코드 바뀜 「붙일 항목」)을 R2-1 다 · R8-2 와 맞춤 · 생성 룰 5판(R3-5 끝 줄 · 반례) ③ kmd-build 7절 제목 · 요약 꼴 ④ 바탕 세우기 구조안 names 의 gist(SEED_PLAN_SCHEMA · 프롬프트 꼴 둘 · cleanPlan · seedPlanOfDraft · hub 넣기 names). PC_KIT_REV 12 · TEAM_KIT_REV 18. 시험 harness-session(다듬기 저장 한 벌 더함) · shape-plan(gist 한 벌 더함) · genrules · harness-words · kit-area · shape-seed · shape-put · agent · worker · pc-ingest 통과. teamkit 은 실제 PowerShell 한 벌 spawn EPERM(앞과 같음) · 판 표 시험 통과 |
+| gate(P3 · P4 저장 문 몫 · P5 · P7 · P10 · P11 · P16 · P21) | `c9f4383` | buildProposal(approve)에 gist · pair 오류 · asof 경고 · link 오류(빈칸 %20) · formcheck routine · cleanForms 작업기록 · http recordBody · renderPut 「새로:」 · renderFresh 「항목」 · logLine 제목. 시험 harness-gate(P3 · P4 · P5 · P11 한 벌 더함) · harness-items · harness-session · harness-ask · harness-retry · harness-step0 · approve · access(D3 한 벌) · backup · save(P16 한 벌) · propose · propose-tool · pc-propose · formcheck(P10 한 벌) · guide · weave · agent · worker · pc-ingest · send · edit · qfix-server · fix · judge · savelog · genrules · kit-area · shape-* · kmd-seed · restructure · oldform · docformat · links2 · screen-kmd 통과. intake 3번(다듬기 running) · watch · wp5 · wp7 · wp9 는 HEAD 그대로 깨져 있다(`git archive HEAD` 사본에서 같음). 남은 것: P4 의 shape.js RULES_BASE |
