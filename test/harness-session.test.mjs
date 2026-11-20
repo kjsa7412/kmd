@@ -11,6 +11,8 @@ import { startServer } from '../server/http.js'
 import { workOnce, knownTypes } from '../core/worker.js'
 import { copyDir } from './helpers.mjs'
 import { GEN_RULES_REV } from '../core/genrules.js'
+import { TOOLS } from '../server/mcp.js'
+import { polishPromptOf } from '../core/ingest.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, wk, docsDir
@@ -77,6 +79,11 @@ test('세션 일감의 열쇠: 그 지식에만 · 팀 서버는 세션 일감�
   assert.match(t.system, new RegExp(`생성 룰 ${GEN_RULES_REV}판`))
   assert.match(t.system, /이 일은 무인 일감이다. 사람에게 묻거나 승인을 기다리지 않는다/)
   assert.match(t.system, /R8 판례를 따름 · 가름 · 벗어남/)
+  // 채널 평가 P3 · P5 · P9 · P14 · P22 — 틀리기 쉬운 칸을 반례와 함께 싣는다 · 들인 때는 근거 날짜가 아니라고 일 설명에 적는다
+  assert.match(t.system, /gist 는 뜻 한 줄로 새 항목마다 꼭/)
+  for (const re of [/names\[\]\.gist\(뜻 한 줄/, /넣을 글에 날짜가 없으면 적지 않는다/, /까닭에 커밋 메시지를 그대로 옮김/, /원본 메타\(문서 번호 · 판/, /이을 항목\(R3-5\)/]) assert.match(t.system, re)
+  assert.match(t.prompt, /kmd 에 넣은 사람 · 때: .*근거 날짜 · 까닭 · 제목에 쓰지 않는다/)
+  assert.ok(TOOLS.find((x) => x.name === 'save').inputSchema.properties.names.items.properties.gist, 'MCP save 의 names 에 gist 칸')
   assert.match(t.prompt, /knowledge id: dpms\)/)
   assert.ok(t.files.some((f) => f.name === '둘째 통화.md' && Buffer.from(f.b64, 'base64').toString('utf8').includes('400ms')))
   // 그 지식만 — 다른 지식은 목록에도 없고 저장도 거절된다
@@ -138,4 +145,11 @@ test('새 판 Claude Code 는 시작할 때 kmd 를 「pending」 으로 알린�
     const r = await workOnce({ server: s.url, key: wk, log: () => {} })
     assert.equal(s.hub.intakesOf('dpms').find((x) => x.id === o.job).state, 'done', JSON.stringify(r?.summary))
   } finally { if (old == null) delete process.env.FAKE_AGENT_MODE; else process.env.FAKE_AGENT_MODE = old }
+})
+
+// 채널 평가 P17 — 다듬기 프롬프트가 오기 · 백틱 · 수준 표시를 다듬기 몫으로 낱낱이 적고 반례를 싣는다
+test('다듬기 프롬프트: 정돈 거리(오기 · 백틱 · 수준 표시 · 줄표)와 반례', () => {
+  const p = polishPromptOf({ doc: 'docs/게이트웨이 설계.md', title: '게이트웨이 설계', sections: [{ h: 'gw_log', base: 'b1', body: '| 콜럼 | 형 |\n|---|---|\n| log_id | bigint |' }] })
+  for (const re of [/정돈 거리/, /오기 · 맞춤법/, /「콜럼」 → 「컬럼」/, /백틱/, /수준 표시/, /줄표/, /반례\(다듬기가 아니다\)/]) assert.match(p, re)
+  assert.match(p, /## gw_log\n\(base b1\)/)
 })

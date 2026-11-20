@@ -84,7 +84,7 @@ export const TOOLS = [
   {
     name: 'save',
     description: [
-      '승인한 저장 제안을 남긴다: 기록 + 항목 글 + 지문이 한 묶음으로 들어간다. 먼저 propose 로 같은 입력의 저장 제안을 받아 사람에게 보이고 승인받은 그 proposal 을 싣는다(저장 제안을 받는 지식: 없거나 그사이 입력 · 지식이 바뀌어 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 details.propose 에 새 제안이 온다 · 다시 보이고 다시 승인받는다). 승인이 제안서의 경고를 받아들이는 것이다. 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. 바뀐 것의 값은 고칠 항목 글에 들어가야 한다. 바뀐 값 없이 경위만 있는 기록은 항목 글 없이 touches 의 항목에 글 그대로 잇는다. touches 는 match 로 찾은 항목 장부의 항목만 받는다(장부에 없는 항목 · 폐기된 항목은 거절하고 가까운 항목을 알려 준다). 이을 항목이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(기록 모음 문서의 그 달 항목에 잇는다 · 둘 다 비면 거절). 정해지지 않은 것은 저장하지 않는다(메모는 없다 · 이슈를 받는 갈래가 있으면 이슈 항목으로 제기). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 항목 글을 고쳤으면 sections 에 바꿀 곳(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽고 다시 제안한다). E_RATE 면 details.retryAfter 초 뒤에 다시. kit 에 스킬 글이 준 판을 늘 싣는다. 새 항목(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 항목 장부 · 문서 장부에 같이 올린다. 한 번에 한 묶음으로 남는다.',
+      '승인한 저장 제안을 남긴다: 기록 + 항목 글 + 지문이 한 묶음으로 들어간다. 먼저 propose 로 같은 입력의 저장 제안을 받아 사람에게 보이고 승인받은 그 proposal 을 싣는다(저장 제안을 받는 지식: 없거나 그사이 입력 · 지식이 바뀌어 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 details.propose 에 새 제안이 온다 · 다시 보이고 다시 승인받는다). 승인이 제안서의 경고를 받아들이는 것이다. 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. 바뀐 것의 값은 고칠 항목 글에 들어가야 한다. 바뀐 값 없이 경위만 있는 기록은 항목 글 없이 touches 의 항목에 글 그대로 잇는다. touches 는 match 로 찾은 항목 장부의 항목만 받는다(장부에 없는 항목 · 폐기된 항목은 거절하고 가까운 항목을 알려 준다). 이을 항목이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(기록 모음 문서의 그 달 항목에 잇는다 · 둘 다 비면 거절). 정해지지 않은 것은 저장하지 않는다(메모는 없다 · 이슈를 받는 갈래가 있으면 이슈 항목으로 제기). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 항목 글을 고쳤으면 sections 에 바꿀 곳(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽고 다시 제안한다). E_RATE 면 details.retryAfter 초 뒤에 다시. kit 에 스킬 글이 준 판을 늘 싣는다. 새 항목(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 항목 장부 · 문서 장부에 같이 올린다: 새 항목마다 gist(뜻 한 줄: 무엇인가를 15 ~ 60자로 · 이름 되풀이 금지 · 생성 룰 R5-3 · R7-1)를 꼭 적는다. 한 번에 한 묶음으로 남는다.',
       '항목 글(sections.content)은 본문만: 대상 하나의 지금을 확정된 것만 「…한다 · …이다」 로. 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비) · 바깥 https://… 만.',
       '넣지 않는 것(E_FORMAT · 하나라도 걸리면 아무것도 쓰지 않는다): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄. 짜임은 수준 표시(1. · 1) · -)로 들여쓰지 않는다. 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
       '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다.」 나쁜 예: 「배포 창을 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md))」.',
@@ -107,10 +107,10 @@ export const TOOLS = [
             title: str('한 줄 제목: 「무엇: 어떻게」'),
             body: str('한두 문장 요약(300자 안 · 문단 하나 · 머리 줄 없이). 나머지는 아래 칸으로'),
             changes: { type: 'array', items: { type: 'string' }, description: '바뀐 것(꼭): 줄마다 「무엇: 옛 값 → 새 값」 · 새로 정한 것은 「무엇: 값」' },
-            why: { type: 'array', items: { type: 'string' }, description: '까닭: 왜 바꿨나 · 누가 정했나' },
+            why: { type: 'array', items: { type: 'string' }, description: '까닭: 왜 바꿨나 · 누가 정했나(원문 · 정한 사람이 말한 것만 · R6-4). 커밋 메시지 그대로 · 「최초 들임」 · 남긴 사람 · 시각은 까닭이 아니다(커밋 · 판은 refs 에)' },
             dropped: { type: 'array', items: { type: 'string' }, description: '버린 안: 견준 다른 길과 버린 까닭(있으면)' },
             impact: { type: 'array', items: { type: 'string' }, description: '영향: 무엇이 바뀌나 · 누가 알아야 하나(있으면)' },
-            refs: { type: 'array', items: { type: 'string' }, description: '근거: 커밋 · 문서 판 · 회의(있으면)' },
+            refs: { type: 'array', items: { type: 'string' }, description: '근거: 커밋 · 문서 판 · 회의(있으면). 근거 날짜는 「근거 날짜: YYYY-MM-DD」 한 줄로 원문이 말하는 때(정한 날 · 회의 날 · 커밋 날)만: 원문에 날짜가 없으면 적지 않는다(저장하는 오늘 · 들인 날은 근거 날짜가 아니다 · R2-5)' },
             touches: { type: 'array', items: { type: 'string' }, description: '글이 실제로 바뀌는 항목(coord)만: match 로 찾은 항목 장부의 항목 · 예 proc:헬스체크 · 읽기만 한 항목은 달지 않는다' },
             touchesEmpty: str('건드린 항목이 정말 없을 때만: 그 까닭 한 줄(예: 항목이 아직 없는 일정 메모). touches 와 같이 보내지 않는다'),
             tags: { type: 'array', items: { type: 'string' } },
@@ -131,7 +131,7 @@ export const TOOLS = [
         names: {
           type: 'array',
           description: '세울 항목(장부에 올린다): 종류는 그 지식의 종류(brief 의 kinds · 영문 소문자 또는 한글). 값은 빈칸 없는 열쇠(60자 안 · 문장 금지 · 설명은 label 에). 이미 장부에 있는 항목은 싣지 않는다(있는 항목의 자리 · 별칭 고침은 지식관리자만 · 그 항목을 건드리려면 touches 에 단다). doc · heading 을 주면 문서 장부에 그 문서의 그 머리가 이 항목의 자리로 오른다',
-          items: { type: 'object', properties: { coord: str('종류:값: 예 table:tb_user · proc:배포승인 · 이슈:DPMS-ISS-20'), label: str('라벨: 예 사용자 테이블'), aliases: { type: 'array', items: { type: 'string' }, description: '별칭' }, doc: str('그 항목의 머리가 든 문서'), heading: str('그 항목 머리') }, required: ['coord', 'label'] },
+          items: { type: 'object', properties: { coord: str('종류:값: 예 table:tb_user · proc:배포승인 · 이슈:DPMS-ISS-20'), label: str('라벨: 예 사용자 테이블'), gist: str('뜻 한 줄(새 항목마다 꼭 · R5-3 · R7-1): 그 항목이 무엇인가를 15 ~ 60자 한 문장으로 · 이름 · 라벨을 되풀이하지 않는다. 예 "사용자 계정과 로그인 상태를 한 줄씩 두는 테이블" · 반례 "사용자 테이블"'), kindGist: str('새 종류를 세울 때만: 그 종류의 뜻 한 줄(R5-1 라 · 씨앗 종류는 적지 않는다)'), aliases: { type: 'array', items: { type: 'string' }, description: '별칭' }, doc: str('그 항목의 머리가 든 문서'), heading: str('그 항목 머리') }, required: ['coord', 'label'] },
         },
       },
       required: ['knowledge', 'record'],

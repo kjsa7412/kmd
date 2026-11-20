@@ -10,7 +10,7 @@
 import { createHash } from 'node:crypto'
 import { FORMS } from './forms.js'
 
-export const GEN_RULES_REV = 3
+export const GEN_RULES_REV = 4
 
 // 성격 아홉(R0 · R4-1) — 차례는 조문의 차례다. 서식 계약의 「기록」 은 성격이 아니다
 export const NATURES = ['대상', '서술', '절차', '시험', '용어', '사건', '보고', '대장', '결정']
@@ -104,7 +104,7 @@ export const ARTICLES = [
       '- 장애 기록을 「회의록」 에 넣지 않는다. 성격이 같아도 종류 낱말이 다르면 모으는 문서도 다르다(3-2).',
     ],
     good: '설계서 파일 하나 → 문서 「게이트웨이 설계」. 주간 회의 파일 스무 개 → 문서 「회의록」 하나의 항목 스물.',
-    bad: '「게이트웨이 설계서_v0.3」(파일 이름) · 회의마다 문서 하나 · 회의록의 언급 한 줄로 「이슈 대장」 을 세움.',
+    bad: '「게이트웨이 설계서_v0.3」(파일 이름) · 회의마다 문서 하나 · 회의록의 언급 한 줄로 「이슈 대장」 을 세움 · 차이에 이름이 나오지 않는 「수집기」 항목에 HealthCheck.java 커밋을 붙임(3-5) · 문서 요약에 「문서 번호 GW-DS-001, 판 v0.3」(판 · 번호는 기록의 근거).',
   },
   {
     id: 'R4',
@@ -147,7 +147,7 @@ export const ARTICLES = [
       '- 종류를 항목마다 새로 짓지 않는다.',
     ],
     good: '새 테이블 항목 → 그 문서의 다른 테이블 항목이 쓰는 종류(가). 빈 지식의 회의 → 회의(다).',
-    bad: '뜻 한 줄에 「수집기」(이름 되풀이) · 넣을 것에 없는 별칭을 지어냄.',
+    bad: '뜻 한 줄에 「수집기」(이름 되풀이) · 새 항목의 뜻 한 줄을 비움 · 넣을 것에 없는 별칭을 지어냄.',
   },
   {
     id: 'R6',
@@ -164,7 +164,7 @@ export const ARTICLES = [
       '- 지식의 내용이 바뀐 일만 기록이다. 서식 · 짜임 · 장부만 바꾼 일은 이력이다(kmd 가 가른다).',
     ],
     good: '제목 「수집기: 전송 주기 10초로」.',
-    bad: '제목 「회의록_1110.docx 들임」 · 바뀐 것에 경위 문단 · 원본에 없는 까닭을 지어냄.',
+    bad: '제목 「회의록_1110.docx 들임」 · 바뀐 것에 경위 문단 · 원본에 없는 까닭을 지어냄 · 까닭에 커밋 메시지 그대로 · 「최초 들임」 · 넣은 사람과 시각 · 날짜 없는 설계서의 근거 날짜에 kmd 에 들인 날.',
   },
   {
     id: 'R7',
@@ -294,7 +294,7 @@ export function genRulesBlock({ profile = 'agent', heads = true } = {}) {
 // 지문 — 긴 판 글의 sha256 앞 16자. 판 번호와 함께 측정 줄 · brief 에 실린다
 export const rulesHash = () => createHash('sha256').update(genRulesText({ long: true })).digest('hex').slice(0, 16)
 // 판마다 지문 — 글이 바뀌었는데 판이 그대로면 시험이 실패한다
-export const GEN_RULES_HASH = { 1: 'ffad7271a047a232', 2: 'a4ea914c3dbc2016', 3: '6826af10747592b6' }
+export const GEN_RULES_HASH = { 1: 'ffad7271a047a232', 2: 'a4ea914c3dbc2016', 3: '6826af10747592b6', 4: 'd3c04ab91344f8ee' }
 // 조문 번호의 닫힌 목록 — 「R2」 · 「R2-1」 · 「R5-1」 (판단 칸의 rule · against 를 이 목록으로 거른다)
 export function ruleIds() {
   const ids = new Set()
