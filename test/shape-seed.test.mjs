@@ -336,7 +336,7 @@ test('kmd-seed 꾸러미 경로 — 꾸러미를 열고(한도 없음 · 읽기�
     const keep = r.rows.filter((x) => x.src && x.pick === '넣음')
     const plan = { v: 1, kind: 'seed', docs: [{ id: '안내', was: null, items: keep.map((x) => ({ h: x.topic, src: [x.src] })) }], names: [], skip: [] }
     fs.writeFileSync(path.join(pack, 'plan.json'), JSON.stringify(plan))
-    fs.mkdirSync(path.join(pack, 'texts'))
+    fs.mkdirSync(path.join(pack, 'texts'), { recursive: true }) // 조사가 미리 만든다(eb6b5f5)
     fs.writeFileSync(path.join(pack, 'texts', '안내.json'), JSON.stringify({ doc: '안내', items: keep.map((x) => ({ h: x.topic, text: `${x.topic} 글.` })) }))
     const before = fs.readFileSync(path.join(pack, 'manifest.json'), 'utf8')
     const id = await s.make('꾸러미')

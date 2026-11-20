@@ -123,6 +123,8 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       let mcpDown = false
       let mcpPending = false // init 에 kmd 가 pending 이었다
       let mcpUsed = false // kmd 도구를 한 번이라도 불렀다
+      let firstUse = false // 첫 차례 usage 를 적었다(채널 평가 C1 판정 · 캐시가 프로세스를 넘어 맞는가)
+      const used = [] // 부른 도구 이름(다시 띄울 때 까닭을 가리려고 · 채널 평가 intake-file)
       let buf = ''
       let se = ''
       let last = null
@@ -138,9 +140,19 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
           if (mcp && k && k.status === 'pending') mcpPending = true
           else if (mcp && k && k.status !== 'connected') { mcpDown = true; stop() }
         }
+        if (j.type === 'assistant' && !firstUse && j.message?.usage) {
+          firstUse = true
+          const u = j.message.usage
+          line('sys', `첫 차례: 캐시 읽음 ${u.cache_read_input_tokens || 0} · 캐시 씀 ${u.cache_creation_input_tokens || 0} · 입력 ${u.input_tokens || 0}`)
+        }
         if (j.type === 'assistant') for (const c of j.message?.content || []) {
           if (c.type === 'text' && c.text.trim()) line('say', c.text.trim())
-          if (c.type === 'tool_use') { line('tool', toolLine(c.name, c.input)); if (String(c.name || '').startsWith('mcp__kmd')) mcpUsed = true }
+          if (c.type === 'tool_use') { line('tool', toolLine(c.name, c.input)); used.push(String(c.name || '')); if (String(c.name || '').startsWith('mcp__kmd')) mcpUsed = true }
+        }
+        // 뒤늦게 붙은 kmd 연결(Claude Code 가 init 뒤에 알리는 판) — 붙었는지 적는다
+        if (j.type === 'system' && j.subtype !== 'init' && Array.isArray(j.mcp_servers)) {
+          const k = j.mcp_servers.find((s) => s.name === 'kmd')
+          if (k) line('sys', `kmd 연결: ${k.status}`)
         }
         if (j.type === 'user') for (const c of j.message?.content || []) if (c.type === 'tool_result') line(c.is_error ? 'err' : 'ok', resultLine(c))
         if (j.type === 'result') last = j
@@ -159,7 +171,7 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
         if (mcpDown) { resolve({ mcpDown: true, cost: last?.total_cost_usd || 0 }); return }
         if (buf.trim()) eat(buf)
         // 붙는 중으로 시작해 kmd 도구를 한 번도 못 쓰고 끝났다 — 연결이 서지 않은 것으로 보고 다시 띄운다(로그인 · 한도 오류는 아래에서 그대로 가른다)
-        if (mcp && mcpPending && !mcpUsed && last && !last.is_error && !code) { line('err', 'kmd 연결이 붙지 않은 채 끝났다'); resolve({ mcpDown: true, cost: last.total_cost_usd || 0 }); return }
+        if (mcp && mcpPending && !mcpUsed && last && !last.is_error && !code) { line('err', `kmd 연결이 붙지 않은 채 끝났다(${last.num_turns ?? '?'} 차례 · 부른 도구 ${used.length ? [...new Set(used)].join(' · ') : '없음'} · 끝 말 「${short(String(last.result || '').trim(), 80)}」)`); resolve({ mcpDown: true, cost: last.total_cost_usd || 0 }); return }
         const text = `${last?.result || ''} ${se}`
         if (!last || last.is_error || code) {
           const error = /login|log in|api key|auth|unauthori|credential|401/i.test(text) ? 'login' : /limit|quota|rate|usage|budget|429/i.test(text) ? 'limit' : 'fail'
@@ -167,7 +179,7 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
           resolve({ ok: false, error, message: text.trim().slice(0, 300), cost: last?.total_cost_usd || 0, turns: last?.num_turns || 0 })
           return
         }
-        line('cost', `끝: ${last.num_turns ?? '?'} 차례 · $${(last.total_cost_usd || 0).toFixed(3)} · ${Math.round((Date.now() - t0) / 1000)}초`)
+        line('cost', `끝: ${last.num_turns ?? '?'} 차례 · $${(last.total_cost_usd || 0).toFixed(3)} · ${Math.round((Date.now() - t0) / 1000)}초 · 첫 도구 ${used[0] || '없음'}`)
         resolve({ ok: true, text: String(last.result || ''), cost: last.total_cost_usd || 0, turns: last.num_turns || 0, model: last.model || null })
       })
       p.stdin.end(prompt)
