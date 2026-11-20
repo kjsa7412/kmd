@@ -1299,8 +1299,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       //   본문의 channel 등 opt 칸은 받지 않는다(제안서 머리의 길은 서버가 정한다)
       if (what === 'propose') {
         const { channel: _c, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
-        // 기기 열쇠로 온 제안은 개인 프로그램의 보내기 확인 창(P-D22 · P7)
-        return out(200, await hub.propose(ctx, id, input, { path: ctx.device ? '보내기' : '화면' }))
+        // 기기 열쇠로 온 제안은 개인 프로그램의 보내기 확인 창(P-D22 · P7) · 막힌 제안의 측정 줄 채널도 서버가 정한다(send · http · 채널 평가 P19)
+        return out(200, await hub.propose(ctx, id, input, { path: ctx.device ? '보내기' : '화면', channel: ctx.device ? 'send' : 'http' }))
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       // 문서 고치기(S9) — 화면 길은 이미 있는 항목의 지문(base)을 꼭 받는다

@@ -443,14 +443,14 @@ judge: {
 
 ### 5-3. 채널별 차이표(저장이 일어나는 길 전부)
 
-채널 값은 끝 검토 1 이 `hub.save` 를 부르는 곳에서 읽은 것이다: `session · bulk`(`mcp.js:336`) · `http · send`(`http.js:1293`) · `edit`(`hub.js:4234`) · `fix`(4304) · `shape`(3144 · 4045 · 4060) · `polish`(1929) · `intake-file · intake-commit · intake-fix · intake-src`(`intakeChannel` 1849). 사람 채널은 `HUMAN_CHANNELS = session · http · send · bulk`(1491)다. `intake-again`(type `again` 으로 일감을 여는 곳이 없었다)과 `seed`(`channel: 'seed'` 로 부르는 곳이 없었다)는 죽은 채널이라 H0 에서 걷었다. H0 에서 `hub.save` · `coreSave` 를 부르는 곳을 다시 읽어 이 표와 맞음을 확인했다(줄 번호는 `ca6c909` 기준이라 어긋난다). 「판단 칸을 누가」 · 「짝을 누가」 열의 「엮기」 는 2판 때의 것이다: 2판을 걷은 뒤(5-2 · O-11) 무인 들이기 · 정정 · 세션은 장부 짝(`names`)을 LLM 이 적고, 판단 칸(`## 지은 근거`)을 짓는 길은 없다.
+채널 값은 끝 검토 1 이 `hub.save` 를 부르는 곳에서 읽은 것이다: `session · bulk`(`mcp.js:336`) · `http · send`(`http.js:1293`) · `edit`(`hub.js:4234`) · `shape`(3144 · 4045 · 4060) · `polish`(1929) · `intake-file · intake-src`(`intakeChannel` 1849). 커밋 들이기는 늘 `intake-src`(+ `code-change` 태그)이고 `intake-commit` 은 걷었다. 정정 채널 `fix` · `intake-fix` 는 H-D38 로 걷었다(기록 고치기는 화면 [고치기] 의 `edit`). 보내기의 막힌 제안 측정 줄 채널은 `send` 다(채널 평가 D2 · P19). 사람 채널은 `HUMAN_CHANNELS = session · http · send · bulk`(1491)다. `intake-again`(type `again` 으로 일감을 여는 곳이 없었다)과 `seed`(`channel: 'seed'` 로 부르는 곳이 없었다)는 죽은 채널이라 H0 에서 걷었다. H0 에서 `hub.save` · `coreSave` 를 부르는 곳을 다시 읽어 이 표와 맞음을 확인했다(줄 번호는 `ca6c909` 기준이라 어긋난다). 「판단 칸을 누가」 · 「짝을 누가」 열의 「엮기」 는 2판 때의 것이다: 2판을 걷은 뒤(5-2 · O-11) 무인 들이기 · 정정 · 세션은 장부 짝(`names`)을 LLM 이 적고, 판단 칸(`## 지은 근거`)을 짓는 길은 없다.
 
 | 길(채널) | 조문 | 판례를 얻는 법 | 판단 칸을 누가 | 짝을 누가 | `## 새로 세움` |
 |---|---|---|---|---|---|
-| 무인 들이기(`intake-file` · `intake-commit` · `intake-src` · 팀 일꾼과 개인 프로그램 모두 세션 H-D34). 가져올 곳(H-D32) · 화면의 「넣을 것」(H-D33) · 코드 바뀜(팀 `intake-commit` · 개인 기록 `hub.js:1839` · 커밋 분석을 들이기와 합친다)이 모두 이 줄이다 | 긴 판(세션의 system 글) | 세션이 `brief` · `match` · `section` | LLM | 엮기 | 쓴다 |
-| 정정(`intake-fix` · `fix`) | 긴 판 | 세션이 `match` · `section`(그 기록이 건드린 항목을 일 설명에 적어 준다) | LLM | 엮기 | 쓴다 |
+| 무인 들이기(`intake-file` · `intake-src` · 팀 일꾼과 개인 프로그램 모두 세션 H-D34). 가져올 곳(H-D32) · 화면의 「넣을 것」(H-D33) · 코드 바뀜(커밋은 `intake-src` + `code-change` 태그 · 개인 기록 `hub.js:1839` · 커밋 분석을 들이기와 합친다)이 모두 이 줄이다 | 긴 판(세션의 system 글) | 세션이 `brief` · `match` · `section` | LLM | 엮기 | 쓴다 |
+| 정정(`intake-fix` · `fix`): 걷었다(H-D38 · 채널 평가 D2). 기록 고치기는 화면 [고치기](`edit` · `fixes` · 사람 채널 · 저장 제안)다 | - | - | - | - | - |
 | 세션(`session`) · 대량 넣기(`bulk`) | 긴 판(스킬) | `match` · `brief`(열쇠만) | LLM(제안서 「지은 근거」 칸을 사람이 승인) | 엮기 | 쓴다(지금) |
-| 보내기(`send` · 사람 채널) | 짧은 판(보내는 PC 가 싣는다 · 판이 받는 팀과 다를 수 있다) | 보내는 PC 의 세션이 받는 팀의 `brief` · `match` · `section` 을 부른다 | 보내는 PC 의 LLM + 보내기 창의 승인 | 받는 팀의 엮기(제안 때). 지금 보내기는 장부에 항목을 세우지 않는다: 엮기가 지은 `names` 를 받는 팀 제안서의 새 항목 줄로 보이게 고친다 | 쓴다(지금) |
+| 보내기(`send` · 사람 채널) | 짧은 판(보내는 PC 가 싣는다 · 판이 받는 팀과 다를 수 있다) | 보내는 PC 의 세션이 받는 팀의 `brief` · `match` · `section` · `search` 를 부른다(기기 열쇠 · 읽기 도구만 · 채널 평가 P2) | 보내는 PC 의 LLM + 보내기 창의 승인 | 받는 팀의 엮기(제안 때). 지금 보내기는 장부에 항목을 세우지 않는다: 엮기가 지은 `names` 를 받는 팀 제안서의 새 항목 줄로 보이게 고친다 | 쓴다(지금) |
 | 다듬기(`polish`) | 글 규칙만 | 세션이 그 문서의 `section` 을 읽는다(H-D34) | 없음(자리를 고르지 않는다) | 없음 | 해당 없음 |
 | 짜임 걸음 · 바탕 세우기(`shape`) | 긴 판 R1 · R2 · R4 ~ R6 + 덧붙임(H-O14) | 구조안 재료(세션이 읽는다 · 팀 구조안과 짜임 글도 세션으로 H-D34) | 구조안의 까닭 줄을 코드가 옮긴다 | 구조안이 정한다(문서 성격을 싣게 고친다) | 쓴다(H6 부터) |
 | 다시 그리기(`kmd-migrate put` · `core/save.js` 를 지식 폴더에 바로 건다 · `record + sections` 뿐) | 긴 판(새 하위 명령 `rules`) | `scan` · `trail` | LLM(`input.json` 의 judge · H5 부터) | 지금은 없음. H6 에서 `put` 이 엮기를 부른다 | 쓴다(H6 부터) |

@@ -101,6 +101,8 @@ test('approve: 승인한 해시로 save = 들어감(기록 + 항목 글 한 덩�
   const old = await mcp('save', { ...changed, proposal: first.proposal, kit: KIT })
   assert.equal(old.error, 'E_APPROVE', '앞 해시로는 넣지 않는다')
   assert.equal(old.details.propose.proposal, second.proposal, '새 propose 결과를 싣는다')
+  // 채널 평가 P18 — 어긋남 측정 표지: 바뀐 쪽(지문은 같다 → 입력) · 해시 앞 8자
+  assert.deepEqual(savelogOf('apv').at(-1).approve, { miss: 'hash', side: 'input', got: first.proposal.slice(0, 8), now: second.proposal.slice(0, 8) })
   const r = await mcp('save', { ...changed, proposal: second.proposal, kit: KIT })
   assert.ok(r.saved, JSON.stringify(r))
   assert.equal(r.put, 1)

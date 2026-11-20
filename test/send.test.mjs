@@ -97,6 +97,9 @@ before(async () => {
   // 저장 승인 P7 — approve 모드로 켤 받는 팀 지식(같은 점검 › 순서)
   mkKnowledge(path.join(tmp, 'kn', 'apvs'), '## proc\n\n- `proc:순서`: 순서')
   fs.writeFileSync(path.join(tmp, 'kn', 'apvs', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n\n## 기록\n날마다 남긴다.\n')
+  // 채널 평가 P1 · P2 — 기록만 보내기 · held 를 볼 받는 팀 지식
+  mkKnowledge(path.join(tmp, 'kn', 'apvh'), '## proc\n\n- `proc:순서`: 순서')
+  fs.writeFileSync(path.join(tmp, 'kn', 'apvh', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
   fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sendTickMs: 3600000, inboxTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
@@ -184,6 +187,60 @@ test('보내기(P7 · approve 팀 지식): 미리 보기 = 저장 제안 · 창 
     await pc.close()
     if (was === undefined) delete process.env.KMD_SEND_KEY
     else process.env.KMD_SEND_KEY = was
+  }
+})
+
+// 채널 평가 P1 · P2 · P12 — 머리 없는 글(수가 있다)은 기록만 보내기로: 원천 칸은 들이기와 같은 꼴(지문)이고 까닭은 그 칸의 kmd 줄이라
+//   본문 반영 검사(unreflected)에 걸리지 않는다 · 넣을 곳을 고르지 못한 항목 글(held)만 남으면 한 번 고쳐 쓰고 그래도 없으면 기록만 · held 는 제안서 경고 ·
+//   초안 세션의 비용 · 부른 수는 개인 쪽 측정 줄(ch send · stage draft)
+test('보내기(채널 평가 P1 · P2 · P12): 기록만 보내기는 원천 값에 막히지 않는다 · held 만이면 고쳐 쓰기 한 번 뒤 기록만 · held 는 경고 · 초안 비용 측정 줄', async () => {
+  await s.hub.setOwner(SHELL, 'apvh', { owner: 'kim' })
+  await ensureRecordsDoc(s, 'apvh')
+  const proot = path.join(tmp, 'pcp1')
+  mkKnowledge(path.join(proot, 'mine'), '')
+  fs.writeFileSync(path.join(proot, 'mine', 'docs', '메모.md'), '# 메모\n\n점검 순서는 3단계로 한다. 응답 대기는 5초, 재시도는 2번이다.\n')
+  fs.writeFileSync(path.join(proot, 'mine', 'docs', '통신.md'), '# 통신\n\n통신 점검은 7초 안에 끝낸다.\n')
+  const me = await signIn(s, { id: 'kim8', admin: true })
+  const env0 = { key: process.env.KMD_SEND_KEY, mode: process.env.FAKE_CLAUDE_MODE, log: process.env.FAKE_CLAUDE_LOG }
+  process.env.KMD_SEND_KEY = me.key
+  const flog = path.join(tmp, 'fake-p2.log')
+  const pc = await startServer({ root: proot, mode: 'pc', user: 'kim8', port: 0, log: () => {}, scryptN: 1 << 15 })
+  fs.writeFileSync(path.join(proot, '.kmd', 'teams.json'), JSON.stringify([s.url]))
+  const ME = { user: pc.pcUser, admin: true, pc: true }
+  const recsOf = async () => (s.hub.forget?.('apvh'), (await s.hub.get('apvh')).works.filter((w) => w.tags.some((x) => x.startsWith('sent/'))))
+  try {
+    await pc.hub.sendRoute(ME, 'mine', { to: 'apvh', url: s.url })
+    // ① P1 — 머리 없는 글: 초안이 넣을 곳을 고르지 않아 기록만 · 원문의 수(3 · 5초 · 2번)는 원천 칸이라 제안 오류 0
+    const pick = { to: 'apvh', docs: [{ path: 'docs/메모.md' }] }
+    const pv = await pc.hub.sendPreview(ME, 'mine', pick)
+    assert.equal(pv.approve, true, JSON.stringify(pv))
+    const pr = pv.proposals[0].propose
+    assert.deepEqual(pr.errors, [], JSON.stringify(pr.errors))
+    const r = await pc.hub.sendPicked(ME, 'mine', pick)
+    assert.equal(r.fail, undefined, JSON.stringify(r))
+    const got = (await recsOf()).find((w) => w.body.includes('응답 대기는 5초'))
+    assert.ok(got, '기록만 보낸 기록이 들어갔다')
+    assert.match(got.body, /^## 원천\n- 보낸 글 · .+ 에서 · 지문 [0-9a-f]{16}\n- 까닭: 넣을 곳을 고르지 않았다/m, got.body)
+    assert.doesNotMatch(got.body.split('## 원천')[0], /고르지 않았다/, '까닭은 요약이 아니라 원천 칸의 kmd 줄')
+    // ② P2 — 후보 밖 문서만 고친 초안(held 만): 고쳐 쓰기 한 번 → 그래도 held 만이면 기록만 · held 는 제안서 경고 · 제안 오류 0
+    process.env.FAKE_CLAUDE_MODE = 'outside'
+    process.env.FAKE_CLAUDE_LOG = flog
+    const pv2 = await pc.hub.sendPreview(ME, 'mine', { to: 'apvh', docs: [{ path: 'docs/통신.md' }] })
+    const pr2 = pv2.proposals[0].propose
+    assert.deepEqual(pr2.errors, [], JSON.stringify(pr2.errors))
+    assert.ok(pr2.warnings.some((w) => w.code === 'held' && w.at.includes('후보밖')), JSON.stringify(pr2.warnings))
+    assert.equal(pr2.items.filter((x) => x.kind === '고침' || x.kind === '신설').length, 0, '항목 글은 보내지 않는다')
+    const calls = fs.readFileSync(flog, 'utf8').split('\n').filter(Boolean)
+    assert.equal(calls.filter((x) => x === 'intake').length, 2, calls.join())
+    assert.ok(calls.includes('fix'), '넣을 곳을 고르지 못해 한 번 고쳐 썼다')
+    // ③ P12 — 초안 세션의 비용 · 부른 수는 개인 쪽 측정 줄에(지표 줄로 세지 않는다: mode 없음)
+    const lines = fs.readFileSync(path.join(proot, '.kmd', 'savelog', 'mine.jsonl'), 'utf8').trim().split('\n').map((x) => JSON.parse(x)).filter((x) => x.ch === 'send' && x.stage === 'draft')
+    assert.ok(lines.length >= 2, JSON.stringify(lines))
+    assert.ok(lines.every((x) => typeof x.cost === 'number' && x.calls >= 1 && x.to === 'apvh' && !x.mode), JSON.stringify(lines))
+    assert.ok(lines.some((x) => x.calls === 2 && x.held === 1), JSON.stringify(lines))
+  } finally {
+    await pc.close()
+    for (const [k, v] of [['KMD_SEND_KEY', env0.key], ['FAKE_CLAUDE_MODE', env0.mode], ['FAKE_CLAUDE_LOG', env0.log]]) if (v === undefined) delete process.env[k]; else process.env[k] = v
   }
 })
 

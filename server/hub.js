@@ -20,7 +20,7 @@ import { ledgerOps } from '../core/namebook.js'
 import crypto from 'node:crypto'
 import net from 'node:net'
 // 개인 프로그램(PC)의 저장 즉시 넣기만 — 팀은 저장 문 · 들이기 일감(S13)
-import { topicOfName, ingestCandidates, formsOf, draftToSave, polishToSave, POLISH_MAX, intakeTags, intakeSrcPart, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel, quoteSrc } from '../core/ingest.js'
+import { topicOfName, ingestCandidates, formsOf, draftToSave, polishToSave, POLISH_MAX, intakeTags, intakeSrcPart, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel } from '../core/ingest.js'
 import { WRITE_RULES } from '../core/writerules.js'
 import { checkProposal, placeOf, buildProposal } from '../core/propose.js'
 import { metricsOf, readKnLines, daysOf, sinceOf } from '../core/metrics.js'
@@ -408,23 +408,40 @@ ${genRulesBlock({ profile: 'shape' })}`
   const SEND_SECS = 12 // 문서마다 읽는 항목
   const SEND_QS = 12 // 항목 찾기(match) 수
   const sendWords = (t) => new Set(String(t || '').toLowerCase().split(/[^0-9a-z가-힣]+/).filter((x) => x.length >= 2))
+  // 본문 낱말(자주 나온 것부터 n 개 · 수만인 낱말은 뺀다) — 머리 없는 원천의 후보 문서 찾기(채널 평가 P2)
+  const sendTopWords = (t, n) => {
+    const c = new Map()
+    for (const w of String(t || '').toLowerCase().split(/[^0-9a-z가-힣]+/)) if (w.length >= 2 && !/^\d+$/.test(w)) c.set(w, (c.get(w) || 0) + 1)
+    return [...c].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, n).map(([w]) => w)
+  }
   // 재료 — brief(항목 종류 · 갈래 · 문서 목록 · noClaude · 내 자리) · 글의 머리 · 제목 조각으로 match(정확히 맞는 항목 = touches · 그 문서) ·
-  //   문서 목록에서 말이 겹치는 문서 · 고른 문서의 항목 글 · 지문(section). 지문은 팀 것이다(개인 쪽 marks 와 섞지 않는다)
+  //   머리가 없거나 match 가 빈손이면 본문 낱말로 search(정리된 항목 · 글 토막의 문서) · 문서 목록에서 말이 겹치는 문서 ·
+  //   고른 문서의 항목 글 · 지문(section). 지문은 팀 것이다(개인 쪽 marks 와 섞지 않는다). 팀 MCP 의 실패 답은 log 로 남긴다(채널 평가 P13)
   async function sendMaterial(d, key, it, from) {
     const [b] = await sendLib.mcpCalls(d.url, key, [{ tool: 'brief', args: { knowledge: d.kn } }])
     if (!b || b.error) throw Object.assign(new Error(b?.message || '받는 팀 지식을 읽지 못했다'), { status: b?.error === 'E_NOTFOUND' ? 404 : b?.error === 'E_FORBIDDEN' ? 403 : 400, reach: true })
     const heads = [...String(it.body || '').matchAll(/^#{2,3} (.+)$/gm)].map((m) => m[1].trim())
     const qs = [...new Set([...heads, ...String(it.title || '').split(/\s+—\s+|:\s+/)].map((x) => x.trim()).filter((x) => x && x.length <= 80))].slice(0, SEND_QS)
     const ms = qs.length ? await sendLib.mcpCalls(d.url, key, qs.map((q) => ({ tool: 'match', args: { q, knowledge: d.kn } }))) : []
+    ms.forEach((m, i) => { if (m?.error) log(`보내기 재료: 팀 match 「${qs[i]}」 이 실패했다 ${d.kn}: ${m.message || m.error}`) })
     const docsOf = Array.isArray(b.docs) ? b.docs : []
     const idOf = (x) => String(x || '').replace(/^docs\/|\.md$/g, '')
     const touches = new Set()
     const score = new Map()
+    const bump = (doc, n) => { if (doc) score.set(idOf(doc), (score.get(idOf(doc)) || 0) + n) }
     for (const m of ms) for (const f of m?.found || []) {
       if (f.coord) touches.add(f.coord)
-      if (f.doc && f.heading) score.set(idOf(f.doc), (score.get(idOf(f.doc)) || 0) + 10)
+      if (f.doc && f.heading) bump(f.doc, 10)
     }
-    const want = sendWords(`${it.title} ${heads.join(' ')}`)
+    const words = sendTopWords(`${it.title} ${it.body}`, 10)
+    if ((!heads.length || !touches.size) && words.length) {
+      const [sr] = await sendLib.mcpCalls(d.url, key, [{ tool: 'search', args: { words, knowledge: d.kn } }])
+      if (sr?.error) log(`보내기 재료: 팀 search 가 실패했다 ${d.kn}: ${sr.message || sr.error}`)
+      const r0 = (Array.isArray(sr?.results) ? sr.results : []).find((x) => !x.knowledge || x.knowledge === d.kn) || {}
+      ;(Array.isArray(r0.coords) ? r0.coords : []).forEach((c, i) => bump(c?.doc, Math.max(1, 6 - i)))
+      ;(Array.isArray(r0.passages) ? r0.passages : []).forEach((p, i) => bump(p?.doc, Math.max(1, 4 - i)))
+    }
+    const want = sendWords(`${it.title} ${heads.join(' ')} ${heads.length ? '' : words.join(' ')}`)
     for (const x of docsOf) {
       const have = sendWords(`${x.title} ${x.doc} ${(x.headings || []).join(' ')}`)
       const n = [...want].filter((w) => have.has(w)).length
@@ -436,6 +453,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     const docs = pick.map((x) => ({ doc: docRel(x.doc), title: x.title, sections: [] }))
     const byDocPath = new Map(docs.map((x) => [x.doc, { sections: [] }]))
     rs.forEach((r, i) => {
+      if (r?.error) log(`보내기 재료: 팀 section 「${calls[i].args.doc} › ${calls[i].args.heading}」 이 실패했다 ${d.kn}: ${r.message || r.error}`)
       if (!r || r.error || typeof r.content !== 'string' || !/^[0-9a-f]{16}$/.test(String(r.base))) return
       const rel = docRel(calls[i].args.doc)
       docs.find((y) => y.doc === rel)?.sections.push({ h: r.heading, body: r.content.slice(0, 1500), base: r.base })
@@ -446,28 +464,52 @@ ${genRulesBlock({ profile: 'shape' })}`
       brief: b,
       docIds: new Set(docsOf.map((x) => docRel(x.doc))),
       touches: [...touches],
-      g: { type: 'send', src: { title: it.title, md: it.body, from }, docs, forms: Array.isArray(b.forms) ? b.forms : [], formsOwn, kinds: Array.isArray(b.kinds) ? b.kinds : [] },
+      g: { type: 'send', src: { type: 'send', title: it.title, md: it.body, from }, docs, forms: Array.isArray(b.forms) ? b.forms : [], formsOwn, kinds: Array.isArray(b.kinds) ? b.kinds : [] },
       // draftToSave 가 보는 지식 — 후보 항목의 지금 글 전체(값 근거) · 항목 장부는 받는 쪽이 본다(보내기는 장부에 항목을 세우지 않는다)
       k: { byDocPath, vocab: { coords: new Set() } },
+      // 초안 세션이 읽는 받는 팀 지식(MCP 읽기 도구만 · 채널 평가 P2)
+      team: { url: d.url, key, kn: d.kn },
     }
   }
-  // 내 Claude 초안 하나(받는 팀의 들이기 프롬프트 · 고쳐 쓰기 한 번) → { draft } | { why }
-  async function sendDraft(srcId, m) {
+  // 넣을 곳을 고르지 못한 항목 글(draft.held) 한 줄씩 — 고쳐 쓰기의 까닭 · 제안서 경고
+  const heldAt = (h) => `${String(h.doc || '').replace(/^docs\/|\.md$/g, '')}${h.heading ? ` › ${h.heading}` : ''}`
+  const heldWhy = (held) => held.slice(0, 5).map((h) => `${heldAt(h)}: ${h.why}`).join(' / ')
+  // 내 Claude 초안 하나(받는 팀의 들이기 프롬프트 · 고쳐 쓰기 한 번) → { draft, held, raw } | { why, held? } (+ cost: { usd, calls })
+  //   세션은 받는 팀 지식의 MCP 에 읽기 도구로 붙는다(채널 평가 P2: 보내는 개인 지식이 아니다) ·
+  //   고쳐 쓰기 한 번: 검사에 걸렸거나, 넣을 곳을 고르지 못해 항목 글이 모두 빠졌을 때(held 만) · 그래도 항목 글이 없으면 기록만 보낸다(held 는 제안서 경고) ·
+  //   fix — 팀 propose 의 오류로 다시 짓기({ prev: 지난 초안, why: 오류 까닭 }) · 쓴 돈 · 부른 수는 개인 쪽 측정 줄에(P12)
+  async function sendDraft(srcId, m, fix = null) {
     if (m.brief.noClaude) return { why: '받는 팀 지식이 Claude 에 보내지 않는 지식이다' }
     const opt = { writeRules: WRITE_RULES }
-    const ask = (prompt) => hub.askClaude(srcId, prompt, INTAKE_SCHEMA, { budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, role: 'ingest', timeoutMs: 600_000 })
-    let a = await ask(intakePromptOf(m.g, opt))
+    const cost = { usd: 0, calls: 0 }
+    const t0 = Date.now()
+    const ask = async (prompt) => {
+      const a = await hub.askClaude(srcId, prompt, INTAKE_SCHEMA, { budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, role: 'ingest', timeoutMs: 600_000, team: m.team })
+      cost.usd += Number(a.cost) || 0
+      cost.calls++
+      return a
+    }
+    const onlyHeld = (p) => p?.ok && !p.empty && !p.input.sections.length && p.held.length > 0
+    const done = async (out) => {
+      try { await savelog(srcId, { at: localStamp(), kn: srcId, user: pcUser || null, ch: 'send', stage: 'draft', to: m.team?.kn || null, rec: null, n: out.draft ? out.draft.input.sections.length : 0, put: 0, err: out.draft ? null : 'draft', cost: Math.round(cost.usd * 1e4) / 1e4, calls: cost.calls, ms: Date.now() - t0, ...(out.held?.length ? { held: out.held.length } : {}) }) } catch (e) { log(`보내기 측정 줄을 쓰지 못했다 ${srcId}: ${e.message}`) }
+      return { ...out, cost }
+    }
+    let a = await ask(fix ? intakeFixPromptOf(m.g, fix.prev, fix.why, opt) : intakePromptOf(m.g, opt))
     let p = a.value ? draftToSave(m.k, m.g, a.value) : null
-    // 고쳐 쓰기 한 번(들이기와 같이 · 검사의 까닭을 붙인다)
-    if (p && !p.ok) {
-      a = await ask(intakeFixPromptOf(m.g, a.value, p.why, opt))
+    // 고쳐 쓰기 한 번(들이기와 같이 · 검사의 까닭을 붙인다) · 넣을 곳을 고르지 못한 항목 글만 남았어도
+    const why1 = p && !p.ok ? p.why : onlyHeld(p) ? `넣을 곳을 고르지 못해 항목 글이 모두 빠졌다(${heldWhy(p.held)}). 넣을 곳은 「문서 후보」 의 문서 · 머리에서 고른다. 맞는 곳이 없으면 updates 를 비우고 why 에 까닭을 쓴다` : ''
+    if (why1 && !fix) {
+      a = await ask(intakeFixPromptOf(m.g, a.value, why1, opt))
       p = a.value ? draftToSave(m.k, m.g, a.value) : null
     }
-    if (!a.value) return { why: `Claude 로 짓지 못했다: ${a.why || '답이 없다'}` }
-    if (!p.ok) return { why: `Claude 가 지은 글이 검사를 넘지 못했다: ${p.why}` }
+    if (!a.value) return done({ why: `Claude 로 짓지 못했다: ${a.why || '답이 없다'}` })
+    // 답에 기기 열쇠가 들었다(원천 속 주입 문장이 MCP 설정을 읽게 했다) — 팀으로 보내지 않는다
+    if (m.team?.key && JSON.stringify(a.value).includes(m.team.key)) return done({ why: 'Claude 의 답에 이 PC 의 열쇠가 들었다: 보내지 않는다' })
+    if (!p.ok) return done({ why: `Claude 가 지은 글이 검사를 넘지 못했다: ${p.why}` })
     // 넣을 곳이 없다(초안이 항목 글을 고르지 않았다) — 초안 없이 기록만 보낸다(이을 항목 · 기록 모음 달 항목)
-    if (p.empty) return { why: `넣을 곳을 고르지 않았다: ${p.empty}` }
-    return { draft: p }
+    if (p.empty) return done({ why: `넣을 곳을 고르지 않았다: ${p.empty}` })
+    if (onlyHeld(p)) return done({ why: `넣을 곳을 고르지 못했다: ${heldWhy(p.held)}`, held: p.held })
+    return done({ draft: p, held: p.held, raw: a.value })
   }
   // ── 보내기 제안(저장 승인 P-D22 · P-D46 · 7절 P7) — 받는 팀 지식이 approve 모드면 보내기 확인 창(미리 보기)이 글마다 내 Claude 초안을 짓고
   //   팀 propose 를 미리 돌린다: 창이 곧 받는 팀의 제안서이고 [보내기] 가 팀 쪽 승인(경고 받아들임)이다. 개인 쪽 승인과 따로다(P-D46).
@@ -488,11 +530,13 @@ ${genRulesBlock({ profile: 'shape' })}`
     for (const [x, v] of sendProps) if (now - v.at > SEND_PROP_TTL) sendProps.delete(x)
     sendProps.set(propKey(src, d, sha), { ...c, at: now })
   }
-  // 초안 → 팀 propose 입력 — 넣을 곳을 고르지 못한 항목 글(draft.held)은 보내지 않는다(개인 지식에는 그대로) · 초안이 없으면 기록만(이을 항목 · 기록 모음 달 항목)
+  // 초안 → 팀 propose 입력 — 넣을 곳을 고르지 못한 항목 글(draft.held)은 보내지 않는다(개인 지식에는 그대로 · 제안서 경고) · 초안이 없으면 기록만(이을 항목 · 기록 모음 달 항목)
+  //   기록만 보내기의 원천 칸은 들이기와 같은 꼴(intakeSrcPart · 지문)이고 기록만 보낸 까닭은 그 칸의 kmd 줄이다 —
+  //   원천 인용 · 까닭 속 수가 본문 반영 검사(unreflected)에 걸려 늘 막히던 것(채널 평가 P1)
   function sendInputOf(m, it, from, { draft, why }) {
     const record = draft
       ? { title: draft.input.record.title, body: draft.input.record.body }
-      : { title: String(it.title || '보낸 글').slice(0, 200), body: [`${from || '개인 지식'} 에서 보낸 글이다. 항목 글은 고치지 않았다: ${why}.`, `## 원천\n- 보낸 글 · ${from || '개인 지식'} 에서\n\n${quoteSrc(it.body, 150_000)}`].join('\n\n') }
+      : { title: String(it.title || '보낸 글').slice(0, 200), body: [`${from || '개인 지식'} 에서 보낸 글이다. 항목 글은 고치지 않았다.`, intakeSrcPart({ type: 'send', from: from || '개인 지식' }, it.body, why)].join('\n\n') }
     return { record: { ...record, ...(m.touches.length ? { touches: m.touches } : { touchesEmpty: '개인 지식에서 보낸 글: 받는 지식의 항목 장부에서 맞는 항목을 찾지 못했다' }) }, sections: draft ? draft.input.sections : [] }
   }
   // 받는 팀의 propose(기기 열쇠 · 쓰지 않는다) — 보낸 지문(sent/)은 save 때만 단다(propose 는 받지 않는다)
@@ -512,7 +556,8 @@ ${genRulesBlock({ profile: 'shape' })}`
     return out
   }
   // 창에 싣는 제안 한 줄(rec = 글 지문 · 창의 [빼기] 열쇠)
-  const propRow = (it, p) => ({ rec: it.sha, title: it.title, propose: { text: String(p.text || ''), items: (Array.isArray(p.items) ? p.items : []).map(({ at, kind }) => ({ at, kind })), warnings: Array.isArray(p.warnings) ? p.warnings : [], errors: Array.isArray(p.errors) ? p.errors : [] } })
+  //   held — 넣을 곳을 고르지 못해 보내지 않는 항목 글(개인 쪽에 남는다): 제안서 경고(code held · 팀 지문 밖이라 승인 해시에 들지 않는다 · 채널 평가 P2)
+  const propRow = (it, p, held = []) => ({ rec: it.sha, title: it.title, propose: { text: String(p.text || ''), items: (Array.isArray(p.items) ? p.items : []).map(({ at, kind }) => ({ at, kind })), warnings: [...(Array.isArray(p.warnings) ? p.warnings : []), ...(held || []).slice(0, 20).map((h, i) => ({ id: `held-${i + 1}`, code: 'held', at: heldAt(h), why: `보내지 않는다(개인 쪽에 남는다): ${h.why}` }))], errors: Array.isArray(p.errors) ? p.errors : [] } })
   // 항목 글의 넣을 곳(제안서 at) — propose 결과 items 와 sections 를 coord 또는 문서 · 머리로 맞춘다
   const atOfSection = (items, s) => (items.find((x) => (s.coord && x.coord === s.coord) || (x.doc && x.doc === s.doc && x.heading === s.heading)) || {}).at || null
   // 글 하나 보내기 — 결과 { id, put, same, why } · 닿지 않음 · 거절(4xx)은 throw(부르는 쪽이 wait · fail 줄로)
@@ -612,7 +657,8 @@ ${genRulesBlock({ profile: 'shape' })}`
   const pushRemotes = (meta, opt) => Promise.all([backup.repo, backup.copy].filter((x) => x.attached(meta)).map((x) => x.enqueue(meta, opt)))
   const SAVE_CHANNELS = new Set(['session', 'bulk', 'http', 'send', 'edit', 'shape'])
   // 들이기 일감의 채널(측정 줄 · 속도 한도는 세지 않는다 · 비용 한도는 openJob)
-  const INTAKE_CHANNELS = new Set(['intake-file', 'intake-commit', 'intake-src', 'polish'])
+  //   커밋 들이기는 늘 intake-src(+ code-change 태그) · intake-commit 은 걷었다(채널 평가 D2 · P19)
+  const INTAKE_CHANNELS = new Set(['intake-file', 'intake-src', 'polish'])
   function rateTake(ctx, id, n = 1) {
     const per = Number((config.saveRate ?? { perMin: 30 }).perMin ?? 30)
     if (!(per > 0)) return
@@ -632,6 +678,18 @@ ${genRulesBlock({ profile: 'shape' })}`
     rates.set(key, b)
     // 오래 안 쓴 통은 걷는다(가득 찬 통은 없는 것과 같다)
     if (rates.size > 2000) for (const [x, v] of rates) if (now - v.at > 120_000) rates.delete(x)
+  }
+  // 승인 해시 어긋남(E_APPROVE)의 측정 표지(채널 평가 P18) — { miss: 'hash', side, got, now }: side 는 바뀐 쪽
+  //   knowledge = 입력의 지문(base)과 지금 항목의 지문이 다르다(그사이 지식이 바뀌었다) · input = 지문은 같다(입력 · 경고 · 제안서 글이 바뀌었다) · 해시는 앞 8자만
+  function approveMissOf(p, input, got) {
+    const items = Array.isArray(p?.items) ? p.items : []
+    const secs = Array.isArray(input?.sections) ? input.sections : []
+    const moved = secs.some((x) => {
+      if (!x || typeof x.base !== 'string') return false
+      const it = items.find((y) => (x.coord && y.coord === x.coord) || (x.doc && y.doc && docRel(y.doc) === docRel(x.doc) && y.heading === x.heading))
+      return !!(it && typeof it.base === 'string' && it.base !== x.base)
+    })
+    return { miss: 'hash', side: moved ? 'knowledge' : 'input', got: String(got || '').slice(0, 8), now: String(p?.proposal || '').slice(0, 8) }
   }
   // 측정 줄(S-D29) — <data>/savelog/<지식>.jsonl 덧붙이기 · 5MB 넘으면 .1 로 · 던지지 않는다(커밋 뒤 · S-D49)
   const SAVELOG_MAX = config.savelogMax ?? 5 * 1024 * 1024
@@ -1599,7 +1657,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (same) return { abort: { same: true, id: same } }
       const p = proposalOf(k, pin, p0)
       if (p.errors.length) throw proposeFail(p)
-      if (p.proposal !== input.proposal) throw new KmdError('E_APPROVE', '승인한 저장 제안과 지금 제안이 다르다(입력이 바뀌었거나 그사이 지식이 바뀌었다). 새 제안을 사람에게 보이고 다시 승인받는다(아무것도 쓰지 않았다)', { details: { propose: p } })
+      if (p.proposal !== input.proposal) throw Object.assign(new KmdError('E_APPROVE', '승인한 저장 제안과 지금 제안이 다르다(입력이 바뀌었거나 그사이 지식이 바뀌었다). 새 제안을 사람에게 보이고 다시 승인받는다(아무것도 쓰지 않았다)', { details: { propose: p } }), { approveMiss: approveMissOf(p, input, input.proposal) })
       const sections = []
       for (const x of p.items) {
         if (x.kind === '고침') sections.push({ ...(x.coord ? { coord: x.coord } : { doc: x.doc, heading: x.heading }), content: x.after, base: x.base })
@@ -1869,7 +1927,7 @@ ${genRulesBlock({ profile: 'shape' })}`
   const INTAKE_FAIL = new Set(['login', 'limit', 'missing', 'budget', 'timeout', 'fail', 'shape'])
   // 들이기 일감의 보이는 이름(일 줄 · 지금 하는 일)
   const INTAKE_TITLE = { file: '들이기', commit: '들이기', polish: '다듬기', 'shape-plan': 'Claude 구조안', 'shape-write': 'Claude 짓기' }
-  const intakeChannel = (j) => (j.type === 'polish' ? 'polish' : j.auto ? 'intake-src' : `intake-${j.type}`)
+  const intakeChannel = (j) => (j.type === 'polish' ? 'polish' : j.auto || j.type === 'commit' ? 'intake-src' : 'intake-file')
   // 저장 문이 붙이는 예약 태그(S-D43) — intake 는 core 가 늘 붙인다
   const intakeTagsOf = (j) => [`job/${j.id}`, ...(j.type === 'commit' ? ['code-change'] : []), ...(j.type === 'polish' ? ['polish'] : [])]
   function intakeJobOf(dctx, id) {
@@ -2644,7 +2702,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         if (took) await giveBack(id, took)
         // 저장 전체가 실패한 것도 측정 줄로(rec 없음 · S-D29)
         if (channel && e instanceof KmdError) {
-          try { await savelog(id, { ...logLine, n: Array.isArray(input?.sections) ? input.sections.length : 0, stale: e.details?.stale || [], conflictWith: e.conflictWith || [], ms: Date.now() - t0, err: e.code, mode: 'approve', ...(e.unproposed ? { unproposed: true } : {}) }) } catch (x) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${x.message}`) }
+          try { await savelog(id, { ...logLine, n: Array.isArray(input?.sections) ? input.sections.length : 0, stale: e.details?.stale || [], conflictWith: e.conflictWith || [], ms: Date.now() - t0, err: e.code, mode: 'approve', ...(e.unproposed ? { unproposed: true } : {}), ...(e.approveMiss ? { approve: e.approveMiss } : {}) }) } catch (x) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${x.message}`) }
         }
         throw e
       }
@@ -4143,7 +4201,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         if (dry) return { dry: true, propose: p }
         if (!proposal) throw Object.assign(new KmdError('E_APPROVE', '저장 확인 창에서 저장 제안을 보고 [넣기] 를 누른다(아무것도 쓰지 않았다)', { details: { propose: p } }), { unproposed: true })
         if (p.errors.length) throw proposeFail(p)
-        if (p.proposal !== proposal) throw new KmdError('E_APPROVE', '그사이 저장 제안이 바뀌었다(입력이나 지식이 바뀌었다). 새 제안을 보고 다시 넣는다(아무것도 쓰지 않았다)', { details: { propose: p } })
+        if (p.proposal !== proposal) throw Object.assign(new KmdError('E_APPROVE', '그사이 저장 제안이 바뀌었다(입력이나 지식이 바뀌었다). 새 제안을 보고 다시 넣는다(아무것도 쓰지 않았다)', { details: { propose: p } }), { approveMiss: approveMissOf(p, pin, proposal) })
         accepted = p.warnings.map(({ id: wid, code, at, why: y }) => ({ id: wid, code, at, why: y }))
       } else if (dry) return { dry: true, propose: null }
       // 기록(이력 log/ · 태그 edit) + 항목 글 한 저장 — 이 PC 와 지식관리자는 kmd 자신의 쓰기(system)로 표까지 ·
@@ -5449,24 +5507,33 @@ ${genRulesBlock({ profile: 'shape' })}`
     //   항목이 정해진 기록 → 그 항목 끝에 글을 붙인다 · 항목 없는 기록(넣은 파일 · 세션 메모) → 이어지는 문서 또는 새 문서(규칙이면 새 문서)
     //   어느 쪽이든 그 기록은 「넣음」(reflects) · 넣은 일은 이력에 · 지식마다 한 줄로(저장은 바로 돌려주고 뒤에서)
     // role — 그 일의 모델(core/models.js · 설정 › Claude 모델)
-    async askClaude(id, prompt, schema, { budget = 0.5, timeoutMs, role = 'ingest' } = {}) {
+    //   team — 보내기 초안(채널 평가 P2): { url, key, kn } 받는 팀 지식의 MCP 에 그 PC 의 기기 열쇠로 붙되 읽기 도구(brief · match · section · search)만 쥔다
+    //   (propose · save 는 도구 목록에서 막는다 · 답에 그 열쇠가 들면 sendDraft 가 버린다). 보내는 개인 지식이 아니라 받는 지식을 읽는다
+    //   → { value, model, cost, turns } | { why, cost? } — cost 는 이 부름의 달러(부르는 쪽이 측정 줄에 · P12)
+    async askClaude(id, prompt, schema, { budget = 0.5, timeoutMs, role = 'ingest', team = null } = {}) {
       if (mode !== 'pc') return { why: '팀 서버는 이 길로 Claude 를 부르지 않는다(팀 일꾼이 한다)' }
       if (!hub.meaningOk(id)) return { why: 'Claude 를 쓰지 않는다' }
       // 세션으로 부른다(H4a-3 · H-D34): 읽기 도구 + 이 PC 의 kmd MCP(그 지식에만 · 저장은 못 하는 단기 열쇠). 답은 스키마 한 덩이다
-      const token = hub.selfUrl ? hub.agentToken(id, null, null) : null
+      const teamMcp = team?.url && team?.key && team?.kn ? { url: `${team.url}/mcp`, token: team.key, read: true } : null
+      const token = !teamMcp && hub.selfUrl ? hub.agentToken(id, null, null) : null
+      const mcp = teamMcp || (token ? { url: `${hub.selfUrl}/mcp`, token } : null)
       let r
       try {
         const tail = role === 'read' ? '' : `\n\n아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):\n${genRulesBlock({ profile: 'send' })}`
-        r = await runClaude({ prompt: token ? `${prompt}\n\n(kmd MCP 의 match · section · brief 로 이 지식의 지금 글 · 항목 장부 · 과거 결정을 직접 찾아 읽을 수 있다. 재료에 없는 것은 읽어 확인하고 답한다. 저장은 하지 않는다: 답은 스키마 한 덩이다.)${tail}` : `${prompt}${tail}`, schema, budget, model: hub.modelOf(role), ...(timeoutMs ? { timeoutMs } : {}), ...(token ? { mcp: { url: `${hub.selfUrl}/mcp`, token } } : {}) })
+        const how = teamMcp
+          ? `\n\n(kmd MCP 의 brief · match · section · search 로 받는 팀 지식(knowledge: ${team.kn})의 지금 글 · 항목 장부 · 과거 결정을 직접 찾아 읽을 수 있다. 문서 후보에 맞는 곳이 없으면 찾아 읽고 넣을 곳을 고른다. 저장은 하지 않는다: 답은 스키마 한 덩이다.)`
+          : token ? '\n\n(kmd MCP 의 match · section · brief 로 이 지식의 지금 글 · 항목 장부 · 과거 결정을 직접 찾아 읽을 수 있다. 재료에 없는 것은 읽어 확인하고 답한다. 저장은 하지 않는다: 답은 스키마 한 덩이다.)' : ''
+        r = await runClaude({ prompt: `${prompt}${how}${tail}`, schema, budget, model: hub.modelOf(role), ...(timeoutMs ? { timeoutMs } : {}), ...(mcp ? { mcp } : {}) })
       } finally {
         if (token) agentKeys.delete(token)
       }
+      const spent = { cost: Number(r?.cost) || 0, turns: Number(r?.turns) || 0 }
       if (r.error) {
         if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
-        return { why: r.error === 'login' ? 'Claude 로그인이 없다. 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다' }
+        return { why: r.error === 'login' ? 'Claude 로그인이 없다. 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다', ...spent }
       }
       await hub.workerStatus({ worker: { id: null } }, { ok: true })
-      return { value: r.value, model: r.model }
+      return { value: r.value, model: r.model, ...spent }
     },
     // ── 에이전트로 지식 세우기 · 터미널(요구 v0.2 R6 · R8) ──
     //   일(run) 하나 = 파일 하나를 들이는 일 — 줄(터미널) · 상태 · 넣은 문서. 지식마다 최근 30 · 서버를 다시 켜면 비운다(이력은 log/)
@@ -6563,13 +6630,20 @@ ${genRulesBlock({ profile: 'shape' })}`
         for (const it of items) {
           try {
             let c = propOf(id, d, it.sha)
-            const fresh = async () => { const m = await sendMaterial(d, key, it, meta.name); return { input: sendInputOf(m, it, meta.name, await sendDraft(id, m)) } }
+            const fresh = async (fix = null) => { const m = await sendMaterial(d, key, it, meta.name); const r = await sendDraft(id, m, fix); return { input: sendInputOf(m, it, meta.name, r), held: r.held || [], raw: r.raw || null } }
             if (!c) c = await fresh()
             let p = await sendPropose(d, key, c.input)
+            const errs = (x) => (Array.isArray(x.errors) ? x.errors : [])
             // 지은 뒤 팀 항목이 바뀌었다(지문 어긋남) — 지어 둔 초안을 버리고 새 재료로 한 번 다시 짓는다
-            if (c.at && (p.errors || []).some((e) => e.stale)) { c = await fresh(); p = await sendPropose(d, key, c.input) }
-            propPut(id, d, it.sha, { input: c.input, items: (Array.isArray(p.items) ? p.items : []).map(({ at, kind, coord, doc, heading }) => ({ at, kind, ...(coord ? { coord } : {}), doc, heading })), proposal: p.proposal || null, errors: Array.isArray(p.errors) ? p.errors : [], warnIds: (Array.isArray(p.warnings) ? p.warnings : []).map((w) => w.id) })
-            proposals.push(propRow(it, p))
+            if (c.at && errs(p).some((e) => e.stale)) { c = await fresh(); p = await sendPropose(d, key, c.input) }
+            // 팀 제안이 오류다(지문 어긋남 밖 · 본문 반영 · 꼴 …) — 그 까닭을 붙여 초안을 한 번 다시 짓는다(채널 평가 P2 · 글마다 한 번)
+            if (c.raw && !c.redone && errs(p).length && !errs(p).some((e) => e.stale)) {
+              const why = `받는 팀의 저장 제안이 오류다: ${errs(p).slice(0, 3).map((e) => `${e.at || ''} ${e.why || e.code || ''}`.trim()).join(' / ')}`
+              c = { ...(await fresh({ prev: c.raw, why })), redone: true }
+              p = await sendPropose(d, key, c.input)
+            }
+            propPut(id, d, it.sha, { input: c.input, held: c.held || [], raw: c.raw || null, ...(c.redone ? { redone: true } : {}), items: (Array.isArray(p.items) ? p.items : []).map(({ at, kind, coord, doc, heading }) => ({ at, kind, ...(coord ? { coord } : {}), doc, heading })), proposal: p.proposal || null, errors: errs(p), warnIds: (Array.isArray(p.warnings) ? p.warnings : []).map((w) => w.id) })
+            proposals.push(propRow(it, p, c.held))
           } catch (e) {
             if (e.reach === false) throw e
             proposals.push(propRow(it, { errors: [{ code: 'send', at: '보내기', why: String(e.message || '저장 제안을 받지 못했다').slice(0, 200) }] }))

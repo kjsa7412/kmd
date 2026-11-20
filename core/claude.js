@@ -21,6 +21,7 @@ export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APP
 // onEvent(e) — 흐름 줄마다 풀어 준 것(streamEvents · 동작 내역)
 export const SESSION_TOOLS = ['Read', 'Glob', 'Grep']
 const SESSION_DENY = ['Read(~/.*)', 'Read(~/.*/**)', 'Read(~/AppData/Roaming/**)', 'Read(~/AppData/Local/Packages/**)']
+export const MCP_READ = ['brief', 'match', 'section', 'search']
 export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '', onTick = null, tickMs = 10_000, effort = '', onEvent = null, tools = SESSION_TOOLS, mcp = null }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-worker-'))
   // MCP 설정은 일 폴더 밖의 파일로(따옴표가 깨지지 않게 · 세션이 제 열쇠를 일 폴더에서 읽지 않게)
@@ -28,7 +29,10 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
   const cfgFile = path.join(cfgDir, 'mcp.json')
   fs.writeFileSync(cfgFile, JSON.stringify({ mcpServers: mcp ? { kmd: { type: 'http', url: mcp.url, headers: { Authorization: `Bearer ${mcp.token}` } } } : {} }))
   const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
-  const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', tools.join(','), ...(mcp ? ['--allowedTools', 'mcp__kmd'] : []), '--disallowedTools', SESSION_DENY.join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
+  //   mcp.read — 읽기 도구만(기기 열쇠처럼 저장도 되는 열쇠로 붙을 때 · 보내기 초안): 허용은 읽기 넷 · propose · save 는 막는다
+  const allow = mcp ? (mcp.read ? MCP_READ.map((t) => `mcp__kmd__${t}`).join(',') : 'mcp__kmd') : ''
+  const deny = [...SESSION_DENY, ...(mcp?.read ? ['mcp__kmd__propose', 'mcp__kmd__save'] : [])]
+  const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', tools.join(','), ...(allow ? ['--allowedTools', allow] : []), '--disallowedTools', deny.join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
   if (/^(low|medium|high|max)$/.test(effort)) args.push('--effort', effort)
   if (process.env.ANTHROPIC_API_KEY) args.push('--bare')
   const fake = process.env.KMD_CLAUDE

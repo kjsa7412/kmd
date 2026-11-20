@@ -164,9 +164,17 @@ export async function buildIndex(k, { dataDir = null, prev = null } = {}) {
   if (Object.keys(reuse).some((p) => !out.files[p])) changed = true // 지운 파일의 옛 토막
   if (dataDir && changed) {
     const f = idxFile(dataDir, k.id)
-    await fs.mkdir(path.dirname(f), { recursive: true })
-    await fs.writeFile(f + '.tmp', JSON.stringify(out), { mode: 0o600 })
-    await fs.rename(f + '.tmp', f)
+    // 임시 파일 이름은 부를 때마다 다르다(pid · 랜덤): 같은 지식의 match · search 가 겹쳐 돌면 고정 이름(.tmp)을 서로 옮겨 ENOENT 로 찾기 전체가 실패하던 것(채널 평가 P13) ·
+    //   색인 파일은 캐시다: 못 쓰면 log 하고 지은 색인으로 답한다(다음 부름이 다시 짓는다)
+    const tmp = `${f}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`
+    try {
+      await fs.mkdir(path.dirname(f), { recursive: true })
+      await fs.writeFile(tmp, JSON.stringify(out), { mode: 0o600 })
+      await fs.rename(tmp, f)
+    } catch (e) {
+      console.error('[kmd] 찾기 색인을 쓰지 못했다', k.id, e.message)
+      await fs.rm(tmp, { force: true }).catch((x) => console.error('[kmd] 찾기 색인 임시 파일을 지우지 못했다', tmp, x.message))
+    }
   }
   return out
 }

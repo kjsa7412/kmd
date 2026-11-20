@@ -141,7 +141,8 @@ export const intakeTags = (src) => (src?.type === 'file' && src.rel ? [`ingest/$
 export const quoteSrc = (md, max) => String(md || '').slice(0, max).replace(/\r/g, '').split('\n').map((l) => `> ${l}`).join('\n')
 const srcLine = (src, md) => `- ${src?.type === 'commit' ? `커밋 ${src.commit || ''}${src.src ? ` · ${src.src}` : ''}` : src?.type === 'send' ? `보낸 글 · ${src.from || '개인 지식'} 에서` : `파일 ${src?.rel || src?.file || src?.title || ''}`} · 지문 ${sha16(String(md || ''))}`
 // 들인 기록 끝 원천 칸 — 지문 · 원천 글 인용(INTAKE_SRC_MAX 까지) · 개인 들이기의 넣기 에이전트 저장도 같은 칸(저장 승인 PC4)
-export const intakeSrcPart = (src, md) => `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, INTAKE_SRC_MAX)}`
+//   note — kmd 가 다는 한 줄(보내기의 기록만 보낸 까닭 · 채널 평가 P1): 원천 칸 안이라 본문 반영 검사(judgeReflect)가 값으로 세지 않는다
+export const intakeSrcPart = (src, md, note = '') => `## 원천\n${srcLine(src, md)}${note ? `\n- 까닭: ${String(note).replace(/\s+/g, ' ').trim().slice(0, 300)}` : ''}\n\n${quoteSrc(md, INTAKE_SRC_MAX)}`
 
 // 규칙 길(Claude 없이 원문을 그대로 넣는 길)과 그 기록(ruleRecord)은 걷었다(지식 생성 하네스 H-D29): 무인 실패는 일감이 다시 시도한다.
 
