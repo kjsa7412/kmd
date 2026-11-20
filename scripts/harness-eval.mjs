@@ -84,17 +84,23 @@ export function scoreKnowledge(k, gold) {
   const natureRows = stood.map((t) => ({ id: t.id, want: t.nature, got: natureOf(k, byT.get(t.id)[0].doc) }))
   const natureOk = natureRows.filter((x) => x.got === x.want).length
   // 알갱이 — 어느 항목에 들었나(정답 대상의 항목을 먼저 본다)
+  //   alt · alts(채점 범위가 더한 것 · 지나가며 말한 대상의 알갱이가 사건 항목에 남은 것 · T2)도 맞는 자리다
   const facts = gold.facts.map((f) => {
     const hit = items.filter((it) => re(f.re).test(it.text))
-    const best = hit.find((it) => it.target === f.target) || hit.find((it) => f.alt && it.target === f.alt) || hit[0] || null
-    const goldC = best && f.alt && best.target === f.alt ? f.alt : f.target
-    return { id: f.id, gold: goldC, at: best ? best.key : null, target: best ? best.target : null, placed: !!best && (best.target === f.target || (!!f.alt && best.target === f.alt)) }
+    const alts = [f.alt, ...(f.alts || [])].filter(Boolean)
+    const best = hit.find((it) => it.target === f.target) || alts.map((a) => hit.find((it) => it.target === a)).find(Boolean) || hit[0] || null
+    const goldC = best && alts.includes(best.target) ? best.target : f.target
+    return { id: f.id, gold: goldC, at: best ? best.key : null, target: best ? best.target : null, placed: !!best && (best.target === f.target || alts.includes(best.target)) }
   })
+  // 묶음 자리 — 보통은 항목 하나다. 한 대상이 여러 항목에 나뉘어도 되는 대상(gold one · 예: 「장애 대응 절차」 와 그 아래 「되돌리기」)은
+  //   그 대상에 든 항목들을 한 묶음으로 본다(T1: 원천의 ## 되돌리기 를 따로 세운 것을 쌍 빠짐으로 세던 것)
+  const oneT = new Set(gold.targets.filter((t) => t.one).map((t) => t.id))
+  const groupOf = (f) => (f.at ? (f.target && oneT.has(f.target) ? `대상 ${f.target}` : f.at) : null)
   // 묶음 동치 — 알갱이 쌍마다: 정답에서 같은 대상인가 · 지식에서 같은 항목인가
   let tp = 0, fp = 0, fn = 0
   for (let i = 0; i < facts.length; i++) for (let j = i + 1; j < facts.length; j++) {
     const g = facts[i].gold === facts[j].gold
-    const p = !!facts[i].at && facts[i].at === facts[j].at
+    const p = !!facts[i].at && groupOf(facts[i]) === groupOf(facts[j])
     if (g && p) tp++
     else if (!g && p) fp++
     else if (g && !p) fn++

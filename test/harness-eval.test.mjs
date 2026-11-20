@@ -273,3 +273,40 @@ test('견주기: 셈 규칙 · 넣은 것이 다른 채널을 가르고 · 옛 �
   assert.match(md, /\| polish \| 원천 다름\(\[1,3\] → \[1,3\] · 넣는 법 1 → 2 · 설명 다름\) \|/)
   assert.match(md, /조건이 같은 채널 2 · 합/)
 })
+
+// T1 · T2(채널 평가 7절) — real-2 의 polish F1 0.762 · pc-intake F1 0.5 는 지식이 아니라 채점이 틀렸다
+test('채점 T1: 다듬기가 띄어쓰기를 고쳐도(「PLC 에서」 → 「PLC에서」) 알갱이를 알아보고 · gold one 대상이 두 항목에 나뉘어도 한 묶음이다', async () => {
+  // 원천에 맞는 알갱이 정규식은 영문 · 숫자 뒤 띄어쓰기를 붙인 글에도 맞아야 한다(다듬기는 「03:00 에」 → 「03:00에」 를 고친다)
+  for (const s of gold.sources) {
+    const md = fs.readFileSync(path.join(FIX, s.file), 'utf8')
+    const tight = md.replace(/([A-Za-z0-9)`%]) (?=[가-힣])/g, '$1')
+    for (const f of gold.facts) if (new RegExp(f.re, 'i').test(md)) assert.ok(new RegExp(f.re, 'i').test(tight), `띄어쓰기를 고치면 놓치는 알갱이: ${f.id}`)
+  }
+  const { gold: g } = await goldScope([1, 3])
+  const k = await kn({
+    'docs/게이트웨이 설계.md': ['# 게이트웨이 설계', '', '## 수집기', '', 'PLC에서 값을 읽어 묶음으로 만든다. 재시도 3회 · 읽기 시간 초과 3초 · 전송 주기 5초.', '', '## 전송기', '', '묶음을 중앙 서버로 보내는 프로세스다. 시간 초과 20초 · 큐 한도 500 묶음.', '', '## gw_log', '', 'log_id · retry_cnt', ''].join('\n'),
+    'docs/장애 대응 절차.md': ['# 장애 대응 절차', '', '## 장애 대응 절차', '', '1. 10분 안에 확인한다.', '2. 400 묶음을 넘으면 알린다.', '', '## 되돌리기', '', '되돌린 뒤 30분 동안 값을 지켜본다.', ''].join('\n'),
+  })
+  const s = scoreKnowledge(k, g)
+  assert.deepEqual(s.detail.facts, []) // 모두 제자리(수집기 뜻 포함)
+  assert.equal(s.f1, 1) // 「되돌리기」 의 30분과 「장애 대응 절차」 의 10분 · 400 묶음은 같은 대상(one)이라 쌍이 맞다
+  // one 이 아닌 대상은 그대로 항목 하나가 묶음이다: 수집기 알갱이를 둘로 나누면 깎인다
+  const split = await kn({ 'docs/게이트웨이 설계.md': ['# 게이트웨이 설계', '', '## 수집기', '', 'PLC에서 값을 읽는다. 재시도 3회.', '', '## 수집 모듈', '', '읽기 시간 초과 3초 · 전송 주기 5초.', ''].join('\n') })
+  assert.ok(scoreKnowledge(split, g).recall < 1)
+})
+
+test('채점 T2: 회의 하나만 넣었을 때 지나가며 말한 대상(수집기)의 값이 그 회의 항목에 남아도 맞다(R3-5 나)', async () => {
+  const { gold: g, scope } = await goldScope([2])
+  assert.deepEqual(scope.passing, ['수집기'])
+  assert.ok(g.facts.find((f) => f.id === '수집기 전송 주기').alts.includes('회의 2026-11-10'))
+  const k = await kn({ 'docs/회의록.md': ['# 회의록', '', '## 2026-11-10 주간 회의', '', '참석: 김, 박, 이.', '', '정한 것:', '- 수집기 전송 주기: 5초 → 10초(3초 안은 버렸다: 부하가 더 는다).', ''].join('\n') })
+  const s = scoreKnowledge(k, g)
+  assert.equal(s.f1, 1)
+  assert.equal(s.factPlaced, 1)
+  // 결정 항목을 따로 세워도 맞다(alt)
+  const k2 = await kn({ 'docs/회의록.md': ['# 회의록', '', '## 2026-11-10 주간 회의', '', '참석: 김, 박, 이.', ''].join('\n'), 'docs/결정 기록.md': ['# 결정 기록', '', '## 수집기 전송 주기 10초로', '', '전송 주기 5초 → 10초. 3초 안은 버렸다.', ''].join('\n') })
+  assert.equal(scoreKnowledge(k2, g).factPlaced, 1)
+  // 수집기 항목이 선 바탕(원천 1 함께)에서는 alts 를 더하지 않는다: 값은 수집기 항목이 정본이다
+  const { gold: g12 } = await goldScope([1, 2])
+  assert.equal(g12.facts.find((f) => f.id === '수집기 전송 주기').alts, undefined)
+})
