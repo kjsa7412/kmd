@@ -22,6 +22,7 @@ import { loadKnowledge, sectionOf } from '../core/knowledge.js'
 import { formFor, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT } from '../core/guard.js'
 import { kindOf } from '../core/forms.js'
 import { KMD_PART_RE } from '../core/parts.js'
+import { REF_OPEN, REF_CLOSE } from '../core/sections.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const FIX_DIR = path.join(ROOT, 'test/fixture/harness/빈지식')
@@ -30,12 +31,24 @@ const OUT_DIR = path.join(ROOT, '.kmd-data/harness-eval')
 // ───────── 채점(Claude 없이 · test/harness-eval.test.mjs 가 건다) ─────────
 const re = (s, f = 'i') => new RegExp(s, f)
 const docName = (p) => String(p).replace(/^docs\/|\.md$/g, '')
-// 지식의 항목 전부(기록 모음의 달 항목은 뺀다)
+// 사실 대조에 쓰는 글(채널 평가 H13) — 항목 글에서 kmd 가 다는 것(참고 블록 · applied 표지 · 그 밖의 주석)과 링크 주소를 뗀다.
+//   참고 블록의 기록 링크는 퍼센트 부호화된 주소(%EC%80…)라 「80 %」 같은 알갱이가 거짓으로 맞았다
+export function factText(body) {
+  const out = []
+  let inRef = false
+  for (const l of String(body || '').split('\n')) {
+    if (!inRef && REF_OPEN.test(l.trim())) { inRef = true; continue }
+    if (inRef) { if (REF_CLOSE.test(l.trim())) inRef = false; continue }
+    out.push(l)
+  }
+  return out.join('\n').replace(/<!--[\s\S]*?-->/g, '').replace(/\]\([^)\s]*\)/g, ']')
+}
+// 지식의 항목 전부(기록 모음의 달 항목은 뺀다) · text 는 사실 대조에 쓰는 글(factText)
 export function itemsOf(k) {
   const out = []
   for (const d of k.docs) {
     if (d.path === RECORDS_DOC_PATH) continue
-    for (const s of d.sections) if (s.h) out.push({ doc: docName(d.path), h: s.h, body: s.body })
+    for (const s of d.sections) if (s.h) out.push({ doc: docName(d.path), h: s.h, body: s.body, text: factText(s.body) })
   }
   return out
 }
@@ -51,11 +64,11 @@ function targetOf(gold, it) {
   }
   return null
 }
-// 문서의 성격 — 문서 성격 줄(H2 부터) · 갈래 장부 차례(없으면 빈 칸)
-function natureOf(k, doc) {
-  const own = k.natures?.get?.(`docs/${doc}.md`) || k.natures?.get?.(doc)
-  if (own) return own.nature || own
-  return kindOf(k.forms?.own ? k.forms : null, doc).kind
+// 문서의 성격(채널 평가 H13) — 갈래 장부의 「## 문서 성격」 줄(forms.natures)과 갈래 줄로 core/forms.js kindOf 가 정한다(없으면 빈 칸).
+//   앞 판은 없는 칸(k.natures)을 읽고 갈래 줄이 없으면 성격 줄도 보지 않아 늘 빈 칸이었다 · kindOf 의 「보고」 는 사건 갈래 안의 정례 보고라 정답의 「사건」 과 같다고 본다
+export function natureOf(k, doc) {
+  const kind = kindOf(k.forms || null, doc).kind || ''
+  return kind === '보고' ? '사건' : kind
 }
 export function scoreKnowledge(k, gold) {
   const items = itemsOf(k).map((it) => ({ ...it, key: `${it.doc} › ${it.h}`, target: targetOf(gold, it) }))
@@ -72,7 +85,7 @@ export function scoreKnowledge(k, gold) {
   const natureOk = natureRows.filter((x) => x.got === x.want).length
   // 알갱이 — 어느 항목에 들었나(정답 대상의 항목을 먼저 본다)
   const facts = gold.facts.map((f) => {
-    const hit = items.filter((it) => re(f.re).test(it.body))
+    const hit = items.filter((it) => re(f.re).test(it.text))
     const best = hit.find((it) => it.target === f.target) || hit.find((it) => f.alt && it.target === f.alt) || hit[0] || null
     const goldC = best && f.alt && best.target === f.alt ? f.alt : f.target
     return { id: f.id, gold: goldC, at: best ? best.key : null, target: best ? best.target : null, placed: !!best && (best.target === f.target || (!!f.alt && best.target === f.alt)) }
@@ -92,7 +105,7 @@ export function scoreKnowledge(k, gold) {
   // 지금 값 — 그 대상(또는 alt)의 항목 글에 정답 값이 있고 옛 값이 지금 값으로 남지 않았나
   const values = gold.values.map((v) => {
     const its = [...(byT.get(v.target) || []), ...(v.alt ? byT.get(v.alt) || [] : [])]
-    const text = its.map((it) => it.body).join('\n')
+    const text = its.map((it) => it.text).join('\n')
     const has = re(v.re).test(text)
     const stale = !!v.absent && re(v.absent, 'im').test(text)
     return { id: v.id, ok: has && !stale, has, stale }
@@ -106,7 +119,7 @@ export function scoreKnowledge(k, gold) {
   const inj = {
     docs: [...new Set(items.map((it) => it.doc))].filter((d) => gold.inject.docs.some((p) => re(p).test(d.split('/').pop()))),
     kinds: kinds.filter((x) => gold.inject.kinds.includes(x)),
-    values: gold.inject.values.filter((v) => re(v.re).test((byT.get(v.target) || []).map((it) => it.body).join('\n'))).map((v) => v.re),
+    values: gold.inject.values.filter((v) => re(v.re).test((byT.get(v.target) || []).map((it) => it.text).join('\n'))).map((v) => v.re),
   }
   const docs = [...new Set(items.map((it) => it.doc))]
   const r4 = (x) => Math.round(x * 10000) / 10000

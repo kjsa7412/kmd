@@ -311,14 +311,15 @@ export function polishToSave(k, g, draft) {
     if (!cur || sha16(cur.body) !== seen.base) { dropped.push({ heading: h, why: '그사이 항목이 바뀌었다' }); continue }
     if (u.content.trim() === cur.body.trim()) continue
     if (!u.content.trim()) { dropped.push({ heading: h, why: '빈 글이다' }); continue }
-    { const v = samePolished(cur.body, u.content); if (!v.same) { dropped.push({ heading: h, why: `값이 바뀐다(다듬기는 값을 바꾸지 않는다: ${[...v.lost.map((x) => `-${x}`), ...v.added.map((x) => `+${x}`)].slice(0, 6).join(' · ')})` }); continue } }
+    // 기록 글(brief)에는 바뀐 값을 싣지 않는다 — 실으면 저장 문의 값 검사가 「기록의 값이 글에 없다」 로 다듬기 전체를 막았다(채널 평가 H14 에서 찾음) · 일감 줄(why)에만
+    { const v = samePolished(cur.body, u.content); if (!v.same) { dropped.push({ heading: h, why: `값이 바뀐다(다듬기는 값을 바꾸지 않는다: ${[...v.lost.map((x) => `-${x}`), ...v.added.map((x) => `+${x}`)].slice(0, 6).join(' · ')})`, brief: '값이 바뀐다(다듬기는 값을 바꾸지 않는다)' }); continue } }
     sections.push({ doc: g.doc, heading: h, base: seen.base, content: u.content })
   }
   const name = String(g.doc).replace(/^docs\/|\.md$/g, '')
   const why = String(draft.why || '').replace(/\s+/g, ' ').trim().slice(0, 200)
   const record = {
     title: `다듬기: ${g.title || name}`.slice(0, 200),
-    body: [`문서 ${name} 의 문체 · 짜임을 정돈했다(값은 그대로).${why ? ` ${why}` : ''}`, sections.length ? `## 다듬은 항목\n${sections.map((s) => `- ${s.heading}`).join('\n')}` : '', dropped.length ? `## 넣지 않은 항목\n${dropped.map((d) => `- ${d.heading}: ${d.why}`).join('\n')}` : ''].filter(Boolean).join('\n\n'),
+    body: [`문서 ${name} 의 문체 · 짜임을 정돈했다(값은 그대로).${why ? ` ${why}` : ''}`, sections.length ? `## 다듬은 항목\n${sections.map((s) => `- ${s.heading}`).join('\n')}` : '', dropped.length ? `## 넣지 않은 항목\n${dropped.map((d) => `- ${d.heading}: ${d.brief || d.why}`).join('\n')}` : ''].filter(Boolean).join('\n\n'),
   }
   return { ok: true, input: { record, sections }, dropped }
 }

@@ -3,10 +3,13 @@
 //   시간(ms) · 비용($) · 부름 · 차례 · 토큰 · 고쳐 받기 · 실패 · 들어감 · 만든 문서/항목/기록 · savelog 채널이 맞나(channelOk)를 잰다.
 //
 //   node scripts/channel-eval.mjs plan                                                     채널 · 원천 · 예상 $ · 분(Claude 없이)
-//   node scripts/channel-eval.mjs run --channel <ch>[,<ch>…]|all --tag <판> [--fake] [--model <m>] [--confirm-cost] [--max-usd <n>] [--no-retry] [--allow-drop]
+//   node scripts/channel-eval.mjs run --channel <ch>[,<ch>…]|all --tag <판> [--fake] [--model <m>] [--model-commit <m>] [--confirm-cost] [--max-usd <n>] [--no-retry] [--allow-drop]
+//     --model         일꾼 · 세션 대용 · 세션 스킬 모두(haiku · sonnet · opus) · 없으면 일꾼은 기본 배분 · 세션 대용 · 세션 스킬은 sonnet(H3)
+//     --model-commit  커밋 들이기만(agentCommit 세션 · commit 차이 분석 · C4 판정용)
 //     --max-usd   실제 판 지출 상한(기본: 어림 × 1.5) · 건마다 계측 누계를 보고 넘으면 남은 건 · 채널은 「예산 넘음」 으로 적고 멈춘다
 //     --no-retry  실패한 일감을 곧바로 다시 돌리지 않는다(일꾼 한 번) · --allow-drop  kmd-migrate 의 사라지는 표 행 · 문장을 넘긴다(넘긴 수는 칸으로)
-//   node scripts/channel-eval.mjs report [<결과 json>…]                                   결과를 채널 표(markdown)로
+//   node scripts/channel-eval.mjs report [<결과 json>…]                                   결과를 채널 표(markdown)로 · 머리에 실제 모델
+//   node scripts/channel-eval.mjs report --compare <before.json> <after.json>             채널마다 $ · 초 · 차례 · 토큰 · 들어감 · 품질의 앞 → 뒤(모델 다름 표시)
 //
 //   --fake  가짜 Claude(test/fixture/fake-claude-agent.mjs + 대본 · fake-claude.mjs)로 배관만 본다(돈 0).
 //   가짜가 아니면 실제 Claude 를 부른다(돈이 든다): --confirm-cost 가 있어야 돈다.
@@ -23,7 +26,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { loadKnowledge } from '../core/knowledge.js'
 import { RECORDS_DOC_PATH } from '../core/guard.js'
-import { itemsOf, scoreKnowledge, gateOf, freshKn } from './harness-eval.mjs'
+import { itemsOf, scoreKnowledge, gateOf, freshKn, factText } from './harness-eval.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const FIX_DIR = path.join(ROOT, 'test/fixture/harness/빈지식')
@@ -38,17 +41,17 @@ const SERVE = { decideMs: 3600000, sourceTickMs: 3600000, inboxTickMs: 3600000, 
 //   unit    실제 Claude 예상(원천 · 건 하나) — 지난 실측(H4b · H7b: 세션 들이기 원천당 ≈ $0.45 · 3.5분)에서 어림
 const CHANNELS = {
   'intake-file': { ch: 'intake-file', llm: 'session', src: [1, 2], unit: { usd: 0.45, min: 3.5 }, run: runIntakeFile, note: '화면 올리기 둘(importFiles → 승인 대기 → 승인): docx(원본 첨부 · bin) 하나 + md 하나. uploadAsk 끔(바로 들어감)은 설정을 바꾼 경우라 재지 않는다' },
-  'intake-commit': { ch: 'intake-commit', llm: 'session', src: [7], extra: 1, base: [1], unit: { usd: 0.25, min: 1.3 }, run: runIntakeCommit, note: '지금 코드에서 이 채널을 여는 길이 없다(가져올 곳 · 개인 모두 auto → intake-src). 시험이 openJob 으로 직접 연다 · 07 은 값 바꿈(5→10 · retry_backoff 2) · 시험 커밋은 07 다음 값(10→15)' },
+  'intake-commit': { ch: 'intake-src', llm: 'session', src: [7], extra: 1, base: [1], unit: { usd: 0.25, min: 1.3 }, run: runIntakeCommit, note: '커밋 들이기(채널 이름 intake-commit 은 걷었다 · D2: 저장 줄 ch intake-src + 기록 태그 code-change) · 사람이 연 커밋 일감(07 값 5→10) + 운영 길(가져올 곳 git 의 새 커밋 10→15 · H18)' },
   'intake-src': { ch: 'intake-src', llm: 'session', src: [1, 2], unit: { usd: 0.45, min: 3.5 }, run: runIntakeSrc, note: '가져올 곳: 문서 폴더(하나씩 · 다시 돌려 same) + git 커밋 하나' },
-  polish: { ch: 'polish', llm: 'schema', src: [], base: [1, 3], unit: { usd: 0.2, min: 2, per: '문서' }, docs: 2, run: runPolish, note: '들인 지식의 문서 둘을 다듬는다(runClaude 스키마 답 · 세션 아님)' },
+  polish: { ch: 'polish', llm: 'schema', src: [], base: [1, 3], unit: { usd: 0.2, min: 2, per: '문서' }, docs: 2, run: runPolish, note: '결함을 심은 문서(test/fixture/harness/다듬기 · 오기 · 백틱 · 수준 표시 · 줄표) + 들인 문서 하나를 다듬는다(runClaude 스키마 답 · 세션 아님 · 검출률 polishScore · H14)' },
   shape: { ch: 'shape', llm: 'schema', src: [1, 2, 3], unit: { usd: 0.35, min: 3 }, run: runShapeTeam, note: '팀 기초 세우기 Claude 안(올리기 → 조사 → shape-plan → shape-write → 연습 판 → 넣기)' },
   'shape-folder': { ch: 'shape', llm: 'none', src: [1, 2, 3], unit: { usd: 0, min: 0.2 }, run: runShapeFolder, note: '팀 기초 세우기 폴더 그대로(Claude 없음 · 기준선)' },
   'shape-pc': { ch: 'shape', llm: 'session', src: [1, 2, 3], unit: { usd: 0.6, min: 4 }, fakeSrc: [1, 3], run: runShapePc, note: '개인 기초 세우기 Claude 안(claudeSession 세션 · 뼈대 · 묶음 · 짓기)' },
-  'shape-restructure': { ch: 'shape', llm: 'schema', src: [], base: [1, 3], unit: { usd: 0.5, min: 4, per: '구조안' }, run: runShapeRestructure, note: '짜임 다시 잡기(shapeAsk shape-plan → 검사 → 연습 판 → 넣기)' },
+  'shape-restructure': { ch: 'shape', llm: 'schema', src: [], base: [1, 2, 9], fakeBase: [1, 3], unit: { usd: 0.5, min: 4, per: '구조안' }, run: runShapeRestructure, note: '짜임 다시 잡기(어지럽힌 바탕 01 · 02 · 09 + 지식관리자의 말 → shapeAsk shape-plan → 검사 → 연습 판 → 넣기 · 구조안은 앞 걸음 · 바꿀 것 없음은 기대한 결과로 셈 · H10)' },
   send: { ch: 'send', llm: 'schema', src: [6, 8], base: [1], fakeSrc: [6, 3], unit: { usd: 0.4, min: 3 }, run: runSend, note: '개인 프로그램 → 팀 지식 보내기(sendPreview = Claude · sendPicked = 승인) · 팀 지식에 바탕(01)을 세운 뒤 값이 바뀐 판(06)을 보낸다' },
   session: { ch: 'session', llm: 'session', src: [6, 2], base: [1], unit: { usd: 0.5, min: 4 }, run: runSession, note: '사람 MCP 세션(kmd-team-save · propose → 승인 대신 → save) · 바탕(01) 위에 값이 바뀐 판(06) · 회의(02) · 머리 없는 대용(runAgent)' },
   bulk: { ch: 'bulk', llm: 'session', src: [6, 4], base: [1], unit: { usd: 0.5, min: 3 }, run: runBulk, note: '사람 MCP 대량 넣기(kmd-team-import · ingest/ 표지 + 첨부 · 한 세션에 원천 여럿) · 바탕(01) 위 · 머리 없는 대용(runAgent)' },
-  http: { ch: 'http', llm: 'none', src: [3], base: [1], unit: { usd: 0, min: 0.1, per: '건' }, run: runHttp, note: 'API 열쇠 저장(POST /api/k/:id/propose → 받은 proposal 그대로 /save · 사람 채널) · 코드에 남아 있음 · H-D33 폐기 예정' },
+  http: { ch: 'http', llm: 'none', src: [3], base: [1], unit: { usd: 0, min: 0.1, per: '건' }, run: runHttp, note: 'API 열쇠 저장(POST /api/k/:id/propose → 받은 proposal 그대로 /save · 사람 채널 · 원천 전체(머리 앞 글 포함)와 names · natures · forms 절차를 싣고 B 는 gold 안의 값으로 · H15) · 코드에 남아 있음 · H-D33 폐기 예정' },
   edit: { ch: 'edit', llm: 'none', src: [], base: [1], unit: { usd: 0, min: 0.1, per: '건' }, cases: 6, run: runEdit, note: '화면 고치기(저장 제안 → 넣기) · 기록 정정(fixes) · 거절 길(E_INPUT · E_FORMAT · E_CONFLICT · E_APPROVE)' },
   'edit-source': { ch: 'intake-file', llm: 'session', src: [], base: [1], unit: { usd: 0.45, min: 3.5, per: '건' }, cases: 1, run: runEditSource, note: '화면 고치기의 새 항목(editAsSource → 넣을 것 → 팀 일꾼 세션 → 승인 대기 → 승인) · 저장 줄 ch 는 intake-file' },
   'pc-intake': { ch: 'intake-file', llm: 'session', src: [2], unit: { usd: 0.45, min: 3.5 }, run: runPcIntake, note: '개인 프로그램 들이기(mode pc · importFiles → pcAgent(runAgent) → 승인 대기 → 승인) · 팀 일꾼과 다른 코드 길' },
@@ -84,31 +87,69 @@ async function countsOf(dir, id = KN) {
 //   알갱이(facts) · 지금 값(values)은 그 정규식이 넣은 원천 글에 맞는 것 · 대상(targets)은 그 알갱이의 대상이거나 넣은 원천의 머리 줄에 맞는 것.
 //   gold 밖 원천(시험이 지은 커밋 · git 저장소 · dpms 사본)은 채점하지 않는다(extra 로 적기만)
 const rx = (s, f = 'i') => new RegExp(s, f)
-async function goldScope(fed) {
+//   범위 판정(채널 평가 H11):
+//   - 머리 대조는 대소문자를 가린다(「테이블 gw_log」 가 「화면 GW_LOG」 대상으로 잡히던 것) · 번호(「1. 」)는 떼고 · 대상의 notH · needDocOrH(원천 제목 + 머리)를 같이 본다
+//   - 반드시 설 대상(빠짐 셈) — 넣은 원천의 머리가 가리키거나, 그 대상을 주 대상으로 하는 알갱이 · 지금 값이 둘 이상인 대상.
+//     지나가며 말한 대상(알갱이 하나 · alt 로만 걸린 대상 · 예: 회의의 「버퍼 크기」 · 「PLC 에서」)은 optional 로 둔다(빠짐에 세지 않는다)
+//   - comparable — 알갱이 수가 아니라 같은 대상(주 대상 또는 alt 가 겹침) 알갱이 쌍이 둘 이상일 때(쌍 하나면 F1 이 0 또는 1 뿐이다)
+//   - intake-file 의 docx 는 같은 원천 md 에서 지은 것이라(docxOf) 범위를 md 로 잡아도 같다(확인함)
+const headTail = (h) => String(h).replace(/^\d+(\.\d+)*\.?\s+/, '').trim()
+export async function goldScope(fed) {
   const g = await gold()
   const ns = [...new Set((fed || []).filter((n) => Number.isInteger(n)))]
-  const mds = await Promise.all(ns.map(async (n) => (await srcOf(n)).md))
-  const text = mds.join('\n')
-  const heads = mds.flatMap((md) => [...md.matchAll(/^#{1,3} (.+)$/gm)].map((m) => m[1].trim()))
+  const srcs = await Promise.all(ns.map((n) => srcOf(n)))
+  const text = srcs.map((s) => s.md).join('\n')
+  const heads = srcs.flatMap((s) => [...s.md.matchAll(/^#{1,3} (.+)$/gm)].map((m) => ({ h: headTail(m[1]), title: s.title || '' })))
+  const headHit = (t) => heads.some(({ h, title }) => rx(t.h, '').test(h) && !(t.notH && rx(t.notH).test(h)) && !(t.needDocOrH && !rx(t.needDocOrH).test(`${title} ${h}`)))
   const facts = g.facts.filter((f) => rx(f.re).test(text))
-  const tids = new Set(facts.flatMap((f) => [f.target, f.alt].filter(Boolean)))
-  for (const t of g.targets) if (heads.some((h) => rx(t.h).test(h))) tids.add(t.id)
   const values = g.values.filter((v) => rx(v.re).test(text))
-  for (const v of values) { tids.add(v.target); if (v.alt) tids.add(v.alt) }
-  const targets = g.targets.filter((t) => tids.has(t.id))
-  return { gold: { ...g, targets, facts, values }, scope: { srcs: ns, targets: `${targets.length}/${g.targets.length}`, facts: `${facts.length}/${g.facts.length}`, values: `${values.length}/${g.values.length}`, comparable: facts.length >= 2 } }
+  const tids = new Set([...facts, ...values].flatMap((f) => [f.target, f.alt].filter(Boolean)))
+  const byHead = new Set(g.targets.filter(headHit).map((t) => t.id))
+  for (const id of byHead) tids.add(id)
+  const primary = new Map()
+  for (const f of [...facts, ...values]) primary.set(f.target, (primary.get(f.target) || 0) + 1)
+  const passing = []
+  const targets = g.targets.filter((t) => tids.has(t.id)).map((t) => {
+    if (t.optional || byHead.has(t.id) || (primary.get(t.id) || 0) >= 2) return t
+    passing.push(t.id)
+    return { ...t, optional: true }
+  })
+  const tg = (f) => [f.target, f.alt].filter(Boolean)
+  let pairs = 0
+  for (let i = 0; i < facts.length; i++) for (let j = i + 1; j < facts.length; j++) if (tg(facts[i]).some((x) => tg(facts[j]).includes(x))) pairs++
+  return { gold: { ...g, targets, facts, values }, scope: { srcs: ns, targets: `${targets.length}/${g.targets.length}`, must: targets.filter((t) => !t.optional).length, passing, facts: `${facts.length}/${g.facts.length}`, values: `${values.length}/${g.values.length}`, pairs, comparable: pairs >= 2 } }
 }
-async function scoreOf(dir, id = KN, fed = null) {
+// 골든 값의 다음 값(채널 평가 H16 · H15) — 사람 채널(edit · http)이 값을 바꿀 때 gold 의 값 집합 안에서 고른다(전송 주기 5 → 10 → 15초 ·
+//   전송기 시간 초과 20 → 30초 · 버퍼 크기 1000 → 2000). 앞 판은 숫자에 1 을 더해(6초 · 21초) 알갱이 · 지금 값 정규식에서 구조적으로 빠졌다.
+//   → { from, to, body } | null(바꿀 골든 값이 없다)
+export const GOLD_STEPS = [
+  [/(전송 주기[^\n]*?)(?<!\d)(5)(\s*초)/, '10'],
+  [/(전송 주기[^\n]*?)(?<!\d)(10)(\s*초)/, '15'],
+  [/((?<!읽기 )시간 초과[^\n]*?)(?<!\d)(20)(\s*초)/, '30'],
+  [/(버퍼 크기[^\n]*?)(?<!\d)(1000)(?!\d)()/, '2000'],
+]
+export function goldStep(body) {
+  const b = String(body || '')
+  for (const [re, to] of GOLD_STEPS) {
+    const m = re.exec(b)
+    if (!m) continue
+    return { from: `${m[2]}${m[3]}`.trim(), to: `${to}${m[3]}`.trim(), body: b.slice(0, m.index) + m[1] + to + m[3] + b.slice(m.index + m[0].length) }
+  }
+  return null
+}
+export async function scoreOf(dir, id = KN, fed = null) {
   try {
     const k = await loadKnowledge({ id, name: id, dir })
     const { gold: g, scope } = await goldScope(fed)
     if (!scope.srcs.length) return { scope, note: '넣은 골든 원천이 없다: 채점하지 않는다' }
     const s = scoreKnowledge(k, g)
     const nv = g.values.length
-    return { scope, f1: scope.comparable ? s.f1 : null, nature: s.nature, dupRate: s.dupRate, missRate: g.targets.length ? s.missRate : null, valueRate: nv ? s.valueRate : null, factPlaced: s.factPlaced, pair: s.pair, injected: s.injected, counts: s.counts, gates: gateOf(s) }
+    return { scope, f1: scope.comparable ? s.f1 : null, nature: s.nature, dupRate: s.dupRate, missRate: scope.must ? s.missRate : null, missing: s.detail.missing, valueRate: nv ? s.valueRate : null, factPlaced: s.factPlaced, pair: s.pair, injected: s.injected, counts: s.counts, gates: gateOf(s) }
   } catch (e) { return { error: e.message } }
 }
 const fedOf = (C, extra = []) => [...(C.base || []), ...(C.src || []), ...extra]
+// 가짜 판의 원천 · 바탕(fakeSrc · fakeBase) — 가짜 대본이 다루지 못하는 원천을 바꿔 배관만 본다(shape-restructure 의 어지럽힌 바탕은 가짜 구조안이 장부를 옮기지 못한다)
+const cfgOf = (C, fake) => (fake ? { ...C, ...(C.fakeSrc ? { src: C.fakeSrc } : {}), ...(C.fakeBase ? { base: C.fakeBase } : {}) } : C)
 const deltaOf = (a, b) => (a && b && !a.error && !b.error ? Object.fromEntries(['f1', 'missRate', 'valueRate', 'dupRate', 'factPlaced'].filter((k) => typeof a[k] === 'number' && typeof b[k] === 'number').map((k) => [k, r4(b[k] - a[k])])) : null)
 
 // ───────── 계측 감싸개 ─────────
@@ -182,6 +223,9 @@ export async function one({ kn, mcp, md, name, tags = null, attach = null }) {
   if (!secs.length) return { empty: true }
   const inp = { knowledge: kn, record: { title: doc + ': 남김', changes: secs.map((s) => '새로: ' + s.heading), why: ['시험(가짜 세션)'], touchesEmpty: '시험', ...(tags ? { tags } : {}) }, sections: secs.map((s) => ({ doc, heading: s.heading, content: s.content })), forms: [{ name: doc, kind: '서술' }] }
   for (const x of inp.sections) { const cur = await mcp('section', { knowledge: kn, doc: x.doc, heading: x.heading }); if (cur && !cur.error && cur.base) x.base = cur.base }
+  // 새 머리마다 장부 짝 + 뜻 한 줄(생성 룰 R7-1 · R5-3 · 저장 문의 pair · gist 검사)
+  const fresh = inp.sections.filter((x) => !x.base)
+  if (fresh.length) inp.names = fresh.map((x) => ({ coord: '주제:' + x.heading.replace(/\\s+/g, '_').replace(/[\`|]/g, '').slice(0, 60), label: x.heading, doc, heading: x.heading, gist: (doc + ' 에서 ' + x.heading + ' 을 적은 항목(시험 가짜 세션)').slice(0, 78) }))
   let p = await mcp('propose', inp)
   if (!p || !p.proposal) { const r0 = await mcp('save', { ...inp, kit: 16, ...(attach ? { attach } : {}) }); return r0 && r0.same ? r0 : { error: 'propose', errors: (p && p.errors || []).map((x) => x.code + ' ' + x.why).slice(0, 3), save: r0 } }
   const r = await mcp('save', { ...inp, proposal: p.proposal, kit: 16, ...(attach ? { attach } : {}) })
@@ -294,7 +338,7 @@ async function workJob(E, t, jid, logs = []) {
   }
   const sl = t.savelog ? t.savelog().slice(sl0) : []
   const lg = logs.slice(lg0)
-  return { ms: Date.now() - t0, loops, stop: r?.stop || null, got: !!r, ...fixOf(sl, lg) }
+  return { ms: Date.now() - t0, loops, stop: r?.stop || null, got: !!r, logTail: lg.slice(-6).map((x) => x.slice(0, 300)), ...fixOf(sl, lg) }
 }
 function fixOf(sl, lg = []) {
   const sessionFix = Math.max(0, ...sl.map((l) => Number(l.fix) || 0))
@@ -308,8 +352,9 @@ const jobRow = (t, jid, w) => {
   return {
     job: jid, state: j.state, ms: w.ms, workerLoops: w.loops, cost: j.cost || 0, calls: j.calls || 0, tries: j.tries ?? null,
     fix: w.fix || 0, fixTries: w.fixTries || 0, fails: w.failJobs || 0, failCalls: w.failCalls || 0,
-    put: j.state === 'done' && !res.aborted && !res.empty, empty: !!res.empty, ...(res.put != null ? { putItems: res.put } : {}),
-    ...(j.why ? { why: [String(j.why).slice(0, 300)] } : {}), ...(w.stop ? { stop: w.stop } : {}), codes: [...(!w.got ? ['NO_JOB'] : []), ...(w.failCodes || []), ...(w.failCalls ? ['SCHEMA_FAIL'] : [])],
+    // 넣은 것 0 · 기록 없음(rec null)으로 닫힌 일감은 빈 것이다(채널 평가 H2 · 다듬기 「고칠 것 없음」 이 들어감으로 잡혀 NOLOG 거짓 경보가 났다)
+    put: j.state === 'done' && !res.aborted && !res.empty && !(Number(res.put) === 0 && res.rec == null), empty: !!res.empty || (j.state === 'done' && !res.aborted && Number(res.put) === 0 && res.rec == null), ...(res.put != null ? { putItems: res.put } : {}),
+    ...(j.why ? { why: [String(j.why).slice(0, 300)] } : {}), ...(w.stop ? { stop: w.stop } : {}), ...(j.state !== 'done' && w.logTail?.length ? { workerLog: w.logTail } : {}), codes: [...(!w.got ? ['NO_JOB'] : []), ...(w.failCodes || []), ...(w.failCalls ? ['SCHEMA_FAIL'] : [])],
   }
 }
 // 무인 들이기로 바탕 세우기(채널 intake-src · 비용은 base 줄로 따로)
@@ -341,7 +386,9 @@ async function measure(E, t, meta, fn) {
   const dir = meta.dir || t?.dir
   const kid = meta.kid || t?.kn || KN
   const c0 = dir ? await countsOf(dir, kid) : null
-  const row = { channel: meta.channel, step: meta.step, base: !!meta.base, n: meta.n ?? null, file: meta.file ?? null, expectCh: meta.expectCh ?? null, ran: true, ms: 0, cost: 0, calls: 0, turns: null, tokens: null, fix: null, fixTries: 0, fails: 0, put: false, empty: false, codes: [], why: [] }
+  //   aux — 저장이 아닌 앞 걸음(조사 · 구조안 · 글 짓기 · 꾸러미 짓기): 시간 · 비용에는 들고 들어감의 분모(rows)에서는 뺀다(채널 평가 H10)
+  //   selfCost — 제품 비용 장부 밖의 길(세션 스킬 · 대용 세션): serverCost 를 null(self)로 두고 costGap 에서 뺀다(채널 평가 H4)
+  const row = { channel: meta.channel, step: meta.step, base: !!meta.base, ...(meta.aux ? { aux: true } : {}), n: meta.n ?? null, file: meta.file ?? null, expectCh: meta.expectCh ?? null, ran: true, ms: 0, cost: 0, calls: 0, turns: null, tokens: null, fix: null, fixTries: 0, fails: 0, put: false, empty: false, codes: [], recoveredCodes: [], why: [] }
   // 지출 상한(--max-usd) — 넘었으면 이 건부터 돌리지 않는다
   if (E.over) { row.ran = false; row.codes.push('BUDGET'); row.why.push(`예산 넘음(계측 누계 $${E.spent().toFixed(3)} > $${E.maxUsd})`); return row }
   const t0 = Date.now()
@@ -372,20 +419,28 @@ async function measure(E, t, meta, fn) {
   row.warned = row.savelog.warned.length
   row.accepted = row.savelog.accepted
   row.ch = [...new Set(saves.map((l) => l.ch))]
-  // 사람 세션(session · bulk)은 세션이 MCP 로 저장한다: 들어감은 이 건의 저장 줄 가운데 걸리지 않고 넣은 줄이 있을 때
-  if (row.putFromSavelog) { row.put = saves.some((l) => !l.err && Number(l.put) > 0) && !saves.some((l) => l.err && l.err !== 'unattended'); delete row.putFromSavelog }
+  // 사람 세션(session · bulk)은 세션이 MCP 로 저장한다: 들어감은 이 건의 저장 줄 가운데 걸리지 않고 넣은 줄이 있을 때(채널 평가 H1 · 걸린 줄이 하나라도 있으면 못 넣음으로 보던 것을 걷음)
+  if (row.putFromSavelog) { row.put = saves.some((l) => !l.err && Number(l.put) > 0); delete row.putFromSavelog }
   // 고쳐 받기 — fn(일감 줄)이 셈한 것이 먼저 · 없으면 이 건 구간의 savelog 최댓값(누적값이라 더하지 않는다)
   if (row.fix == null) row.fix = fx.fix
   if (!row.fixTries) row.fixTries = fx.fixTries
   // 실패 — fail 칸이 있는 줄(일감을 태운 실패)만 · 고쳐 받기 중간에 걸린 줄(err unattended · fail 없음)은 실패가 아니다
   if (!row.fails) row.fails = fx.failJobs
   for (const c of fx.failCodes) if (!row.codes.includes(c)) row.codes.push(c)
-  for (const e of row.savelog.err) if (e !== 'unattended' && !row.codes.includes(e)) row.codes.push(e)
+  // 걸린 저장 줄의 오류 — 뒤에 걸리지 않고 넣은 줄이 있으면 회복된 오류(recoveredCodes · 다시 propose 해 넘은 것)로 따로 두고 codes 에 섞지 않는다(H1)
+  const lastOk = saves.reduce((a, l, i) => (!l.err && Number(l.put) > 0 ? i : a), -1)
+  saves.forEach((l, i) => {
+    if (!l.err || l.err === 'unattended') return
+    const to = row.put && i < lastOk ? row.recoveredCodes : row.codes
+    if (!to.includes(l.err)) to.push(l.err)
+  })
   // 계측 줄(Claude Code result) — 비용 · 부름의 기준(감싸개는 다시 띄운 것 · 스키마 일감의 실패한 부름까지 잡는다).
   //   j.cost · r.cost 는 serverCost · serverCalls 로 따로 남기고 계측과 $0.001 넘게 다르면 costGap.
-  //   한 프로세스(run)에 result 가 여럿이면(stream-json 입력 세션의 턴마다) 칸 모두 마지막 result 를 쓴다(쌓이는 값으로 본다 · 확인 못 함: 결과의 tokensRule)
+  //   한 프로세스(run)에 result 가 여럿이면(stream-json 입력 세션의 턴마다): cost 는 쌓이는 값이라 마지막 result · 토큰 · 차례는 턴마다의 값이라 더한다
+  //   (채널 평가 H17 · real-1 shape-pc 글 짓기에서 확인: cost 0.049 → 0.069 로 쌓이고 tokens · turns 는 턴마다 따로였다)
   const ml = readJsonl(E.meterFile).slice(m0)
-  row.serverCost = r4(row.cost || 0)
+  row.serverCost = meta.selfCost ? null : r4(row.cost || 0)
+  if (meta.selfCost) row.costSource = 'self'
   row.serverCalls = row.calls || 0
   if (ml.length) {
     const runs = new Map()
@@ -393,15 +448,16 @@ async function measure(E, t, meta, fn) {
     const lasts = [...runs.values()].map((ls) => ls[ls.length - 1])
     const tk = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
     let anyTk = false
-    for (const l of lasts) if (l.tokens) { anyTk = true; for (const k of Object.keys(tk)) tk[k] += l.tokens[k] || 0 }
+    for (const l of ml) if (l.tokens) { anyTk = true; for (const k of Object.keys(tk)) tk[k] += l.tokens[k] || 0 }
     const multi = [...runs.values()].filter((ls) => ls.length > 1)
-    row.meter = { procs: runs.size, results: ml.length, multiResultProcs: multi.length, cost: r4(sum(lasts.map((l) => l.cost))), turns: sum(lasts.map((l) => l.turns)), apiMs: sum(lasts.map((l) => l.api)), errors: lasts.filter((l) => l.err).length, models: [...new Set(ml.map((l) => l.model).filter(Boolean))], tokens: anyTk ? tk : null }
+    row.meter = { procs: runs.size, results: ml.length, multiResultProcs: multi.length, cost: r4(sum(lasts.map((l) => l.cost))), turns: sum(ml.map((l) => l.turns)), apiMs: sum(lasts.map((l) => l.api)), errors: lasts.filter((l) => l.err).length, models: [...new Set(ml.flatMap((l) => String(l.model || '').split(',')).filter(Boolean))], tokens: anyTk ? tk : null }
     if (multi.length) row.meter.multiSample = multi.slice(0, 2).map((ls) => ls.map((l) => ({ cost: l.cost, turns: l.turns, tokens: l.tokens })))
     row.cost = row.meter.cost
     row.calls = row.meter.procs
     row.turns = row.meter.turns
     row.tokens = row.meter.tokens
-    if (Math.abs(row.meter.cost - row.serverCost) > 0.001) row.costGap = r4(row.meter.cost - row.serverCost)
+    row.models = row.meter.models
+    if (row.serverCost != null && Math.abs(row.meter.cost - row.serverCost) > 0.001) row.costGap = r4(row.meter.cost - row.serverCost)
   }
   row.cost = r4(row.cost || 0)
   if (dir && c0) {
@@ -416,7 +472,7 @@ async function measure(E, t, meta, fn) {
     else row.channelOk = null
   } else row.channelOk = null
   const tail = row.why.length ? ` · ${row.why[row.why.length - 1].slice(0, 90)}` : ''
-  console.log(`  [${row.channel}${row.base ? ' 바탕' : ''}] ${row.step}${row.file ? ` · ${row.file}` : ''}: ${row.put ? '들어감' : row.empty ? '넣을 것 없음' : '안 들어감'} · ${Math.round(row.ms / 100) / 10}초 · $${row.cost.toFixed(3)} · 부름 ${row.calls} · 고쳐 받기 ${row.fix} · 실패 ${row.fails} · ch ${row.ch.join(',') || '-'}${row.channelOk === false ? ' (어긋남!)' : ''}${row.codes.length ? ` · ${row.codes.join(',')}` : ''}${row.added ? ` · 문서 +${row.added.docs} 항목 +${row.added.items} 기록 +${row.added.records}` : ''}${tail}`)
+  console.log(`  [${row.channel}${row.base ? ' 바탕' : row.aux ? ' 앞 걸음' : ''}] ${row.step}${row.file ? ` · ${row.file}` : ''}: ${row.aux && !row.put ? '저장 아님' : row.put ? '들어감' : row.empty ? '넣을 것 없음' : '안 들어감'} · ${Math.round(row.ms / 100) / 10}초 · $${row.cost.toFixed(3)} · 부름 ${row.calls} · 고쳐 받기 ${row.fix} · 실패 ${row.fails} · ch ${row.ch.join(',') || '-'}${row.channelOk === false ? ' (어긋남!)' : ''}${row.codes.length ? ` · ${row.codes.join(',')}` : ''}${row.recoveredCodes.length ? ` · 회복 ${row.recoveredCodes.join(',')}` : ''}${row.added ? ` · 문서 +${row.added.docs} 항목 +${row.added.items} 기록 +${row.added.records}` : ''}${tail}`)
   if (!E.fake && E.spent() > E.maxUsd) { E.over = true; console.log(`  ! 예산 넘음: 계측 누계 $${E.spent().toFixed(3)} > $${E.maxUsd} · 남은 건 · 채널은 돌리지 않는다`) }
   return row
 }
@@ -465,8 +521,19 @@ async function runIntakeFile(E, C) {
   } finally { await t.close() }
 }
 
+// 커밋 들이기(채널 평가 D2 · H18) — 채널 이름 intake-commit 은 걷었다: 커밋은 늘 저장 줄 ch intake-src + 기록 태그 code-change 다.
+//   이 채널 키는 before(real-1)와 견주려고 그대로 둔다. 두 줄: 사람이 연 커밋 일감(07) · 운영 길(가져올 곳 git → 새 커밋 → 일감)
+const hasCodeChange = async (dir, jid) => { try { const k = await loadKnowledge({ id: KN, name: KN, dir }); return k.works.some((w) => (w.tags || []).includes('code-change') && (w.tags || []).includes(`job/${jid}`)) } catch { return false } }
 async function runIntakeCommit(E, C) {
-  const t = await team(E, 'intake-commit')
+  let repo
+  const t = await team(E, 'intake-commit', {
+    before: async (root) => {
+      repo = path.join(root, 'src', 'gateway')
+      await fs.mkdir(repo, { recursive: true })
+      const sj = path.join(root, '.kmd', 'serve.json')
+      await fs.writeFile(sj, JSON.stringify({ ...JSON.parse(await fs.readFile(sj, 'utf8')), sourceRoots: [path.join(root, 'src')] }))
+    },
+  })
   const rows = []
   try {
     if (E.fake) process.env.FAKE_AGENT_SCRIPT = E.intakeScript
@@ -476,20 +543,30 @@ async function runIntakeCommit(E, C) {
     const s = await srcOf(C.src[0])
     // 07 은 값을 바꾸는 커밋이다(바탕 01 「전송 주기 5초」 → 10초 · retry_backoff_sec 2 새로) — 기대: 들어감.
     //   가짜 대본(agent-intake.mjs)은 「바뀐 값: a → b」 한 줄 꼴만 읽어 07 의 목록 꼴을 놓친다(문서와 상관없는 커밋으로 빠짐 · 가짜 한계)
-    rows.push(await measure(E, t, { channel: 'intake-commit', step: '사람이 연 커밋 일감(시험이 직접 연다 · 07 값 5→10)', n: s.n, file: s.file, expectCh: 'intake-commit' }, async () => {
+    rows.push(await measure(E, t, { channel: 'intake-commit', step: '사람이 연 커밋 일감(시험이 직접 연다 · 07 값 5→10)', n: s.n, file: s.file, expectCh: 'intake-src' }, async () => {
       const o = await t.s.hub.openJob(t.kn, { type: 'commit', by: USER, src: { src: '게이트웨이', commit: 'a1b2c3d4e5f60718', title: s.title, touches: [] }, md: s.md })
       if (o.state !== 'queued') throw Object.assign(new Error(`일감을 열지 못했다: ${JSON.stringify(o).slice(0, 200)}`), { code: 'OPEN' })
       const out = jobRow(t, o.job, await workJob(E, t, o.job))
-      return { ...out, expectPut: true, ...(E.fake && !out.put ? { fakeLimit: '가짜 대본이 07 의 목록 꼴 「바뀐 값」 을 읽지 못한다' } : {}) }
+      return { ...out, expectPut: true, codeChange: out.put ? await hasCodeChange(t.dir, o.job) : null, ...(E.fake && !out.put ? { fakeLimit: '가짜 대본이 07 의 목록 꼴 「바뀐 값」 을 읽지 못한다' } : {}) }
     }))
-    // 값이 바뀐 커밋(시험이 지은 원천 · gold 밖이라 채점하지 않는다) — 07 다음 값을 바꾼다(10초 → 15초).
+    // 운영 길(H18) — 가져올 곳 git(시험 저장소 · gold 밖이라 채점하지 않는다): 첫 실행은 기준 묶음만 · 값이 바뀐 커밋 하나(07 다음 값 10초 → 15초) → 일감 → intake-src + code-change.
     //   가짜 판은 07 이 들어가지 않아 지식 값이 5초 그대로라 5초 → 15초로 지어 값 바꿈 길을 탄다
     const from = E.fake && !rows[rows.length - 1].put ? 5 : 10
-    const md2 = ['commit b2c3d4e5f6071829', 'Author: test-eval', 'Date: 2026-11-15 10:00', '', `    collector: 전송 주기 ${from}초 → 15초`, '', `바뀐 값: ${from}초 → 15초`, '', 'diff --git a/collector/collector.conf b/collector/collector.conf', `-send_interval_sec = ${from}`, '+send_interval_sec = 15', ''].join('\n')
-    rows.push(await measure(E, t, { channel: 'intake-commit', step: `값이 바뀐 커밋(시험이 지은 원천 · ${from}초 → 15초)`, file: 'test-커밋 b2c3d4e', expectCh: 'intake-commit' }, async () => {
-      const o = await t.s.hub.openJob(t.kn, { type: 'commit', by: USER, src: { src: '게이트웨이', commit: 'b2c3d4e5f6071829', title: `collector: 전송 주기 ${from}초 → 15초`, touches: [] }, md: md2 })
-      if (o.state !== 'queued') throw Object.assign(new Error(`일감을 열지 못했다: ${JSON.stringify(o).slice(0, 200)}`), { code: 'OPEN' })
-      return { ...jobRow(t, o.job, await workJob(E, t, o.job)), expectPut: true }
+    rows.push(await measure(E, t, { channel: 'intake-commit', step: `운영 길: 가져올 곳 git 의 새 커밋(${from}초 → 15초)`, file: 'collector.properties(시험 저장소)', expectCh: 'intake-src' }, async () => {
+      const conf = (v) => `# 수집기 설정\n# 전송 주기 ${v}초\nsend_interval_sec = ${v}\n`
+      await fs.mkdir(path.join(repo, 'collector'), { recursive: true })
+      await fs.writeFile(path.join(repo, 'collector', 'collector.properties'), conf(from))
+      G(repo, 'init', '-q', '-b', 'main'); G(repo, 'add', '-A'); G(repo, 'commit', '-q', '-m', '처음')
+      const r0 = await t.s.hub.sourceAdd(t.ADMIN, t.kn, { name: '게이트웨이', kind: 'git', at: repo, every: 'manual' })
+      await fs.writeFile(path.join(repo, 'collector', 'collector.properties'), conf(15))
+      G(repo, 'commit', '-q', '-am', `collector: 전송 주기 ${from}초 → 15초\n\n바뀐 값: ${from}초 → 15초\n중앙 서버 부하를 보고 정했다.`)
+      const ts = Date.now()
+      const r1 = (await t.s.hub.sourceRun(t.kn, '게이트웨이'))[0] || {}
+      const srcMs = Date.now() - ts
+      const q = t.s.hub.intakesOf(t.kn).filter((j) => j.state === 'queued')
+      if (!q.length) return { put: false, srcMs, codeRecords: r1.codeRecords ?? null, firstCodeRecords: r0.run?.[0]?.codeRecords ?? null, codes: ['NO_JOB'], why: [`새 커밋이 일감을 열지 않았다: ${JSON.stringify(r1).slice(0, 200)}`] }
+      const out = jobRow(t, q[0].id, await workJob(E, t, q[0].id))
+      return { ...out, srcMs, jobType: t.s.hub.job(q[0].id)?.type || null, jobBy: t.s.hub.job(q[0].id)?.by || null, codeRecords: r1.codeRecords ?? null, expectPut: true, codeChange: out.put ? await hasCodeChange(t.dir, q[0].id) : null }
     }))
     return scored({ rows, dirs: { root: t.root, kn: t.dir } }, t.dir, KN, fed, before)
   } finally { await t.close() }
@@ -561,8 +638,20 @@ async function runIntakeSrc(E, C) {
   } finally { await t.close() }
 }
 
+// 다듬기 검출률(채널 평가 H14) — 심은 결함(test/fixture/harness/다듬기/결함.json)마다 다듬은 글에서 bad 가 사라졌나(good 이 있으면 good 도) · keep 값이 남았나
+const POLISH_FIX = path.join(ROOT, 'test/fixture/harness/다듬기')
+export function polishScoreOf(text, spec) {
+  const T = String(text || '')
+  const m = (re) => new RegExp(re, 'm').test(T)
+  const rows = spec.defects.map((d) => ({ id: d.id, kind: d.kind, fixed: !m(d.bad) && (!d.good || m(d.good)) }))
+  const lost = spec.keep.filter((re) => !m(re))
+  return { defects: rows.length, fixed: rows.filter((x) => x.fixed).length, rate: rows.length ? r4(rows.filter((x) => x.fixed).length / rows.length) : null, missed: rows.filter((x) => !x.fixed).map((x) => `${x.kind}: ${x.id}`), lost }
+}
 async function runPolish(E, C) {
-  const t = await team(E, 'polish')
+  const spec = JSON.parse(await fs.readFile(path.join(POLISH_FIX, '결함.json'), 'utf8'))
+  const planted = await fs.readFile(path.join(POLISH_FIX, spec.file), 'utf8')
+  // 결함을 심은 문서는 들이기를 거치지 않고 지식에 바로 둔다(들이기가 먼저 다듬어 버리지 않게 · 서버를 띄우기 전 git 커밋)
+  const t = await team(E, 'polish', { before: async (root) => { const dir = path.join(root, KN); await fs.writeFile(path.join(dir, 'docs', spec.file), planted); G(dir, 'add', '-A'); G(dir, 'commit', '-q', '-m', 'test-결함 심은 문서(다듬기 검출률)') } })
   const rows = []
   try {
     if (E.fake) process.env.FAKE_AGENT_SCRIPT = E.intakeScript
@@ -570,17 +659,26 @@ async function runPolish(E, C) {
     const before = await scoreOf(t.dir, KN, fedOf(C))
     t.s.hub.forget?.(t.kn)
     const k = await t.s.hub.get(t.kn, t.ADMIN)
-    const docs = k.docs.filter((d) => d.path !== RECORDS_DOC_PATH && d.sections.filter((x) => x.h).length >= 2).sort((a, b) => b.sections.length - a.sections.length).slice(0, C.docs)
-    if (!docs.length) rows.push(await measure(E, t, { channel: 'polish', step: '다듬을 문서 없음', expectCh: 'polish' }, async () => ({ ran: false, why: ['바탕에 ## 항목 둘 이상인 문서가 없다'] })))
+    // 심은 문서 하나 + 들인 문서 가운데 항목이 많은 것(## 항목 하나 이상 · 앞 판은 둘 이상만 골라 docs:2 가 한 문서만 다듬었다)
+    const own = k.docs.filter((d) => d.path !== RECORDS_DOC_PATH && d.sections.some((x) => x.h))
+    const docs = [...own.filter((d) => d.id === spec.doc), ...own.filter((d) => d.id !== spec.doc).sort((a, b) => b.sections.length - a.sections.length)].slice(0, C.docs)
+    if (!docs.length) rows.push(await measure(E, t, { channel: 'polish', step: '다듬을 문서 없음', expectCh: 'polish' }, async () => ({ ran: false, why: ['바탕에 ## 항목이 있는 문서가 없다'] })))
     for (const d of docs) {
       const secs = d.sections.filter((x) => x.h)
-      rows.push(await measure(E, t, { channel: 'polish', step: `다듬기 ${d.id}`, file: d.path, expectCh: 'polish' }, async () => {
+      rows.push(await measure(E, t, { channel: 'polish', step: `다듬기 ${d.id}${d.id === spec.doc ? '(결함 심음)' : ''}`, file: d.path, expectCh: 'polish' }, async () => {
         const r = await t.s.hub.polish(t.ADMIN, t.kn, { doc: d.id })
         const out = jobRow(t, r.job, await workJob(E, t, r.job))
-        return { ...out, sent: secs.length, putRate: out.putItems != null ? r4(out.putItems / secs.length) : null }
+        let polishScore = null
+        if (d.id === spec.doc) {
+          t.s.hub.forget?.(t.kn)
+          const k2 = await t.s.hub.get(t.kn, t.ADMIN)
+          const d2 = k2.docs.find((x) => x.id === spec.doc)
+          polishScore = polishScoreOf((d2?.sections || []).filter((x) => x.h).map((x) => `## ${x.h}\n${factText(x.body)}`).join('\n\n'), spec)
+        }
+        return { ...out, sent: secs.length, putRate: out.putItems != null ? r4(out.putItems / secs.length) : null, ...(polishScore ? { polishScore } : {}) }
       }))
     }
-    return scored({ rows, dirs: { root: t.root, kn: t.dir } }, t.dir, KN, fedOf(C), before)
+    return { ...(await scored({ rows, dirs: { root: t.root, kn: t.dir } }, t.dir, KN, fedOf(C), before)), own: { polish: rows.find((r) => r.polishScore)?.polishScore || null } }
   } finally { await t.close() }
 }
 
@@ -612,13 +710,13 @@ async function runShapeTeam(E, C) {
     // 고쳐 받기 · 실패한 부름 — 일꾼 로그로(calls 에는 실패한 부름도 들어 calls-1 로는 둘이 섞인다)
     const lf = (logs) => { const x = fixOf([], logs); return { fix: x.fix, fails: x.failCalls, failCalls: x.failCalls, ...(x.failCalls ? { codes: ['SCHEMA_FAIL'] } : {}) } }
     const jobSum = (js) => ({ cost: r4(sum(js.map((j) => j.cost))), calls: sum(js.map((j) => j.calls)), tries: sum(js.map((j) => j.tries)) })
-    rows.push(await measure(E, t, { channel: 'shape', step: '조사(올린 묶음)', dir, kid: id, file: o.srcs.map((s) => s.n).join(','), expectCh: 'shape' }, async () => {
+    rows.push(await measure(E, t, { channel: 'shape', step: '조사(올린 묶음)', aux: true, dir, kid: id, file: o.srcs.map((s) => s.n).join(','), expectCh: 'shape' }, async () => {
       await t.s.hub.seedSurvey(t.ADMIN, id, { group: o.up.group })
       const v = await settleSeed(t.s.hub, t.ADMIN, id)
       return { rows: (v.work?.rows || []).map((r) => `${r.path}:${r.role || ''}:${r.pick}`), put: false }
     }))
     await work([]) // 일꾼이 아는 type(shape-seed)을 알린다(일감 없음)
-    rows.push(await measure(E, t, { channel: 'shape', step: '구조안(shape-plan · Claude)', dir, kid: id, expectCh: 'shape' }, async () => {
+    rows.push(await measure(E, t, { channel: 'shape', step: '구조안(shape-plan · Claude)', aux: true, dir, kid: id, expectCh: 'shape' }, async () => {
       const logs = []
       const pl = await t.s.hub.seedPlan(t.ADMIN, id, { mode: 'claude' })
       const t0 = Date.now()
@@ -628,23 +726,33 @@ async function runShapeTeam(E, C) {
       return { ms: Date.now() - t0, ...js, ...lf(logs), started: !!pl.started, runState: v.run?.state, check: v.work?.check ? { ok: v.work.check.ok, errors: (v.work.check.errors || []).slice(0, 5) } : null, docs: (v.work?.plan?.docs || []).map((d) => `${d.id}(${(d.items || []).length})`), put: false, ...(v.work?.check?.ok ? {} : { codes: ['PLAN_CHECK'] }) }
     }))
     let v = await t.s.hub.seedView(t.ADMIN, id)
-    const docIds = (v.work?.plan?.docs || []).map((d) => d.id)
+    // 지을 문서 — 있는 문서(was)는 빼고(hub.seedWrite 와 같은 셈) · 처음 min(3, n) 은 하나씩 짓고 승인한 뒤 나머지를 all 로(채널 평가 H5 · shape-pc 와 같은 꼴)
+    const docIds = (v.work?.plan?.docs || []).filter((d) => !d.was).map((d) => d.id)
     if (v.work?.check?.ok && docIds.length) {
-      rows.push(await measure(E, t, { channel: 'shape', step: `글 짓기(shape-write · 문서 ${docIds.length})`, dir, kid: id, expectCh: 'shape' }, async () => {
+      rows.push(await measure(E, t, { channel: 'shape', step: `글 짓기(shape-write · 문서 ${docIds.length} · 처음 ${Math.min(3, docIds.length)} 하나씩 승인)`, aux: true, dir, kid: id, expectCh: 'shape' }, async () => {
         const logs = []
         const t0 = Date.now()
-        await t.s.hub.seedWrite(t.ADMIN, id, { doc: docIds[0] })
-        for (let i = 0; i < 6 && !E.over && (await work(logs)); i++);
-        await t.s.hub.seedWrite(t.ADMIN, id, { approve: docIds[0] })
-        if (docIds.length > 1) {
-          await t.s.hub.seedWrite(t.ADMIN, id, { all: true })
-          for (let i = 0; i < docIds.length * 4 && !E.over && (await work(logs)); i++);
-          for (const d of docIds.slice(1)) await t.s.hub.seedWrite(t.ADMIN, id, { approve: d }).catch(() => null)
-        }
+        const approveErr = []
+        const approve = async (d) => { try { await t.s.hub.seedWrite(t.ADMIN, id, { approve: d }) } catch (e) { approveErr.push(`${d}: ${e.code || ''} ${e.message}`.slice(0, 200)) } }
+        let err = null
+        // 던져도 그때까지 든 일감 값(jobSum)이 줄에 실린다(채널 평가 H4)
+        try {
+          for (const d of docIds.slice(0, 3)) {
+            await t.s.hub.seedWrite(t.ADMIN, id, { doc: d })
+            for (let i = 0; i < 6 && !E.over && (await work(logs)); i++);
+            await approve(d)
+          }
+          if (docIds.length > 3) {
+            await t.s.hub.seedWrite(t.ADMIN, id, { all: true })
+            for (let i = 0; i < docIds.length * 4 && !E.over && (await work(logs)); i++);
+            for (const d of docIds.slice(3)) await approve(d)
+          }
+        } catch (e) { err = e }
         const v2 = await t.s.hub.seedView(t.ADMIN, id)
         const js = jobSum(jobsOf('shape-write'))
         const ds = v2.work?.docs || []
-        return { ms: Date.now() - t0, ...js, ...lf(logs), docState: ds.map((d) => `${d.id}:${d.state}${d.values?.length ? `:값경고${d.values.length}` : ''}`), valueWarn: sum(ds.map((d) => d.values?.length || 0)), put: false }
+        const lfo = lf(logs)
+        return { ms: Date.now() - t0, ...js, ...lfo, docState: ds.map((d) => `${d.id}:${d.state}${d.values?.length ? `:값경고${d.values.length}` : ''}`), valueWarn: sum(ds.map((d) => d.values?.length || 0)), put: false, ...(approveErr.length ? { approveErr } : {}), codes: [...(lfo.codes || []), ...(err ? [err.code || 'THROW'] : []), ...(approveErr.length ? ['APPROVE'] : [])], why: [...(err ? [String(err.message).slice(0, 300)] : []), ...approveErr] }
       }))
       rows.push(await measure(E, t, { channel: 'shape', step: '연습 판 → 넣기(짜임 걸음)', dir, kid: id, expectCh: 'shape' }, async () => {
         const tr = await t.s.hub.seedTry(t.ADMIN, id)
@@ -687,31 +795,38 @@ async function runShapePc(E, C) {
   const t = { kn: id, dir, savelogFile: () => path.join(dataDir, 'savelog', `${encodeURIComponent(id)}.jsonl`) }
   const rows = []
   const feedSum = async () => { const f = await hub.seedFeed(ctx, id).catch(() => null); const rs = f?.rows || []; return { sessions: rs.filter((r) => r.k === 'start').length, said: rs.filter((r) => r.k === 'me').length, fixAsk: rs.filter((r) => r.k === 'kmd' && r.tone === 'warn').length, feedCost: r4(sum(rs.filter((r) => r.k === 'result').map((r) => r.cost))), feedTail: rs.filter((r) => r.k === 'kmd' || r.tone === 'err' || r.k === 'err').slice(-4).map((r) => String(r.text || '').slice(0, 200)) } }
+  // 제품 비용 장부(feed 의 result 줄 cost)를 걸음마다 serverCost 로 옮긴다 — 앞 걸음에서 이미 센 몫은 뺀다(채널 평가 H4 · 앞 판은 0 이라 늘 costGap)
+  let feedSeen = 0
+  const feedStep = (f) => { const c = f.feedCost >= feedSeen ? r4(f.feedCost - feedSeen) : f.feedCost; feedSeen = f.feedCost; return c }
   try {
-    rows.push(await measure(E, t, { channel: 'shape-pc', step: '조사(폴더)', file: srcs.map((s) => s.n).join(','), expectCh: 'shape' }, async () => {
+    rows.push(await measure(E, t, { channel: 'shape-pc', step: '조사(폴더)', aux: true, file: srcs.map((s) => s.n).join(','), expectCh: 'shape' }, async () => {
       await hub.seedSurvey(ctx, id, { dir: srcDir })
       const v = await settleSeed(hub, ctx, id)
       return { put: false, runState: v.run?.state }
     }))
-    rows.push(await measure(E, t, { channel: 'shape-pc', step: '구조안(세션 · 뼈대 + 묶음)', expectCh: 'shape' }, async () => {
+    rows.push(await measure(E, t, { channel: 'shape-pc', step: '구조안(세션 · 뼈대 + 묶음)', aux: true, expectCh: 'shape' }, async () => {
       await hub.seedPlan(ctx, id, { mode: 'claude' })
       const v = await settleSeed(hub, ctx, id)
       const f = await feedSum()
-      return { put: false, runState: v.run?.state, runWhy: v.run?.why || v.run?.error || null, tries: v.run?.tries ?? null, check: v.work?.check ? { ok: v.work.check.ok, errors: (v.work.check.errors || []).slice(0, 5) } : null, docs: (v.work?.plan?.docs || []).map((d) => d.id), ...f, fix: f.fixAsk, ...(v.work?.check?.ok ? {} : { codes: ['PLAN_CHECK'] }) }
+      return { put: false, cost: feedStep(f), runState: v.run?.state, runWhy: v.run?.why || v.run?.error || null, tries: v.run?.tries ?? null, check: v.work?.check ? { ok: v.work.check.ok, errors: (v.work.check.errors || []).slice(0, 5) } : null, docs: (v.work?.plan?.docs || []).map((d) => d.id), ...f, fix: f.fixAsk, ...(v.work?.check?.ok ? {} : { codes: ['PLAN_CHECK'] }) }
     }))
     const v = await hub.seedView(ctx, id)
-    const docIds = (v.work?.plan?.docs || []).map((d) => d.id)
+    const docIds = (v.work?.plan?.docs || []).filter((d) => !d.was).map((d) => d.id)
     if (v.work?.check?.ok && docIds.length) {
-      rows.push(await measure(E, t, { channel: 'shape-pc', step: `글 짓기(세션 · 문서 ${docIds.length})`, expectCh: 'shape' }, async () => {
+      rows.push(await measure(E, t, { channel: 'shape-pc', step: `글 짓기(세션 · 문서 ${docIds.length})`, aux: true, expectCh: 'shape' }, async () => {
         const fs0 = []
-        for (const d of docIds) {
-          await hub.seedWrite(ctx, id, { doc: d })
-          await settleSeed(hub, ctx, id)
-          fs0.push(await feedSum())
-          await hub.seedWrite(ctx, id, { approve: d }).catch(() => null)
-        }
+        const approveErr = []
+        let err = null
+        try {
+          for (const d of docIds) {
+            await hub.seedWrite(ctx, id, { doc: d })
+            await settleSeed(hub, ctx, id)
+            fs0.push(await feedSum())
+            try { await hub.seedWrite(ctx, id, { approve: d }) } catch (e) { approveErr.push(`${d}: ${e.code || ''} ${e.message}`.slice(0, 200)) }
+          }
+        } catch (e) { err = e }
         const v2 = await hub.seedView(ctx, id)
-        return { put: false, sessions: sum(fs0.map((x) => x.sessions)), fix: sum(fs0.map((x) => x.fixAsk)), docState: (v2.work?.docs || []).map((d) => `${d.id}:${d.state}`), docWhy: (v2.work?.docs || []).map((d) => JSON.stringify(d).slice(0, 400)), feedTail: fs0.flatMap((x) => x.feedTail) }
+        return { put: false, cost: feedStep(await feedSum()), ...(approveErr.length || err ? { codes: [...(err ? [err.code || 'THROW'] : []), ...(approveErr.length ? ['APPROVE'] : [])], why: [...(err ? [String(err.message).slice(0, 300)] : []), ...approveErr] } : {}), sessions: sum(fs0.map((x) => x.sessions)), fix: sum(fs0.map((x) => x.fixAsk)), docState: (v2.work?.docs || []).map((d) => `${d.id}:${d.state}`), docWhy: (v2.work?.docs || []).map((d) => JSON.stringify(d).slice(0, 400)), feedTail: fs0.flatMap((x) => x.feedTail) }
       }))
       rows.push(await measure(E, t, { channel: 'shape-pc', step: '연습 판 → 넣기(짜임 걸음)', expectCh: 'shape' }, async () => {
         const tr = await hub.seedTry(ctx, id)
@@ -723,6 +838,8 @@ async function runShapePc(E, C) {
     return { rows, dirs: { root, data: dataDir, kn: dir }, score: await scoreOf(dir, id, fedOf(C)) }
   } finally { await hub.close?.() }
 }
+// 짜임 다시 잡기의 지식관리자 말(채널 평가 H10) — 실제 다시 잡기는 사람이 무엇을 바라는지 말한다
+const RESHAPE_NOTE = '회의에서 나온 것(참석 · 정한 것 · 남은 것)은 회의록 한 문서에 날짜별 항목으로 모으고, 재전송 큐처럼 전송기의 부분인 대상은 게이트웨이 설계 문서의 전송기 곁으로 옮겨 주세요. 같은 대상이 두 문서에 흩어져 있으면 하나로 합칩니다.'
 async function runShapeRestructure(E, C) {
   const t = await team(E, 'shape-restructure')
   const rows = []
@@ -731,26 +848,32 @@ async function runShapeRestructure(E, C) {
     rows.push(...(await baseIntake(E, t, C.base, 'shape-restructure')))
     const before = await scoreOf(t.dir, KN, fedOf(C))
     let plan = null
-    rows.push(await measure(E, t, { channel: 'shape-restructure', step: '구조안(shapeAsk shape-plan)', expectCh: 'shape' }, async () => {
-      const a = await t.s.hub.shapeAsk(t.ADMIN, t.kn, { type: 'shape-plan', note: '' })
+    // 어지럽힌 바탕(01 설계서 · 02 회의 · 09 재전송 큐 설계와 검토 회의: 회의 내용과 대상이 문서마다 흩어진다)에 지식관리자의 말을 준다(채널 평가 H10)
+    rows.push(await measure(E, t, { channel: 'shape-restructure', step: '구조안(shapeAsk shape-plan · 지식관리자의 말)', aux: true, expectCh: 'shape' }, async () => {
+      const a = await t.s.hub.shapeAsk(t.ADMIN, t.kn, { type: 'shape-plan', note: RESHAPE_NOTE })
       const out = jobRow(t, a.job, await workJob(E, t, a.job))
       const r = await t.s.hub.shapeAskOf(t.ADMIN, t.kn, a.job)
       plan = r.result?.plan || null
       return { ...out, put: false, empty: false, askState: r.state, planErrors: (r.result?.errors || []).length, ...(r.why ? { why: [String(r.why).slice(0, 300)] } : {}) }
     }))
     if (plan) rows.push(await measure(E, t, { channel: 'shape-restructure', step: '검사 → 연습 판 → 넣기', expectCh: 'shape' }, async () => {
-      const c = await t.s.hub.shapeCheck(t.kn, t.ADMIN, { plan })
+      // 바꿀 것 없는 구조안 — 제품이 일을 열지 않고 E_INPUT 으로 돌려준다(P20): 실패가 아니라 기대한 결과(expect nochange)로 센다
+      const nochange = (e) => /바뀐 것이 없는 구조안/.test(String(e?.message || '')) ? { put: false, empty: true, expect: 'nochange', expectOk: true, why: [String(e.message).slice(0, 200)] } : null
+      const c = await t.s.hub.shapeCheck(t.kn, t.ADMIN, { plan }).catch((e) => { const x = nochange(e); if (x) return { nochange: x }; throw e })
+      if (c.nochange) return c.nochange
       if (!c.ok) return { put: false, codes: ['CHECK'], why: [JSON.stringify(c.errors || []).slice(0, 300)] }
       // 바뀐 걸음 — shapeCheck 의 changes(문서 옮김 · 새 문서 · 항목 옮김 · 글 걸음 · 걷음 · 갈래 장부)와 steps 를 늘 남긴다
       const diff = { changes: (c.changes || []).length, steps: Array.isArray(c.steps) ? c.steps.length : c.steps ?? null, kinds: [...new Set((c.changes || []).map((x) => String(x).split(':')[0]))], sample: (c.changes || []).slice(0, 6) }
-      const tr = await t.s.hub.shapeTry(t.ADMIN, t.kn)
+      let tr
+      try { tr = await t.s.hub.shapeTry(t.ADMIN, t.kn) } catch (e) { const x = nochange(e); if (x) return { ...x, diff }; throw e }
       if (!tr.ok) return { put: false, diff, codes: ['TRY'], why: [JSON.stringify(tr.diag?.blockers || []).slice(0, 300)] }
-      const p = await t.s.hub.shapePut(t.ADMIN, t.kn)
+      let p
+      try { p = await t.s.hub.shapePut(t.ADMIN, t.kn) } catch (e) { const x = nochange(e); if (x) return { ...x, diff }; throw e }
       // 바뀐 것이 없으면(구조안이 지금 짜임 그대로) 들어감이 아니라 빈 것(empty)으로 센다 — 넣기 뒤 savelog n 은 measure 가 savelog.n 으로 남긴다
       if (!p.done) return { put: false, diff, steps: p.steps ?? null, codes: ['PUT'], why: [JSON.stringify(p).slice(0, 300)] }
       const sl = t.savelog().filter((l) => l.ch === 'shape').slice(-20)
       const changed = diff.changes > 0 || sum(sl.map((l) => l.n)) > 0
-      return { put: changed, empty: !changed, diff, steps: p.steps ?? null, ...(changed ? {} : { why: ['구조안이 바꾼 것이 없다(짜임 걸음 · 글 걸음 0) · 기록만 남았다'] }) }
+      return { put: changed, empty: !changed, diff, steps: p.steps ?? null, ...(changed ? {} : { expect: 'nochange', expectOk: true, why: ['구조안이 바꾼 것이 없다(짜임 걸음 · 글 걸음 0) · 기록만 남았다'] }) }
     }))
     return scored({ rows, dirs: { root: t.root, kn: t.dir } }, t.dir, KN, fedOf(C), before)
   } finally { await t.close() }
@@ -778,6 +901,8 @@ async function runSend(E, C) {
     if (E.fake) process.env.FAKE_AGENT_SCRIPT = E.intakeScript
     rows.push(...(await baseIntake(E, t, C.base || [], 'send')))
     before = await scoreOf(t.dir, KN, fedOf(C))
+    // 가짜 판: 보내기 초안(fake-claude)이 새 머리마다 장부 짝 + 뜻 한 줄을 싣게 한다(gist 모드 · 앞 판은 gist 오류로 늘 PROPOSE)
+    if (E.fake) process.env.FAKE_CLAUDE_MODE = 'gist'
     await fs.writeFile(path.join(proot, '.kmd', 'teams.json'), JSON.stringify([t.s.url]))
     const ME = { user: pc.pcUser, admin: true, pc: true }
     await pc.hub.sendRoute(ME, 'mine', { to: t.kn, url: t.s.url })
@@ -789,7 +914,13 @@ async function runSend(E, C) {
         const msDraft = Date.now() - t0
         const pr = pv.proposals?.[0]
         const errs = pr?.propose?.errors || []
-        const out = { msDraft, proposeErrors: errs.length, warnings: (pr?.propose?.warnings || []).map((w) => w.code || w), kinds: (pr?.propose?.items || []).map((x) => x.kind), recordOnly: /항목 글은 고치지 않았다/.test(pr?.propose?.text || '') }
+        // 제안서를 남긴다(채널 평가 H6) — 글 · items · errors · warnings(held 포함) · 미리 보기 머리 칸. 초안의 까닭은 제안서 【기록】 의 「까닭」 줄이다
+        const keep = { at: new Date().toISOString(), pick, preview: Object.fromEntries(Object.entries(pv || {}).filter(([k]) => k !== 'proposals')), proposals: pv.proposals || [] }
+        const proposalFile = path.join(t.root, `send-proposal-${s.n}.json`)
+        await fs.writeFile(proposalFile, JSON.stringify(keep, null, 1))
+        const text = String(pr?.propose?.text || '')
+        const held = (pr?.propose?.warnings || []).filter((w) => w.code === 'held')
+        const out = { msDraft, proposeErrors: errs.length, warnings: (pr?.propose?.warnings || []).map((w) => w.code || w), kinds: (pr?.propose?.items || []).map((x) => x.kind), items: (pr?.propose?.items || []).map((x) => `${x.kind}:${x.at}`).slice(0, 20), held: held.map((w) => `${w.at}: ${w.why}`.slice(0, 200)), draftWhy: (/^\s*까닭\s+(.+)$/m.exec(text) || [])[1]?.slice(0, 300) || null, proposalFile: path.relative(ROOT, proposalFile), recordOnly: /항목 글은 고치지 않았다/.test(text), ...(pv?.unavailable ? { unavailable: pv.unavailable } : {}) }
         if (errs.length) return { ...out, put: false, codes: ['PROPOSE'], why: [JSON.stringify(errs).slice(0, 300)] }
         const t1 = Date.now()
         const r = await pc.hub.sendPicked(ME, 'mine', pick)
@@ -798,6 +929,7 @@ async function runSend(E, C) {
     }
     return scored({ rows, dirs: { root: t.root, kn: t.dir, pc: proot } }, t.dir, KN, fedOf(C), before)
   } finally {
+    if (E.fake) delete process.env.FAKE_CLAUDE_MODE
     await pc.close()
     if (was === undefined) delete process.env.KMD_SEND_KEY
     else process.env.KMD_SEND_KEY = was
@@ -806,7 +938,10 @@ async function runSend(E, C) {
 }
 
 // 사람 MCP 세션(session · bulk) — core/agent.js runAgent 로 머리 없는 Claude Code 세션 · MCP 열쇠는 사람의 기기 열쇠(사람 채널로 저장된다)
-async function humanSession(E, t, { skill, prompt, files, extra }) {
+//   모델은 늘 sonnet(--model 을 주면 그것 · 채널 평가 H3: 앞 판은 그 PC 의 기본 모델(opus)로 돌아 견줄 수 없었다)
+//   trace — 도구 부름 · 결과 앞부분 · 말을 줄마다 남기는 파일(toolTrace · 채널 평가 H7: E_APPROVE 가 어느 칸에서 어긋났는지 가린다)
+export const SESSION_MODEL = 'sonnet'
+async function humanSession(E, t, { skill, prompt, files, extra, trace = null }) {
   const { runAgent } = await import('../core/agent.js')
   const { teamKitParts } = await import('../core/teamkit.js')
   const kit = await teamKitParts()
@@ -814,13 +949,14 @@ async function humanSession(E, t, { skill, prompt, files, extra }) {
   const system = `${sys}\n\n## 이 시험 세션의 덧말(사람이 미리 정한 것)\n- 연결 이름은 kmd 다(스킬의 kmd-team 과 같다). 지식 id 는 ${t.kn} 하나다: 묻지 않는다.\n${extra}`
   const lines = []
   if (E.fake) process.env.FAKE_AGENT_SCRIPT = E.sessionScript
-  const r = await runAgent({ prompt, system, files, mcp: { url: `${t.s.url}/mcp`, token: t.me.key }, budget: 3, timeoutMs: 20 * 60_000, model: E.model || '', onLine: (x) => lines.push(x) })
+  const r = await runAgent({ prompt, system, files, mcp: { url: `${t.s.url}/mcp`, token: t.me.key }, budget: 3, timeoutMs: 20 * 60_000, model: E.model || SESSION_MODEL, onLine: (x) => lines.push(x) })
+  if (trace) await fs.writeFile(trace, lines.map((x) => JSON.stringify({ t: x.t, k: x.k, x: String(x.x).slice(0, 1200) })).join('\n') + '\n')
   const tools = lines.filter((x) => x.k === 'tool').map((x) => String(x.x))
   const model = String(lines.find((x) => x.k === 'sys' && /^시작: /.test(String(x.x)))?.x || '').replace(/^시작: /, '').split(' · ')[0] || null
   // 이 행은 사람 세션 그 자체가 아니라 머리 없는 대용이다: 일꾼 틀(runAgent · 도구 Read · Glob · Grep + kmd MCP · 스킬 글을 시스템 프롬프트에 · 예산 $3).
   //   실제 사람 세션은 대화형 Claude Code(Skill 도구 · 사람의 모델 · CLAUDE.md · 예산 없음)라 시간 · 비용 · 차례가 다르다
-  const proxy = { via: 'runAgent', tools: 'Read · Glob · Grep + kmd MCP', skillIn: 'append-system-prompt', model: model || E.model || '기본', budgetUsd: 3 }
-  return { r, tools, lines, proxy }
+  const proxy = { via: 'runAgent', tools: 'Read · Glob · Grep + kmd MCP', skillIn: 'append-system-prompt', model: model || E.model || SESSION_MODEL, asked: E.model || SESSION_MODEL, budgetUsd: 3 }
+  return { r, tools, lines, proxy, ...(trace ? { toolTrace: path.relative(ROOT, trace) } : {}) }
 }
 async function runSession(E, C) {
   const t = await team(E, 'session')
@@ -831,8 +967,9 @@ async function runSession(E, C) {
     const before = await scoreOf(t.dir, KN, fedOf(C))
     for (const n of C.src) {
       const s = await srcOf(n)
-      rows.push(await measure(E, t, { channel: 'session', step: '사람 세션(kmd-team-save · 승인 대신)', n: s.n, file: s.file, expectCh: 'session' }, async () => {
-        const { r, tools, proxy } = await humanSession(E, t, {
+      rows.push(await measure(E, t, { channel: 'session', step: '사람 세션(kmd-team-save · 승인 대신)', n: s.n, file: s.file, expectCh: 'session', selfCost: true }, async () => {
+        const { r, tools, proxy, toolTrace } = await humanSession(E, t, {
+          trace: path.join(t.root, `trace-session-${s.n}.jsonl`),
           skill: 'kmd-team-save',
           files: [{ name: '원천.md', data: s.md }],
           extra: '- 정리 거리 고르기 · 승인 묻기는 사람이 미리 했다: propose 의 errors 가 0 이면 묻지 않고 그 proposal 을 그대로 실어 save 한다. errors 면 입력을 고쳐 다시 propose 한다(세 번까지).\n- 마지막 답에 제안서 text 를 붙인다.',
@@ -840,7 +977,7 @@ async function runSession(E, C) {
         })
         const saves = tools.filter((x) => x.startsWith('저장')).length
         const proposes = tools.filter((x) => x.startsWith('propose')).length
-        return { putFromSavelog: true, proxy, cost: r.cost || 0, turns: r.turns ?? null, calls: 1, put: false, agentOk: !!r.ok, toolCalls: tools.length, proposeCalls: proposes, saveCalls: saves, answer: String(r.text || r.message || '').slice(0, 1500), ...(r.ok ? {} : { codes: [`AGENT_${r.error || 'fail'}`], why: [String(r.message || '').slice(0, 300)] }) }
+        return { putFromSavelog: true, proxy, toolTrace, cost: r.cost || 0, turns: r.turns ?? null, calls: 1, put: false, agentOk: !!r.ok, toolCalls: tools.length, proposeCalls: proposes, saveCalls: saves, answer: String(r.text || r.message || '').slice(0, 1500), ...(r.ok ? {} : { codes: [`AGENT_${r.error || 'fail'}`], why: [String(r.message || '').slice(0, 300)] }) }
       }))
     }
     return scored({ rows, dirs: { root: t.root, kn: t.dir } }, t.dir, KN, fedOf(C), before)
@@ -872,16 +1009,17 @@ async function runBulk(E, C) {
       files.push({ name: mdFile, data: md }, { name: b64File, data: buf.toString('base64') })
     }
     files.push({ name: 'index.json', data: JSON.stringify(index, null, 1) })
-    rows.push(await measure(E, t, { channel: 'bulk', step: `대량 넣기 세션(원천 ${srcs.length} · 한 세션)`, file: srcs.map((s) => s.n).join(','), expectCh: 'bulk' }, async () => {
-      const { r, tools, proxy } = await humanSession(E, t, {
+    rows.push(await measure(E, t, { channel: 'bulk', step: `대량 넣기 세션(원천 ${srcs.length} · 한 세션)`, file: srcs.map((s) => s.n).join(','), expectCh: 'bulk', selfCost: true }, async () => {
+      const { r, tools, proxy, toolTrace } = await humanSession(E, t, {
+        trace: path.join(t.root, 'trace-bulk.jsonl'),
         skill: 'kmd-team-import',
         files,
         extra: '- 파서(kmd-parse)를 받지 않는다: 일 폴더의 index.json 이 파서 출력이다(rel · mdFile 글 · sha · tags · b64File 원본 base64).\n- 규칙 표 승인은 사람이 미리 했다: propose errors 가 0 이면 묻지 않고 파일마다 save 한다. save 의 record.tags 는 index.json 의 tags 그대로 · attach 는 [{ path: attachPath, b64: <b64File 글 그대로> }].\n- 빈 지식이어도 기초 세우기를 기다리지 않고 이어 간다.',
         prompt: `일 폴더의 파일들을 팀 지식(knowledge id: ${t.kn})에 대량으로 넣어 줘. index.json 을 먼저 읽는다. 규칙 표는 승인한 것으로 본다.`,
       })
-      return { putFromSavelog: true, proxy, cost: r.cost || 0, turns: r.turns ?? null, calls: 1, agentOk: !!r.ok, toolCalls: tools.length, saveCalls: tools.filter((x) => x.startsWith('저장')).length, perFileCost: r4((r.cost || 0) / srcs.length), answer: String(r.text || r.message || '').slice(0, 800), ...(r.ok ? {} : { codes: [`AGENT_${r.error || 'fail'}`], why: [String(r.message || '').slice(0, 300)] }) }
+      return { putFromSavelog: true, proxy, toolTrace, cost: r.cost || 0, turns: r.turns ?? null, calls: 1, agentOk: !!r.ok, toolCalls: tools.length, saveCalls: tools.filter((x) => x.startsWith('저장')).length, perFileCost: r4((r.cost || 0) / srcs.length), answer: String(r.text || r.message || '').slice(0, 800), ...(r.ok ? {} : { codes: [`AGENT_${r.error || 'fail'}`], why: [String(r.message || '').slice(0, 300)] }) }
     }))
-    rows.push(await measure(E, t, { channel: 'bulk', step: '같은 묶음 다시(모두 same 이어야)', expectCh: 'bulk' }, async () => {
+    rows.push(await measure(E, t, { channel: 'bulk', step: '같은 묶음 다시(모두 same 이어야)', expectCh: 'bulk', selfCost: true }, async () => {
       if (!E.fake) return { ran: false, why: ['진짜 판에서는 다시 돌리지 않는다(돈) · 가짜 판에서만 본다'] }
       const { r } = await humanSession(E, t, { skill: 'kmd-team-import', files, extra: '', prompt: `일 폴더의 파일들을 팀 지식(knowledge id: ${t.kn})에 대량으로 넣어 줘.` })
       return { put: false, agentOk: !!r.ok, answer: String(r.text || '').slice(0, 400), sameOk: /"same":true/.test(String(r.text || '')) }
@@ -904,14 +1042,15 @@ async function runEdit(E, C) {
     const WR = { user: 'test-wr' }
     // 단위가 붙은 값(5초 · 3회 · 20%)이 있는 항목을 먼저 고른다(판 번호 v0.1 같은 것을 값으로 고치지 않게)
     const UNIT = /(\d+)\s*(초|회|분|시간|묶음|%|ms|개|건|일)/
-    const pick = async () => {
+    // gold — 값을 바꾸는 줄(A · B · C)은 골든 값의 다음 값으로(goldStep · 채널 평가 H16) · 그런 항목이 없으면 단위 붙은 값
+    const pick = async (gold = false) => {
       t.s.hub.forget?.(t.kn)
       const k = await t.s.hub.get(t.kn, t.ADMIN)
       const docs = k.docs.filter((d) => d.path !== RECORDS_DOC_PATH)
+      if (gold) for (const d of docs) for (const x of d.sections) if (x.h && goldStep(x.body)) return { d, x, k, gold: true }
       for (const re of [UNIT, /\d+/]) for (const d of docs) for (const x of d.sections) if (x.h && re.test(x.body)) return { d, x, k }
       return null
     }
-    const baseRec = (await pick())?.x?.applied || null
     const ed = (ctx, body) => t.s.hub.edit(ctx, t.kn, body, { needBase: true })
     // 제안(dry) → 받은 제안 그대로 넣기 — 시간은 둘을 따로
     const twoStep = async (ctx, body) => {
@@ -925,18 +1064,20 @@ async function runEdit(E, C) {
     }
     const want = (code) => async (fn) => { try { await fn(); return { put: false, codes: ['NO_ERROR'], expect: code, expectOk: false } } catch (e) { return { put: false, codes: [e.code || 'THROW'], expect: code, expectOk: e.code === code, why: [String(e.message).slice(0, 200)] } } }
     const bump = (body) => { const m = UNIT.exec(body) || /\d+/.exec(body); const to = String(Number(m[1] ?? m[0]) + 1); const was = m[0]; const now = m[1] != null ? was.replace(m[1], to) : to; return { from: was, to: now, body: body.replace(was, now) } }
+    const step = (p) => (p.gold ? { ...goldStep(p.x.body), gold: true } : { ...bump(p.x.body), gold: false })
+    // C 기록 정정 — 바로잡는 기록은 그 항목에 지금 든 기록(applied · 앞 판은 A 앞에서 잡아 A · B 뒤에는 늘 E_CONFLICT 였다)
     const cases = [
-      ['A 값 하나 바꿈 · 바뀐 것 없음(쓰기 자리 · 경고 받아들임)', WR, (p) => { const b = bump(p.x.body); return twoStep(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: b.body }] }) }],
-      ['B 값 바꿈 + 바뀐 것 · 까닭(쓰기 자리)', WR, (p) => { const b = bump(p.x.body); return twoStep(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: b.body }], changes: [`${p.x.h}: ${b.from} → ${b.to}`], why: '시험' }) }],
-      ['C 기록 정정(fixes · 지식관리자)', t.ADMIN, (p) => { const b = bump(p.x.body); return baseRec ? twoStep(t.ADMIN, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: b.body }], changes: [`${p.x.h}: ${b.from} → ${b.to}`], why: '바로잡음 시험', fixes: [baseRec] }) : Promise.resolve({ ran: false, why: ['정정할 바탕 기록(applied)이 없다'] }) }],
-      ['D 새 머리(넣을 것으로 가야 · E_INPUT)', WR, (p) => want('E_INPUT')(() => ed(WR, { doc: p.d.id, sections: [{ h: 'test-새 항목', body: '새 글이다.' }], dry: true }))],
-      ['E 꼴 어김(# 줄 · 주석 · E_FORMAT)', WR, (p) => want('E_FORMAT')(async () => { const d = await ed(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: `${p.x.body}\n# 머리 줄\n<!-- 주석 -->` }], dry: true }); if (d.propose?.errors?.length) throw Object.assign(new Error(JSON.stringify(d.propose.errors).slice(0, 200)), { code: d.propose.errors.some((x) => x.code === 'format') ? 'E_FORMAT' : 'E_INPUT' }); return ed(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: `${p.x.body}\n# 머리 줄\n<!-- 주석 -->` }], proposal: d.propose?.proposal }) })],
-      ['F 낡은 base(E_CONFLICT)', WR, (p) => want('E_CONFLICT')(() => ed(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: '0'.repeat(16), body: bump(p.x.body).body }], dry: true }))],
-      ['G 제안 없이 넣기(E_APPROVE)', WR, (p) => want('E_APPROVE')(() => ed(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: bump(p.x.body).body }] }))],
+      ['A 값 하나 바꿈 · 바뀐 것 없음(쓰기 자리 · 경고 받아들임)', WR, true, (p) => { const b = step(p); return twoStep(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: b.body }] }).then((r) => ({ ...r, value: `${b.from} → ${b.to}`, goldValue: b.gold })) }],
+      ['B 값 바꿈 + 바뀐 것 · 까닭(쓰기 자리)', WR, true, (p) => { const b = step(p); return twoStep(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: b.body }], changes: [`${p.x.h}: ${b.from} → ${b.to}`], why: '시험' }).then((r) => ({ ...r, value: `${b.from} → ${b.to}`, goldValue: b.gold })) }],
+      ['C 기록 정정(fixes · 지식관리자)', t.ADMIN, true, (p) => { const b = step(p); return p.x.applied ? twoStep(t.ADMIN, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: b.body }], changes: [`${p.x.h}: ${b.from} → ${b.to}`], why: '바로잡음 시험', fixes: [p.x.applied] }).then((r) => ({ ...r, value: `${b.from} → ${b.to}`, goldValue: b.gold, fixes: p.x.applied })) : Promise.resolve({ ran: false, why: ['정정할 기록(applied)이 없다'] }) }],
+      ['D 새 머리(넣을 것으로 가야 · E_INPUT)', WR, false, (p) => want('E_INPUT')(() => ed(WR, { doc: p.d.id, sections: [{ h: 'test-새 항목', body: '새 글이다.' }], dry: true }))],
+      ['E 꼴 어김(# 줄 · 주석 · E_FORMAT)', WR, false, (p) => want('E_FORMAT')(async () => { const d = await ed(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: `${p.x.body}\n# 머리 줄\n<!-- 주석 -->` }], dry: true }); if (d.propose?.errors?.length) throw Object.assign(new Error(JSON.stringify(d.propose.errors).slice(0, 200)), { code: d.propose.errors.some((x) => x.code === 'format') ? 'E_FORMAT' : 'E_INPUT' }); return ed(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: `${p.x.body}\n# 머리 줄\n<!-- 주석 -->` }], proposal: d.propose?.proposal }) })],
+      ['F 낡은 base(E_CONFLICT)', WR, false, (p) => want('E_CONFLICT')(() => ed(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: '0'.repeat(16), body: bump(p.x.body).body }], dry: true }))],
+      ['G 제안 없이 넣기(E_APPROVE)', WR, false, (p) => want('E_APPROVE')(() => ed(WR, { doc: p.d.id, sections: [{ h: p.x.h, base: sha16(p.x.body), body: bump(p.x.body).body }] }))],
     ]
-    for (const [step, , fn] of cases) {
-      rows.push(await measure(E, t, { channel: 'edit', step, expectCh: 'edit' }, async () => {
-        const p = await pick()
+    for (const [name, , gold, fn] of cases) {
+      rows.push(await measure(E, t, { channel: 'edit', step: name, expectCh: 'edit' }, async () => {
+        const p = await pick(gold)
         if (!p) return { ran: false, why: ['숫자 값이 있는 항목이 없다'] }
         return { file: `${p.d.id} › ${p.x.h}`, ...(await fn(p)) }
       }))
@@ -945,6 +1086,25 @@ async function runEdit(E, C) {
   } finally { await t.close() }
 }
 
+// http 저장 입력(채널 평가 H15) — 원천을 「## 」 조각으로만 떼지 않는다: 첫 「## 」 앞의 글(절차의 차례 · 03 의 10분 안 · 400 묶음)도 문서 제목 머리의 항목으로 싣고,
+//   새 머리마다 장부 짝(names · gist 는 그 항목 글의 첫 문장) · 문서 성격(natures 절차) · 갈래(forms kind 절차)를 같이 싣는다(사람 클라이언트가 할 일을 다 한 입력 · 입력 탓과 채널 탓을 가른다)
+export function httpInputOf(s) {
+  const doc = cleanName(s.title)
+  const body = String(s.md).replace(/^# .+\n/, '')
+  const at = body.search(/^## /m)
+  const intro = (at < 0 ? body : body.slice(0, at)).trim()
+  const secs = [...(intro ? [{ heading: doc, content: intro }] : []), ...[...body.matchAll(/^## (.+)\n([\s\S]*?)(?=\n## |(?![\s\S]))/gm)].map((m) => ({ heading: m[1].trim(), content: m[2].trim() }))].filter((x) => x.content).slice(0, 6)
+  const first = (t) => (String(t).split('\n').map((l) => l.replace(/^\s*(\d+\.|[-*])\s+/, '').trim()).find((l) => l.length >= 15) || '').split(/(?<=다\.)\s/)[0].slice(0, 60)
+  const kind = '절차'
+  return {
+    record: { title: `${doc}: 남김`, body: `${doc} 의 차례를 문서로 남겼다(API 저장 시험).`, changes: secs.map((x) => `새로: ${x.heading}`), why: ['시험(API 저장)'], touchesEmpty: '시험' },
+    sections: secs.map((x) => ({ doc, heading: x.heading, content: x.content })),
+    names: secs.map((x, i) => ({ coord: `${kind}:${x.heading.replace(/\s+/g, '_')}`, label: x.heading, doc, heading: x.heading, gist: first(x.content) || `${doc} 의 ${x.heading} 차례`, ...(i === 0 ? { kindGist: '정해진 차례대로 밟는 일의 순서' } : {}) })),
+    kinds: [{ name: kind, label: kind }],
+    natures: [{ doc, nature: kind, summary: first(intro || secs[0]?.content || doc) }],
+    forms: [{ name: doc, kind }],
+  }
+}
 // API 열쇠 저장(http 채널) — POST /api/k/:id/propose → 받은 proposal 그대로 /save(사람 채널 · 승인 대신)
 async function runHttp(E, C) {
   const { sha16 } = await import('../core/text.js')
@@ -970,26 +1130,35 @@ async function runHttp(E, C) {
       return { msPropose, msSave: Date.now() - t1, ms: Date.now() - t0, status: r.status, proposeWarnings: (p.j.warnings || []).map((w) => w.code || w), put: !bad && Number(r.j?.put || 0) > 0, putItems: r.j?.put ?? null, ...(bad ? { codes: [r.j?.code || `HTTP_${r.status}`], why: [JSON.stringify(r.j).slice(0, 300)] } : {}) }
     }
     const s = await srcOf(C.src[0])
-    const doc = cleanName(s.title)
-    const secs = [...s.md.matchAll(/^## (.+)\n([\s\S]*?)(?=\n## |(?![\s\S]))/gm)].map((m) => ({ heading: m[1].trim(), content: m[2].trim() })).filter((x) => x.content).slice(0, 4)
-    rows.push(await measure(E, t, { channel: 'http', step: 'A 새 문서(propose → save)', n: s.n, file: s.file, expectCh: 'http' }, async () => twoStep({ record: { title: `${doc}: 남김`, body: `${doc} 의 지금 내용을 남겼다(API 저장 시험).`, changes: secs.map((x) => `새로: ${x.heading}`), why: ['시험(API 저장)'], touchesEmpty: '시험' }, sections: secs.map((x) => ({ doc, heading: x.heading, content: x.content })), forms: [{ name: doc, kind: '서술' }] })))
-    // B 있는 항목 값 바꿈(바탕 01 의 단위 붙은 값 · base 지문)
-    rows.push(await measure(E, t, { channel: 'http', step: 'B 있는 항목 값 바꿈(base · 경고 받아들임)', expectCh: 'http' }, async () => {
+    rows.push(await measure(E, t, { channel: 'http', step: 'A 새 문서(propose → save · 원천 전체 · 장부 짝 · 성격 절차)', n: s.n, file: s.file, expectCh: 'http' }, async () => twoStep(httpInputOf(s))))
+    // B 있는 항목 값 바꿈(바탕 01 · base 지문) — 값은 골든 값의 다음 값(전송 주기 5초 → 10초 · H15: 앞 판은 숫자에 1 을 더해 31분 같은 지어낸 값을 썼다)
+    rows.push(await measure(E, t, { channel: 'http', step: 'B 있는 항목 값 바꿈(base · gold 안의 값 · 경고 받아들임)', expectCh: 'http' }, async () => {
       t.s.hub.forget?.(t.kn)
       const k = await t.s.hub.get(t.kn, t.ADMIN)
-      const UNIT = /(\d+)\s*(초|회|분|시간|묶음|%|ms|개|건|일)/
       let hit = null
-      for (const d of k.docs.filter((y) => y.path !== RECORDS_DOC_PATH)) for (const x of d.sections) if (!hit && x.h && UNIT.test(x.body)) hit = { d, x }
-      if (!hit) return { ran: false, why: ['단위가 붙은 값이 있는 항목이 없다'] }
-      const m = UNIT.exec(hit.x.body)
-      const now = m[0].replace(m[1], String(Number(m[1]) + 1))
-      return { file: `${hit.d.id} › ${hit.x.h}`, ...(await twoStep({ record: { title: `${hit.x.h}: 값 바꿈`, body: `${hit.x.h} 의 값을 ${now} 로 바꿨다(API 저장 시험).`, changes: [`${hit.x.h}: ${m[0]} → ${now}`], why: ['시험(API 저장)'], touchesEmpty: '시험(항목 장부 좌표를 고르지 않는다)' }, sections: [{ doc: hit.d.id, heading: hit.x.h, base: sha16(hit.x.body), content: hit.x.body.replace(m[0], now) }] })) }
+      for (const d of k.docs.filter((y) => y.path !== RECORDS_DOC_PATH)) for (const x of d.sections) if (!hit && x.h && goldStep(x.body)) hit = { d, x, g: goldStep(x.body) }
+      if (!hit) return { ran: false, why: ['골든 값(전송 주기 · 시간 초과 · 버퍼 크기)이 있는 항목이 없다'] }
+      const { from, to, body } = hit.g
+      return { file: `${hit.d.id} › ${hit.x.h}`, value: `${from} → ${to}`, ...(await twoStep({ record: { title: `${hit.x.h}: ${from} → ${to}`, body: `${hit.x.h} 의 값을 ${to} 로 바꿨다(API 저장 시험).`, changes: [`${hit.x.h}: ${from} → ${to}`], why: ['시험(API 저장)'], touchesEmpty: '시험(항목 장부 좌표를 고르지 않는다)' }, sections: [{ doc: hit.d.id, heading: hit.x.h, base: sha16(hit.x.body), content: body }] })) }
     }))
     return scored({ rows, dirs: { root: t.root, kn: t.dir } }, t.dir, KN, fedOf(C), before)
   } finally { await t.close() }
 }
 
 // 화면 고치기의 새 항목 — editAsSource → 넣을 것(importFiles) → 팀 일꾼 세션 → 승인 대기 → 승인(저장 줄 ch intake-file)
+const EDIT_SOURCE_BODY = '수집기는 매일 09:00 에 상태를 점검한다. 점검 결과는 운영 메모에 남긴다.'
+//   채널 몫 점수(채널 평가 H19) — k0 고치기 앞 · k1 뒤 · doc 고친 문서.
+//   valueAt 넣은 값(09:00)이 선 항목 · inDoc 그 문서 안인가 · vocabAdded 새 장부 줄(real-1 은 새 머리를 수집기 표 행으로 접었다: 0 이 맞다) ·
+//   asof 새 기록의 근거 날짜(원천에 날짜가 없으니 비어야 한다 · P5)
+export function editSourceScoreOf(k0, k1, doc) {
+  const its = itemsOf(k1).filter((it) => /09:00/.test(it.text))
+  const was = new Set((k0?.works || []).map((w) => w.id))
+  const recs = (k1.works || []).filter((w) => !was.has(w.id))
+  const asofs = recs.map((w) => (/근거 날짜:\s*(\S+)/.exec(String(w.body || '')) || [])[1]).filter(Boolean)
+  const vocabAdded = k1.vocab.coords.size - (k0?.vocab?.coords?.size || 0)
+  const itemsAdded = itemsOf(k1).length - (k0 ? itemsOf(k0).length : 0)
+  return { valueAt: its.map((it) => `${it.doc} › ${it.h}`), inDoc: its.some((it) => it.doc === doc), itemsAdded, vocabAdded, records: recs.length, asof: asofs[0] || null, ok: { placed: its.length > 0, noNewVocab: vocabAdded === 0, asofEmpty: !asofs.length } }
+}
 async function runEditSource(E, C) {
   const t = await team(E, 'edit-source')
   const rows = []
@@ -1000,9 +1169,13 @@ async function runEditSource(E, C) {
     t.s.hub.forget?.(t.kn)
     const k = await t.s.hub.get(t.kn, t.ADMIN)
     const d = k.docs.filter((y) => y.path !== RECORDS_DOC_PATH).sort((a, b) => b.sections.length - a.sections.length)[0]
+    const k0 = await loadKnowledge({ id: KN, name: KN, dir: t.dir })
     if (!d) rows.push(await measure(E, t, { channel: 'edit-source', step: '고칠 문서 없음', expectCh: 'intake-file' }, async () => ({ ran: false, why: ['바탕에 문서가 없다'] })))
-    else rows.push(await measure(E, t, { channel: 'edit-source', step: '새 항목(editAsSource → 넣을 것 → 세션 → 승인 대기 → 승인)', file: `${d.id} › test-점검 주기`, expectCh: 'intake-file' }, async () => openThenApprove(E, t, () => t.s.hub.editAsSource(t.ADMIN, t.kn, { doc: d.id, sections: [{ h: 'test-점검 주기', body: '수집기는 매일 09:00 에 상태를 점검한다. 점검 결과는 운영 메모에 남긴다.' }], why: '시험(화면 새 항목)' }))))
-    return scored({ rows, dirs: { root: t.root, kn: t.dir } }, t.dir, KN, fedOf(C), before)
+    else rows.push(await measure(E, t, { channel: 'edit-source', step: '새 항목(editAsSource → 넣을 것 → 세션 → 승인 대기 → 승인)', file: `${d.id} › test-점검 주기`, expectCh: 'intake-file' }, async () => openThenApprove(E, t, () => t.s.hub.editAsSource(t.ADMIN, t.kn, { doc: d.id, sections: [{ h: 'test-점검 주기', body: EDIT_SOURCE_BODY }], why: '시험(화면 새 항목)' }))))
+    // 채널 몫 점수(H19) — 바탕 점수(gold 범위)와 섞지 않는다: 넣은 값의 자리 · 새 장부 줄 · 근거 날짜(원천에 날짜가 없으니 비어야 한다)
+    const k1 = await loadKnowledge({ id: KN, name: KN, dir: t.dir })
+    const own = d ? editSourceScoreOf(k0, k1, d.id) : null
+    return { ...(await scored({ rows, dirs: { root: t.root, kn: t.dir } }, t.dir, KN, fedOf(C), before)), own: { editSource: own } }
   } finally { await t.close() }
 }
 
@@ -1069,6 +1242,20 @@ async function safeEnv() {
 }
 const fwd = (p) => p.replace(/\\/g, '/')
 const lastResult = (out) => out.split('\n').map((l) => { try { return JSON.parse(l) } catch { return null } }).filter((j) => j?.type === 'result').pop() || null
+// 세션이 실제로 부른 Bash 명령(tool_use 의 Bash input.command)만 — 프롬프트 · 스킬 글 · 결과 글에 든 같은 글자를 세지 않는다(채널 평가 H8)
+export function bashCommands(out) {
+  const cmds = []
+  for (const l of String(out || '').split('\n')) {
+    if (!l.startsWith('{')) continue
+    let j
+    try { j = JSON.parse(l) } catch { continue }
+    if (j?.type !== 'assistant') continue
+    for (const c of j.message?.content || []) if (c?.type === 'tool_use' && c.name === 'Bash' && typeof c.input?.command === 'string') cmds.push(c.input.command)
+  }
+  return cmds
+}
+// 세션 스킬(kmd-migrate · kmd-seed)의 허락 — 하위 명령마다 한 줄(채널 평가 H9 · 「node <스크립트>:*」 하나로는 거절이 났다)
+const subAllow = (script, subs) => subs.map((c) => `Bash(node ${script} ${c}:*)`)
 
 // 짜임 꾸러미(kmd-seed) — 세션 스킬이 꾸러미를 짓고(실제: claude -p · 가짜: survey + 시험이 지은 구조안 · 글 초안) 개인 hub 가 seedSurvey({dir}) 로 넣는다(packed · by pack)
 async function fakePack(srcDir, pack) {
@@ -1110,7 +1297,7 @@ async function runSeedPack(E, C) {
   const t = { kn: id, dir, savelogFile: () => path.join(dataDir, 'savelog', `${encodeURIComponent(id)}.jsonl`) }
   const rows = []
   try {
-    rows.push(await measure(E, { kn: id }, { channel: 'kmd-seed', step: '꾸러미 짓기(survey · 카드 · 구조안 · 글 초안 · check)', file: srcs.map((s) => s.n).join(',') }, async () => {
+    rows.push(await measure(E, { kn: id }, { channel: 'kmd-seed', step: '꾸러미 짓기(survey · 카드 · 구조안 · 글 초안 · check)', aux: true, selfCost: true, file: srcs.map((s) => s.n).join(',') }, async () => {
       const { packCheck } = await import('../core/survey.js')
       if (E.fake) {
         const c = await fakePack(srcDir, pack)
@@ -1119,14 +1306,20 @@ async function runSeedPack(E, C) {
       const SEED = fwd(path.join(ROOT, 'scripts', 'kmd-seed.mjs'))
       const SKILL = fwd(path.join(ROOT, '.claude', 'skills', 'kmd-seed', 'SKILL.md'))
       const prompt = `kmd-seed 스킬(${SKILL})을 먼저 Read 하고 따른다. 사람이 미리 정한 것: 원본 폴더는 ./src · 꾸러미는 ./pack(빈 폴더 · 이 cwd 안). 명령은 반드시 \`node ${SEED} <명령> …\` 꼴로만 부른다(다른 셸 명령 없음). 순서: survey ./src --out ./pack → 카드(prompt card 를 하위 에이전트로) → 구조안(prompt plan 을 하위 에이전트로 · plan.json) → check ./pack 걸림 0 까지(최대 3번) → 문서마다 글 초안(prompt text <문서 id> 를 하위 에이전트로 · texts/<문서>.json) → check. 쓰기는 ./pack 안에만. 화면 넘기기 안내는 하지 않는다. 끝에 요약 한 단락만.`
-      const allowed = [`Bash(node ${SEED}:*)`, 'Read', 'Glob', 'Grep', 'Edit(./pack/**)', 'Write(./pack/**)', 'Agent']
-      const r = await runNode([process.env.KMD_CLAUDE, ...sessionArgs({ tools: 'Bash,Read,Write,Edit,Glob,Grep,Agent', allowed, budget: 6, model: E.model })], { cwd: base, input: prompt, env: await safeEnv(), timeoutMs: 40 * 60_000 })
+      const allowed = [...subAllow(SEED, ['rules', 'survey', 'prompt', 'check', 'text', 'status']), 'Read', 'Glob', 'Grep', 'Edit(./pack/**)', 'Write(./pack/**)', 'Agent']
+      const r = await runNode([process.env.KMD_CLAUDE, ...sessionArgs({ tools: 'Bash,Read,Write,Edit,Glob,Grep,Agent', allowed, budget: 6, model: E.model || SESSION_MODEL })], { cwd: base, input: prompt, env: await safeEnv(), timeoutMs: 40 * 60_000 })
+      // 세션 출력을 남긴다(H9 · 앞 판은 r.out 이 없어 거절 원인을 확정하지 못했다)
+      const outFile = path.join(base, 'session.out.jsonl')
+      await fs.writeFile(outFile, r.out + (r.err ? `\n${JSON.stringify({ type: 'stderr', text: r.err.slice(0, 20000) })}\n` : ''))
       const res = lastResult(r.out)
-      const checks = (r.out.match(/kmd-seed\.mjs check/g) || []).length
-      const session = { exit: r.code, ok: !!res && !res.is_error, turns: res?.num_turns ?? null, checks, agents: (r.out.match(/"name":"(Agent|Task)"/g) || []).length, result: String(res?.result || r.err).slice(0, 800) }
-      if (!fss.existsSync(path.join(pack, 'manifest.json'))) return { put: false, session, codes: ['NO_PACK'], why: ['세션이 꾸러미를 짓지 못했다'] }
+      const cmds = bashCommands(r.out)
+      const checks = cmds.filter((c) => /kmd-seed\.mjs["']?\s+check\b/.test(c)).length
+      const denied = Array.isArray(res?.permission_denials) ? res.permission_denials.map((d) => ({ tool: d.tool_name || d.tool || null, input: JSON.stringify(d.tool_input ?? d.input ?? null).slice(0, 300) })) : []
+      const session = { exit: r.code, ok: !!res && !res.is_error, turns: res?.num_turns ?? null, checks, bash: cmds.length, agents: (r.out.match(/"name":"(Agent|Task)"/g) || []).length, denied, out: path.relative(ROOT, outFile), result: String(res?.result || r.err).slice(0, 800) }
+      const perm = denied.length ? ['PERM_DENIED'] : []
+      if (!fss.existsSync(path.join(pack, 'manifest.json'))) return { put: false, session, codes: [...perm, 'NO_PACK'], why: [`세션이 꾸러미를 짓지 못했다${denied.length ? `(거절 ${denied.length}: ${denied[0].tool} ${denied[0].input.slice(0, 120)})` : ''}`] }
       const c = await packCheck(pack, {})
-      return { put: false, session, fix: Math.max(0, checks - 2), check: { ok: c.ok, errors: (c.errors || []).slice(0, 5), warnings: (c.warnings || []).length }, ...(c.ok ? {} : { codes: ['PACK_CHECK'] }) }
+      return { put: false, session, fix: Math.max(0, checks - 2), check: { ok: c.ok, errors: (c.errors || []).slice(0, 5), warnings: (c.warnings || []).length }, codes: [...perm, ...(c.ok ? [] : ['PACK_CHECK'])] }
     }))
     if (!rows[0].check?.ok) rows.push({ channel: 'kmd-seed', step: '꾸러미 넣기', ran: false, why: ['꾸러미 check 를 넘지 못해 넣지 않았다'], codes: ['PACK_CHECK'] })
     else rows.push(await measure(E, t, { channel: 'kmd-seed', step: '꾸러미 넣기(seedSurvey dir → 짓기 남은 것 → 연습 판 → 넣기)', expectCh: 'shape' }, async () => {
@@ -1176,7 +1369,7 @@ async function runMigrate(E, C) {
   const H = '헬스 체크'
   const t = { kn: 'dpms', dir, savelogFile: null }
   const rows = []
-  rows.push(await measure(E, t, { channel: 'kmd-migrate', step: `다시 그리기 ${DOC} › ${H}`, kid: 'dpms', file: `${DOC} › ${H}` }, async () => {
+  rows.push(await measure(E, t, { channel: 'kmd-migrate', step: `다시 그리기 ${DOC} › ${H}`, kid: 'dpms', file: `${DOC} › ${H}`, selfCost: true }, async () => {
     const scan = await runNode([MIG, 'scan', dir])
     const tr = await runNode([MIG, 'trail', dir, DOC, H, '--json'])
     if (tr.code) return { put: false, codes: ['TRAIL'], why: [tr.err.slice(0, 300)] }
@@ -1194,11 +1387,17 @@ async function runMigrate(E, C) {
       const MIGf = fwd(MIG)
       const SKILL = fwd(path.join(ROOT, '.claude', 'skills', 'kmd-migrate', 'SKILL.md'))
       const prompt = `kmd-migrate 스킬(${SKILL})을 먼저 Read 하고 따른다. 지식 폴더 ${fwd(dir)} · 대상 ${DOC} › ${H} 하나. 사람 승인 자리는 이 프롬프트가 대신한다: 고르기는 이 항목으로 승인됨. 명령은 반드시 「node ${MIGf} <명령> …」 꼴로만 부른다(scan · trail · rec · check · rules · 다른 셸 명령 없음). 새 글은 ./hc.md · 입력은 ./input.json(지금 폴더)에 쓰고 「node ${MIGf} check ${fwd(dir)} ./input.json」 가 걸림 0 이 될 때까지 고친다(최대 3번). put 은 하지 않는다. 지식 폴더의 파일을 직접 고치지 않는다. 끝에 승인 표만 낸다.`
-      const allowed = ['scan', 'trail', 'rec', 'check', 'rules'].map((c) => `Bash(node ${MIGf} ${c}:*)`).concat(['Read', 'Glob', 'Grep', 'Edit(./**)', 'Write(./**)'])
-      const r = await runNode([process.env.KMD_CLAUDE, ...sessionArgs({ tools: 'Bash,Read,Write,Edit,Glob,Grep', allowed, budget: 3, model: E.model })], { cwd: work, input: prompt, env: await safeEnv() })
+      const allowed = subAllow(MIGf, ['scan', 'trail', 'rec', 'check', 'rules']).concat(['Read', 'Glob', 'Grep', 'Edit(./**)', 'Write(./**)'])
+      const r = await runNode([process.env.KMD_CLAUDE, ...sessionArgs({ tools: 'Bash,Read,Write,Edit,Glob,Grep', allowed, budget: 3, model: E.model || SESSION_MODEL })], { cwd: work, input: prompt, env: await safeEnv() })
+      const outFile = path.join(work, 'session.out.jsonl')
+      await fs.writeFile(outFile, r.out)
       const res = lastResult(r.out)
-      const checks = (r.out.match(/kmd-migrate\.mjs check/g) || []).length
-      out.session = { exit: r.code, ok: !!res && !res.is_error, turns: res?.num_turns ?? null, checks, result: String(res?.result || r.err).slice(0, 800) }
+      // check 셈은 세션이 부른 Bash 명령만(H8 · 앞 판은 출력 글자를 세어 고쳐 받기 4 로 부풀었다)
+      const cmds = bashCommands(r.out)
+      const checks = cmds.filter((c) => /kmd-migrate\.mjs["']?\s+check\b/.test(c)).length
+      const denied = Array.isArray(res?.permission_denials) ? res.permission_denials.map((d) => ({ tool: d.tool_name || d.tool || null, input: JSON.stringify(d.tool_input ?? d.input ?? null).slice(0, 300) })) : []
+      out.session = { exit: r.code, ok: !!res && !res.is_error, turns: res?.num_turns ?? null, checks, bash: cmds.length, denied, out: path.relative(ROOT, outFile), result: String(res?.result || r.err).slice(0, 800) }
+      if (denied.length) out.codes = ['PERM_DENIED']
       out.fix = Math.max(0, checks - 1)
       if (!fss.existsSync(inFile)) return { ...out, ms: Date.now() - t0, codes: ['NO_INPUT'], why: ['세션이 input.json 을 쓰지 않았다'] }
     }
@@ -1210,10 +1409,11 @@ async function runMigrate(E, C) {
     try { rs = JSON.parse(ck.out) } catch { /* 글 */ }
     if (!Array.isArray(rs)) return { ...out, codes: ['CHECK'], why: [(ck.out + ck.err).slice(0, 300)] }
     const bad = rs.filter((x) => !x.ok)
-    const drops = rs.filter((x) => x.lostRows?.length || x.lostLines?.length).map((x) => ({ at: `${x.doc} › ${x.heading}`, rows: x.lostRows?.length || 0, lines: x.lostLines?.length || 0 }))
+    // 사라지는 표 행 · 문장 — 몇 곳인지와 함께 빠진 글을 싣는다(H8 · 사람이 꼴 차이인지 값을 잃은 것인지 바로 본다)
+    const drops = rs.filter((x) => x.lostRows?.length || x.lostLines?.length).map((x) => ({ at: `${x.doc} › ${x.heading}`, rows: x.lostRows?.length || 0, lines: x.lostLines?.length || 0, lost: [...(x.lostRows || []), ...(x.lostLines || [])].slice(0, 6).map((y) => String(typeof y === 'string' ? y : y?.text || y?.line || JSON.stringify(y)).slice(0, 160)) }))
     out.check = { items: rs.length, bad: bad.length, drops, changed: rs.flatMap((x) => (x.changed || []).map((c) => `${c.from} → ${c.to}`)).slice(0, 10) }
     if (bad.length) return { ...out, codes: ['CHECK'], why: [bad.map((x) => `${x.code || '-'} ${x.why || ''}`).join(' / ').slice(0, 300)] }
-    if (drops.length && !E.allowDrop) return { ...out, needHuman: true, codes: ['DROP_REVIEW'], why: [`사라지는 표 행 · 문장 ${drops.length}곳: 사람이 본 뒤 --allow-drop(시험: channel-eval --allow-drop)`] }
+    if (drops.length && !E.allowDrop) return { ...out, needHuman: true, codes: ['DROP_REVIEW'], why: [`사라지는 표 행 · 문장 ${drops.length}곳: 사람이 본 뒤 --allow-drop(시험: channel-eval --allow-drop) · 빠진 글: ${drops.flatMap((x) => x.lost).slice(0, 4).join(' / ')}`.slice(0, 600)] }
     if (drops.length) out.allowedDrops = sum(drops.map((x) => x.rows + x.lines))
     const t1 = Date.now()
     const p = await runNode([MIG, 'put', dir, inFile, '--user', 'test-migrate', ...(drops.length ? ['--allow-drop'] : [])])
@@ -1250,6 +1450,12 @@ async function plan() {
   console.log(`\n합: 약 $${usd.toFixed(2)} · 약 ${Math.round(min)}분(바탕 들이기 포함 · 지난 실측에서 어림 · 확인 못 함)`)
 }
 
+// 일꾼(팀 workOnce)에 넘길 모델 — --model 은 들이기 · 커밋 · 세션 모두 · --model-commit 은 커밋 들이기(agentCommit 세션 · commit 차이 분석)만 덮는다(C4)
+const MODEL_CHOICES = ['haiku', 'sonnet', 'opus']
+export function modelsOf(model = '', modelCommit = '') {
+  const m = { ...(model ? { agent: model, ingest: model, commit: model, agentCommit: model } : {}), ...(modelCommit ? { agentCommit: modelCommit, commit: modelCommit } : {}) }
+  return Object.keys(m).length ? m : null
+}
 async function run() {
   const fake = flag('fake')
   const tag = arg('tag')
@@ -1266,8 +1472,11 @@ async function run() {
     if (!flag('confirm-cost')) { console.error('돈이 드는 실행이다: --confirm-cost 를 붙여야 돈다(배관만 보려면 --fake)'); process.exit(2) }
   }
   const model = arg('model', '')
+  // --model-commit: 커밋 들이기만 다른 모델(C4 · core/models.js agentCommit · commit) — 골든 셋을 haiku 로 재 F1 을 견줄 때
+  const modelCommit = arg('model-commit', '')
+  for (const [k, v] of [['model', model], ['model-commit', modelCommit]]) if (v && !MODEL_CHOICES.includes(v)) { console.error(`--${k} 는 ${MODEL_CHOICES.join(' · ')} 가운데 하나다(core/models.js 별칭)`); process.exit(2) }
   // --no-retry: 실패한 일감을 곧바로 다시 돌리지 않는다(일꾼 한 번 · 서버의 다시 시도 간격은 1ms 그대로라 일감은 queued 로 남는다)
-  const E = { fake, tag, model, models: model ? { agent: model, ingest: model, commit: model } : null, knDir: path.join(OUT_DIR, 'kn', tag), loops: flag('no-retry') ? 1 : 5, maxUsd, over: false, allowDrop: flag('allow-drop') }
+  const E = { fake, tag, model, modelCommit, models: modelsOf(model, modelCommit), knDir: path.join(OUT_DIR, 'kn', tag), loops: flag('no-retry') ? 1 : 5, maxUsd, over: false, allowDrop: flag('allow-drop') }
   await fs.mkdir(E.knDir, { recursive: true })
   Object.assign(E, await setupEnv({ tag, fake }))
   // 계측 누계(프로세스마다 마지막 result 의 값) — 지출 상한을 본다
@@ -1281,9 +1490,14 @@ async function run() {
   const prev = await fs.readFile(outFile, 'utf8').then(JSON.parse, () => null)
   if (prev && prev.fake !== fake) { console.error(`${path.relative(ROOT, outFile)} 는 ${prev.fake ? '가짜' : '실제'} 판이다: --tag 를 달리 준다`); process.exit(2) }
   const result = {
-    tag, day, fake, model: model || null, head, meter: path.relative(ROOT, E.meterFile), meters: [...new Set([...(prev?.meters || []), path.relative(ROOT, E.meterFile)])], maxUsd: fake ? null : maxUsd, loops: E.loops,
-    // 한 프로세스에 result 가 여럿일 때(stream-json 입력 세션) 칸마다 마지막 result 를 쓴다 — 쌓이는 값인지 실제 판 첫 실행의 rows[].meter.multiSample 로 확인한다
-    tokensRule: 'last-result-per-process (unverified)',
+    tag, day, fake, model: model || null, modelCommit: modelCommit || null,
+    // 고른 모델(일꾼 models · 세션 대용 · 세션 스킬)과 실제로 돈 모델(계측 줄의 modelUsage · 채널마다) — 머리에서 모델 차이를 바로 본다(H3)
+    models: { asked: { workers: E.models || '기본 배분(core/models.js DEFAULT_MODELS)', sessions: model || SESSION_MODEL }, seen: { ...(prev?.models?.seen || {}) } },
+    head, meter: path.relative(ROOT, E.meterFile), meters: [...new Set([...(prev?.meters || []), path.relative(ROOT, E.meterFile)])], maxUsd: fake ? null : maxUsd, loops: E.loops,
+    // 한 프로세스에 result 가 여럿일 때(stream-json 입력 세션): cost 는 마지막 result(쌓이는 값) · 토큰 · 차례는 result 마다 더한다(H17 · real-1 shape-pc 로 확인)
+    tokensRule: 'cost: last result per process · tokens/turns: sum of results (H17)',
+    // 들어감의 분모(rows)는 저장 걸음만(앞 걸음 aux 는 시간 · 비용에만) · 세션 스킬 · 대용 세션의 serverCost 는 null(self · costGap 밖)
+    rowRule: 'rows exclude aux steps (H10) · serverCost null for self-metered sessions (H4)',
     // 품질 점수는 채널이 넣은 골든 원천(바탕 포함)에 걸린 정답만으로 매긴다(score.scope) · 원천이 다르면 F1 을 견줄 때 scope 를 같이 본다
     scoreRule: 'gold subset by fed sources (score.scope)',
     channels: { ...(prev?.channels || {}) },
@@ -1296,7 +1510,7 @@ async function run() {
     if (E.over) { result.channels[name] = { ran: false, why: `예산 넘음(계측 누계 $${E.spent().toFixed(3)} > $${E.maxUsd})`, codes: ['BUDGET'], rows: [] }; console.log('  예산 넘음: 돌리지 않는다'); await save(); continue }
     const t0 = Date.now()
     let out
-    try { out = await C.run(E, fake && C.fakeSrc ? { ...C, src: C.fakeSrc } : C) } catch (e) { out = { rows: [], error: `${e.code || ''} ${e.message}`.trim(), stack: String(e.stack || '').split('\n').slice(0, 4).join(' | ') }; console.log(`  넘어짐: ${out.error}`) } finally {
+    try { out = await C.run(E, cfgOf(C, fake)) } catch (e) { out = { rows: [], error: `${e.code || ''} ${e.message}`.trim(), stack: String(e.stack || '').split('\n').slice(0, 4).join(' | ') }; console.log(`  넘어짐: ${out.error}`) } finally {
       // 끊긴 감싸개의 고아(안쪽 Claude)를 거둔다
       const killed = reapPids(E)
       if (killed.length) console.log(`  ! 남은 Claude 프로세스 ${killed.length}개를 껐다: ${killed.join(' ')}`)
@@ -1305,30 +1519,85 @@ async function run() {
     const main = rows.filter((r) => !r.base && r.ran !== false)
     const baseRows = rows.filter((r) => r.base)
     const tot = (rs) => ({
-      rows: rs.length, ms: sum(rs.map((r) => r.ms)), cost: r4(sum(rs.map((r) => r.cost))), serverCost: r4(sum(rs.map((r) => r.serverCost))), costGapRows: rs.filter((r) => r.costGap != null).length,
+      rows: rs.filter((r) => !r.aux).length, auxRows: rs.filter((r) => r.aux).length, ms: sum(rs.map((r) => r.ms)), cost: r4(sum(rs.map((r) => r.cost))), serverCost: rs.some((r) => r.serverCost != null) ? r4(sum(rs.map((r) => r.serverCost))) : null, selfCostRows: rs.filter((r) => r.costSource === 'self').length, costGapRows: rs.filter((r) => r.costGap != null).length,
       calls: sum(rs.map((r) => r.calls)), turns: sum(rs.map((r) => r.turns)), fix: sum(rs.map((r) => r.fix)), fixTries: sum(rs.map((r) => r.fixTries)), fails: sum(rs.map((r) => r.fails)), failCalls: sum(rs.map((r) => r.failCalls)),
-      put: rs.filter((r) => r.put).length, empty: rs.filter((r) => r.empty).length, nolog: rs.filter((r) => r.nolog).length, needHuman: rs.filter((r) => r.needHuman).length,
+      put: rs.filter((r) => r.put).length, empty: rs.filter((r) => r.empty).length, recovered: [...new Set(rs.flatMap((r) => r.recoveredCodes || []))], nolog: rs.filter((r) => r.nolog).length, needHuman: rs.filter((r) => r.needHuman).length,
       warned: sum(rs.map((r) => r.warned)), accepted: sum(rs.map((r) => r.accepted)),
       tokens: rs.some((r) => r.tokens) ? Object.fromEntries(['input', 'output', 'cacheRead', 'cacheWrite'].map((k) => [k, sum(rs.map((r) => r.tokens?.[k]))])) : null,
     })
     const chs = main.filter((r) => r.channelOk != null)
     result.channels[name] = {
-      ran: !out.error && main.length > 0, expectCh: C.ch, llm: C.llm, note: C.note, wallMs: Date.now() - t0, fed: fedOf(fake && C.fakeSrc ? { ...C, src: C.fakeSrc } : C),
+      ran: !out.error && main.length > 0, expectCh: C.ch, llm: C.llm, note: C.note, wallMs: Date.now() - t0, fed: fedOf(cfgOf(C, fake)),
       channelOk: chs.length ? chs.every((r) => r.channelOk) : null, total: tot(main), base: tot(baseRows),
       codes: [...new Set(main.flatMap((r) => r.codes || []))], expected: main.some((r) => r.expect) ? { rows: main.filter((r) => r.expect).length, ok: main.filter((r) => r.expect && r.expectOk).length } : null, ...(out.error ? { error: out.error, stack: out.stack } : {}),
       ...(main.some((r) => r.proxy) ? { proxy: main.find((r) => r.proxy).proxy } : {}),
       ...(out.note ? { note2: out.note } : {}), ...(out.scoreNote ? { scoreNote: out.scoreNote } : {}), dirs: Object.fromEntries(Object.entries(out.dirs || {}).map(([k, v]) => [k, path.relative(ROOT, v)])),
-      scoreBefore: out.scoreBefore || null, delta: out.delta || null, score: out.score || null, rows,
+      scoreBefore: out.scoreBefore || null, delta: out.delta || null, score: out.score || null, ...(out.own ? { own: out.own } : {}),
+      models: [...new Set(rows.flatMap((r) => r.models || []))], rows,
     }
     const c = result.channels[name]
+    result.models.seen[name] = c.models
     console.log(`  = ${c.ran ? '돌았다' : '안 돌았다'} · channelOk ${c.channelOk} · 들어감 ${c.total.put}/${c.total.rows} · $${c.total.cost.toFixed(3)} · ${Math.round(c.total.ms / 1000)}초 · 부름 ${c.total.calls} · 고쳐 받기 ${c.total.fix} · 실패 ${c.total.fails}${c.base.rows ? ` · 바탕 $${c.base.cost.toFixed(3)} ${Math.round(c.base.ms / 1000)}초` : ''}${c.score?.scope ? ` · F1 ${c.score.f1 ?? '견줄 수 없음'}(알갱이 ${c.score.scope.facts}) 항목 ${c.score.counts?.items ?? '-'}` : ''}`)
     await save()
   }
   if (!fake) console.log(`계측 누계 $${E.spent().toFixed(3)} / 상한 $${E.maxUsd}`)
+  console.log(`실제 모델: ${Object.entries(result.models.seen).filter(([, v]) => v?.length).map(([k, v]) => `${k} ${v.join(',')}`).join(' · ') || '-'}`)
   console.log(`\n결과: ${path.relative(ROOT, outFile)}`)
 }
 
+// 두 결과 견주기(report --compare <before.json> <after.json>) — 채널마다 $ · 초 · 차례 · 토큰 in/out/cR/cW · 들어감 · 품질(F1 · 빠짐 · 값 · 성격)의 앞 → 뒤와 차이.
+//   모델이 다른 채널은 「모델 다름」 으로 표시한다(모델 탓 절감과 개선 탓 절감을 가른다 · TODO 5절) · 합 줄은 양쪽에 다 돈 채널만 더한다.
+//   → { rows, total, md } (md 는 markdown 줄 목록)
+const modelsSeenOf = (c) => [...new Set([...(c?.models || []), ...(c?.rows || []).flatMap((r) => r.models || r.meter?.models || [])])].filter((x) => !/^fake/.test(x)).map((x) => x.replace(/^claude-/, '').replace(/\[1m\]$/, '')).sort()
+export function compareOf(A, B) {
+  const pct = (a, b) => (typeof a === 'number' && typeof b === 'number' && a > 0 ? `${b - a > 0 ? '+' : ''}${Math.round(((b - a) / a) * 1000) / 10}%` : '-')
+  const num = (x, d = 3) => (typeof x === 'number' ? (d ? x.toFixed(d) : String(Math.round(x))) : '-')
+  const tk = (t, k) => (t ? t[k] || 0 : null)
+  const names = [...new Set([...Object.keys(A.channels || {}), ...Object.keys(B.channels || {})])]
+  const rows = []
+  for (const name of names) {
+    const a = A.channels?.[name]
+    const b = B.channels?.[name]
+    if (!a?.total && !b?.total) continue
+    const ta = a?.total || null
+    const tb = b?.total || null
+    const ma = modelsSeenOf(a)
+    const mb = modelsSeenOf(b)
+    const sa = a?.score || {}
+    const sb = b?.score || {}
+    rows.push({
+      name, both: !!(ta && tb), models: { before: ma, after: mb, differ: ma.join(',') !== mb.join(',') && ma.length > 0 && mb.length > 0 },
+      usd: [ta?.cost ?? null, tb?.cost ?? null], sec: [ta ? ta.ms / 1000 : null, tb ? tb.ms / 1000 : null], turns: [ta?.turns ?? null, tb?.turns ?? null],
+      tokens: Object.fromEntries(['input', 'output', 'cacheRead', 'cacheWrite'].map((k) => [k, [tk(ta?.tokens, k), tk(tb?.tokens, k)]])),
+      put: [ta ? `${ta.put}/${ta.rows}` : '-', tb ? `${tb.put}/${tb.rows}` : '-'], baseUsd: [a?.base?.cost ?? null, b?.base?.cost ?? null],
+      quality: Object.fromEntries(['f1', 'missRate', 'valueRate', 'nature', 'factPlaced', 'dupRate'].map((k) => [k, [sa[k] ?? null, sb[k] ?? null]])),
+      scope: [sa.scope?.facts || null, sb.scope?.facts || null],
+    })
+  }
+  const both = rows.filter((r) => r.both)
+  const S = (k, i) => r4(sum(both.map((r) => r[k][i])))
+  const total = { channels: both.length, usd: [S('usd', 0), S('usd', 1)], usdWithBase: [r4(S('usd', 0) + S('baseUsd', 0)), r4(S('usd', 1) + S('baseUsd', 1))], sec: [Math.round(S('sec', 0)), Math.round(S('sec', 1))], turns: [S('turns', 0), S('turns', 1)], modelDiffer: both.filter((r) => r.models.differ).map((r) => r.name) }
+  const md = []
+  const head = (j) => `${j.tag} · ${j.day} · ${j.fake ? '가짜' : '실제'} · ${j.head || '-'}${j.model ? ` · --model ${j.model}` : ''}${j.modelCommit ? ` · --model-commit ${j.modelCommit}` : ''}`
+  md.push(`## 견주기: ${head(A)} → ${head(B)}`, '')
+  md.push(`양쪽에 돈 채널 ${total.channels} · 합 $${total.usd[0].toFixed(3)} → $${total.usd[1].toFixed(3)} (${pct(total.usd[0], total.usd[1])}) · 바탕 포함 $${total.usdWithBase[0].toFixed(3)} → $${total.usdWithBase[1].toFixed(3)} (${pct(...total.usdWithBase)}) · ${total.sec[0]}초 → ${total.sec[1]}초 (${pct(total.sec[0], total.sec[1])}) · 차례 ${total.turns[0]} → ${total.turns[1]}${total.modelDiffer.length ? ` · 모델 다름: ${total.modelDiffer.join(' · ')}(그 채널의 차이에는 모델 몫이 섞여 있다)` : ''}`, '')
+  md.push('### 시간 · 비용', '', '| 채널 | 모델(앞 → 뒤) | $ 앞 → 뒤 | Δ$ | 초 앞 → 뒤 | Δ초 | 차례 | 토큰 in | 토큰 out | 토큰 cR | 토큰 cW | 들어감 | 바탕 $ |', '|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+  const arrow = (p, d = 3) => `${num(p[0], d)} → ${num(p[1], d)}`
+  for (const r of rows) md.push(`| ${r.name} | ${r.models.before.join(',') || '-'} → ${r.models.after.join(',') || '-'}${r.models.differ ? ' (모델 다름)' : ''} | ${arrow(r.usd)} | ${pct(...r.usd)} | ${arrow(r.sec, 0)} | ${pct(...r.sec)} | ${arrow(r.turns, 0)} | ${arrow(r.tokens.input, 0)} | ${arrow(r.tokens.output, 0)} | ${arrow(r.tokens.cacheRead, 0)} | ${arrow(r.tokens.cacheWrite, 0)} | ${r.put[0]} → ${r.put[1]} | ${arrow(r.baseUsd)} |`)
+  md.push('', '### 품질(채널이 넣은 골든 원천 범위 · score.scope)', '', '| 채널 | 알갱이 범위 | F1 | 빠짐 | 지금 값 | 성격 | 알갱이 자리 | 중복 |', '|---|---|---|---|---|---|---|---|')
+  const qd = (p) => `${p[0] ?? '-'} → ${p[1] ?? '-'}${typeof p[0] === 'number' && typeof p[1] === 'number' && p[0] !== p[1] ? ` (${p[1] - p[0] > 0 ? '+' : ''}${r4(p[1] - p[0])})` : ''}`
+  for (const r of rows) md.push(`| ${r.name} | ${r.scope[0] || '-'} → ${r.scope[1] || '-'} | ${qd(r.quality.f1)} | ${qd(r.quality.missRate)} | ${qd(r.quality.valueRate)} | ${qd(r.quality.nature)} | ${qd(r.quality.factPlaced)} | ${qd(r.quality.dupRate)} |`)
+  return { rows, total, md }
+}
 async function report() {
+  const ci = process.argv.indexOf('--compare')
+  if (ci > 0) {
+    const [fa, fb] = process.argv.slice(ci + 1, ci + 3)
+    if (!fa || !fb) { console.error('쓰는 법: channel-eval.mjs report --compare <before.json> <after.json>'); process.exit(2) }
+    const [A, B] = await Promise.all([fa, fb].map(async (f) => JSON.parse(await fs.readFile(path.resolve(f), 'utf8'))))
+    console.log(compareOf(A, B).md.join('\n'))
+    return
+  }
   let files = process.argv.slice(3).filter((x) => !x.startsWith('--'))
   if (!files.length) files = (await fs.readdir(OUT_DIR).catch(() => [])).filter((f) => /^\d{4}-\d{2}-\d{2}-.+\.json$/.test(f)).map((f) => path.join(OUT_DIR, f))
   if (!files.length) { console.error('결과 파일이 없다(.kmd-data/channel-eval/<날짜>-<판>.json)'); process.exit(1) }
@@ -1336,14 +1605,16 @@ async function report() {
   for (const f of files) {
     const j = JSON.parse(await fs.readFile(f, 'utf8'))
     console.log(`\n## ${j.tag} · ${j.day} · ${j.fake ? '가짜' : '실제'} Claude${j.model ? ` · ${j.model}` : ''} · ${j.head || ''}\n`)
-    if (j.tokensRule) console.log(`토큰 · 차례 · 값 규칙: ${j.tokensRule} · 채점: ${j.scoreRule || '-'}${j.maxUsd ? ` · 지출 상한 $${j.maxUsd}` : ''}\n`)
-    console.log('| 채널 | 돌았나 | channelOk | 건 | 들어감 | 빈 | $(계측) | 서버 $ | 초 | 부름 | 차례 | 토큰 in/out/cR/cW | 고쳐 받기(시도) | 실패(부름) | 경고/받아들임 | 코드 | 바탕 $ / 초 | 채점(범위 알갱이) F1 · 빠짐 · 값 | Δ F1 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+    if (j.tokensRule) console.log(`토큰 · 차례 · 값 규칙: ${j.tokensRule} · 채점: ${j.scoreRule || '-'}${j.rowRule ? ` · ${j.rowRule}` : ''}${j.maxUsd ? ` · 지출 상한 $${j.maxUsd}` : ''}\n`)
+    const seen = [...new Set(Object.values(j.channels).flatMap((c) => modelsSeenOf(c)))]
+    console.log(`실제 모델: ${seen.join(' · ') || '-'}${j.modelCommit ? ` · 커밋 들이기 --model-commit ${j.modelCommit}` : ''}\n`)
+    console.log('| 채널 | 모델 | 돌았나 | channelOk | 건 | 들어감 | 빈 | $(계측) | 서버 $ | 초 | 부름 | 차례 | 토큰 in/out/cR/cW | 고쳐 받기(시도) | 실패(부름) | 경고/받아들임 | 코드 | 바탕 $ / 초 | 채점(범위 알갱이) F1 · 빠짐 · 값 | Δ F1 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
     for (const [name, c] of Object.entries(j.channels)) {
-      if (!c.total) { console.log(`| ${name} | ${c.codes?.includes('BUDGET') ? '예산 넘음' : '몰 수 없음'} | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | ${String(c.why || '').slice(0, 80)} | - |`); continue }
+      if (!c.total) { console.log(`| ${name} | - | ${c.codes?.includes('BUDGET') ? '예산 넘음' : '몰 수 없음'} | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | ${String(c.why || '').slice(0, 80)} | - |`); continue }
       const t = c.total
       const sc = c.score || {}
       const scTxt = sc.scope ? `(${sc.scope.facts}) ${sc.f1 ?? '견줄 수 없음'} · ${sc.missRate ?? '-'} · ${sc.valueRate ?? '-'}` : '-'
-      console.log(`| ${name}${c.proxy ? ' (대용)' : ''} | ${c.ran ? '예' : `아니오${c.error ? ` (${c.error.slice(0, 40)})` : ''}`} | ${c.channelOk ?? '-'}${t.nolog ? ` (nolog ${t.nolog})` : ''} | ${t.rows} | ${t.put} | ${t.empty} | ${t.cost.toFixed(3)} | ${(t.serverCost ?? 0).toFixed(3)}${t.costGapRows ? ' ≠' : ''} | ${Math.round(t.ms / 1000)} | ${t.calls} | ${t.turns} | ${tk(t.tokens)} | ${t.fix}(${t.fixTries ?? 0}) | ${t.fails}(${t.failCalls ?? 0}) | ${t.warned ?? 0}/${t.accepted ?? 0} | ${(c.codes || []).join(' ') || '-'}${c.expected ? ` (기대한 거절 ${c.expected.ok}/${c.expected.rows})` : ''}${t.needHuman ? ` · 사람 판단 ${t.needHuman}` : ''} | ${c.base?.rows ? `${c.base.cost.toFixed(3)} / ${Math.round(c.base.ms / 1000)}` : '-'} | ${scTxt} | ${c.delta?.f1 ?? '-'} |`)
+      console.log(`| ${name}${c.proxy ? ' (대용)' : ''} | ${modelsSeenOf(c).join(',') || '-'} | ${c.ran ? '예' : `아니오${c.error ? ` (${c.error.slice(0, 40)})` : ''}`} | ${c.channelOk ?? '-'}${t.nolog ? ` (nolog ${t.nolog})` : ''} | ${t.rows} | ${t.put} | ${t.empty} | ${t.cost.toFixed(3)} | ${t.serverCost == null ? 'self' : t.serverCost.toFixed(3)}${t.selfCostRows ? `(self ${t.selfCostRows})` : ''}${t.costGapRows ? ' ≠' : ''} | ${Math.round(t.ms / 1000)} | ${t.calls} | ${t.turns} | ${tk(t.tokens)} | ${t.fix}(${t.fixTries ?? 0}) | ${t.fails}(${t.failCalls ?? 0}) | ${t.warned ?? 0}/${t.accepted ?? 0} | ${(c.codes || []).join(' ') || '-'}${c.expected ? ` (기대한 거절 ${c.expected.ok}/${c.expected.rows})` : ''}${t.needHuman ? ` · 사람 판단 ${t.needHuman}` : ''} | ${c.base?.rows ? `${c.base.cost.toFixed(3)} / ${Math.round(c.base.ms / 1000)}` : '-'} | ${scTxt} | ${c.delta?.f1 ?? '-'} |`)
     }
   }
 }
@@ -1353,7 +1624,7 @@ async function main() {
   if (cmd === 'plan') return plan()
   if (cmd === 'run') return run()
   if (cmd === 'report') return report()
-  console.error('쓰는 법: channel-eval.mjs plan | run --channel <ch>[,…]|all --tag <판> [--fake] [--model <m>] [--confirm-cost] | report [<결과 json>…]')
+  console.error('쓰는 법: channel-eval.mjs plan | run --channel <ch>[,…]|all --tag <판> [--fake] [--model <m>] [--model-commit <m>] [--confirm-cost] | report [<결과 json>…] | report --compare <before.json> <after.json>')
   process.exit(2)
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().then(() => process.exit(process.exitCode || 0), (e) => { console.error(e); process.exit(1) })
