@@ -103,14 +103,14 @@ export async function goldScope(fed) {
   const headsOf = (s) => [...s.md.matchAll(/^#{1,3} (.+)$/gm)].map((m) => ({ h: headTail(m[1]), title: s.title || '' }))
   const heads = srcs.flatMap(headsOf)
   const headIn = (hs, t) => hs.some(({ h, title }) => rx(t.h, '').test(h) && !(t.notH && rx(t.notH).test(h)) && !(t.needDocOrH && !rx(t.needDocOrH).test(`${title} ${h}`)))
-  const headHit = (t) => heads.some(({ h, title }) => rx(t.h, '').test(h) && !(t.notH && rx(t.notH).test(h)) && !(t.needDocOrH && !rx(t.needDocOrH).test(`${title} ${h}`)))
-  const facts = g.facts.filter((f) => rx(f.re).test(text))
+  const headHit = (t) => headIn(heads, t)
+  const facts0 = g.facts.filter((f) => rx(f.re).test(text))
   const values = g.values.filter((v) => rx(v.re).test(text))
-  const tids = new Set([...facts, ...values].flatMap((f) => [f.target, f.alt].filter(Boolean)))
+  const tids = new Set([...facts0, ...values].flatMap((f) => [f.target, f.alt].filter(Boolean)))
   const byHead = new Set(g.targets.filter(headHit).map((t) => t.id))
   for (const id of byHead) tids.add(id)
   const primary = new Map()
-  for (const f of [...facts, ...values]) primary.set(f.target, (primary.get(f.target) || 0) + 1)
+  for (const f of [...facts0, ...values]) primary.set(f.target, (primary.get(f.target) || 0) + 1)
   const passing = []
   const targets = g.targets.filter((t) => tids.has(t.id)).map((t) => {
     if (t.optional || byHead.has(t.id) || (primary.get(t.id) || 0) >= 2) return t
@@ -121,12 +121,11 @@ export async function goldScope(fed) {
   //   그래서 그 알갱이가 든 원천의 머리가 가리키는 사건 갈래 대상을 alts 로 더한다(예: 회의 하나만 넣은 개인 들이기의 「수집기 전송 주기」 → 그 회의 항목도 맞다)
   const OWN = new Set(['사건', '보고', '대장'])
   const pass = new Set(passing)
-  const facts2 = facts.map((f) => {
+  const facts = facts0.map((f) => {
     if (!pass.has(f.target)) return f
     const own = [...new Set(srcs.filter((s) => rx(f.re).test(s.md)).flatMap((s) => { const hs = headsOf(s); return targets.filter((t) => OWN.has(t.nature) && headIn(hs, t)).map((t) => t.id) }))].filter((id) => id !== f.alt)
     return own.length ? { ...f, alts: [...(f.alts || []), ...own] } : f
   })
-  facts.splice(0, facts.length, ...facts2)
   const tg = (f) => [f.target, f.alt, ...(f.alts || [])].filter(Boolean)
   let pairs = 0
   for (let i = 0; i < facts.length; i++) for (let j = i + 1; j < facts.length; j++) if (tg(facts[i]).some((x) => tg(facts[j]).includes(x))) pairs++

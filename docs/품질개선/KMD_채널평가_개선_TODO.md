@@ -100,6 +100,7 @@
 | 개선 뒤 보고(5절 둘째 줄) | (이 커밋) | `채널별_지식생성_평가.md` · `.html` 에 「개선 뒤」 절: 17 채널 최종 표(판 · $ · 초 · 차례 · 들어감 · F1 · 원인 판정) · 합계 · 모델 몫(opus 넷 × 0.4 = -$1.525) 대 개선 몫(준 것 -$0.917 · 필요한 일 +$1.593 · 무효 비교 +$0.359 · 잡음 +$0.191) · 늘어난 채널과 까닭 · n=1 한계 · 운영 어림 다시 셈(100건/월 $35.4 → $32.1 · 3.5 → 3.9시간). 남은 [ ] 는 C2 하나로, 판정이 「하지 않는다」 라 끝내지 않은 채 둔다(다음 실측의 「첫 도구」 줄로 다시 본다). 코드 바뀜 없음 |
 | 다시 재기 뒤 남은 것(7절) | (이 커밋) | 최종 판(real-2 · 2b · 3)의 남은 것 T1 ~ T11 을 7절로: 품질 둘(polish F1 0.762 · pc-intake F1 0.5) · 계측 셋(edit-source modelUsage · 고쳐 받기 까닭 · shape-pc 줄 묶음) · 시험 도구 둘(bulk .b64 Read · migrate 코드 덮임) · 시간 셋(shape 구조안 · 다시 띄움 · 채널별 시간 쓰임) · 결론 굳히기(같은 HEAD 다시 재기 · n=2). C2 줄은 그대로. 코드 바뀜 없음 |
 | 품질 둘(T1 · T2) | `24e958f` | 둘 다 채점 탓(지식 · 프롬프트는 생성 룰대로): gold 정규식 띄어쓰기 · gold one 대상의 쌍 · passing 알갱이의 사건 항목 자리(R3-5 나). RULES.score 판 올림 → report --compare 가 다시 채점. real-2 다시 채점 polish 0.762 → 1 · pc-intake 0.5 → 1 · 같이 바뀐 것 http 0.870 → 1 · shape-pc 1 · shape(real-2 · real-3) 1 · shape-restructure 0.957(평가 md · html 「개선 뒤」 표의 F1 은 T11 다시 재기 때 고친다). 시험 harness-eval 13 통과 · `run --fake --channel polish,pc-intake --tag fake-quality` 돔(fake-after 와 같은 점수) |
+| T1 · T2 검토 지적 셋 | (이 커밋) | ① `goldScope` 의 headHit 를 `headIn(heads, t)` 로(같은 조건식 두 벌을 하나로) · facts 를 자리에서 바꾸던 splice 를 걷고 facts0(원천에 든 것) → facts(alts 더한 것)로 나눔 ② 시험 T1 에 one 대상 묶음(「되돌리기」)에 수집기 알갱이가 잘못 들면 precision < 1 한 줄 ③ 평가 md · html 「개선 뒤」 절 머리에 「F1 은 `24e958f` 앞 채점 값 · 다시 채점 값은 6절」 표시(다시 뽑은 F1 열로 고치는 것은 T11). 시험 harness-eval 13 통과 |
 
 ## 7. 다시 재기 뒤 남은 것(T1 ~ T11)
 
