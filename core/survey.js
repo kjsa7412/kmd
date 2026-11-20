@@ -208,6 +208,8 @@ export async function survey(root, { out, now = new Date(), log = () => {} } = {
   }
   const all = classify(rows)
   await writeManifest(o, { root: r, made: now.toISOString(), rows: all })
+  // 카드 · 글 초안 자리를 미리 만든다(세션 · 하위 에이전트가 mkdir 을 부르지 않고 Write 만으로 쓴다 · 허락 거절을 줄인다)
+  for (const d of ['cards', 'texts']) await fs.mkdir(path.join(o, d), { recursive: true })
   await pruneMd(o, all)
   return { pack: o, root: r, rows: all, counts: countsOf(all) }
 }

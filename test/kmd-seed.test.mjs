@@ -55,6 +55,7 @@ after(() => fs.rmSync(tmp, { recursive: true, force: true }))
 
 test('조사 — 판 묶음(늦은 판이 정본) · 사건은 날짜가 다르면 다른 사건 · 같은 글 · 비밀 의심 보류 · 스캔 보류 · 숨은 것 뺌 · 재료 글은 md/<sha16>', async () => {
   const r = await survey(src, { out: pack })
+  for (const d of ['cards', 'texts']) assert.ok(fs.statSync(path.join(pack, d)).isDirectory(), `조사가 ${d}/ 자리를 만든다(세션이 mkdir 을 부르지 않는다)`)
   const by = Object.fromEntries(r.rows.map((x) => [x.path, x]))
   assert.deepEqual(Object.keys(by).sort(), ['스캔/서약서.pdf', '보관/배포절차.md', '운영/배포절차_v1.md', '운영/배포절차_v2_최종.md', '운영/접속.txt', '회의/2026-11-01 회의록.md', '회의/2026-11-08 회의록.md'].sort())
   assert.equal(by['운영/배포절차_v1.md'].role, '옛 판')

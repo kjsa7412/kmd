@@ -1290,7 +1290,10 @@ export function bashCommands(out) {
   return cmds
 }
 // 세션 스킬(kmd-migrate · kmd-seed)의 허락 — 하위 명령마다 한 줄(채널 평가 H9 · 「node <스크립트>:*」 하나로는 거절이 났다)
-const subAllow = (script, subs) => subs.map((c) => `Bash(node ${script} ${c}:*)`)
+//   스크립트 경로를 따옴표로 감싼 꼴도 같은 명령이다(real-2 kmd-seed: `node "C:/…/kmd-seed.mjs" check` 가 거절됐다)
+export const subAllow = (script, subs) => subs.flatMap((c) => [`Bash(node ${script} ${c}:*)`, `Bash(node "${script}" ${c}:*)`])
+// 세션에 주는 명령 꼴(스킬 SKILL.md 「부르는 꼴」 과 같다) — real-2 kmd-migrate 는 스킬 표의 상대 꼴을 보고 `cd 저장소 && … | head` 로 불러 거절되고 멈췄다
+const CALL_RULE = '명령은 한 번에 하나 · 스크립트 절대 경로로 · `cd … &&` · 파이프(`| head`) · `2>&1` · mkdir 없이 부른다(폴더는 Write 가 만든다). 거절되면 멈추지 말고 이 꼴로 다시 부른다.'
 
 // 짜임 꾸러미(kmd-seed) — 세션 스킬이 꾸러미를 짓고(실제: claude -p · 가짜: survey + 시험이 지은 구조안 · 글 초안) 개인 hub 가 seedSurvey({dir}) 로 넣는다(packed · by pack)
 async function fakePack(srcDir, pack) {
@@ -1340,7 +1343,7 @@ async function runSeedPack(E, C) {
       }
       const SEED = fwd(path.join(ROOT, 'scripts', 'kmd-seed.mjs'))
       const SKILL = fwd(path.join(ROOT, '.claude', 'skills', 'kmd-seed', 'SKILL.md'))
-      const prompt = `kmd-seed 스킬(${SKILL})을 먼저 Read 하고 따른다. 사람이 미리 정한 것: 원본 폴더는 ./src · 꾸러미는 ./pack(빈 폴더 · 이 cwd 안). 명령은 반드시 \`node ${SEED} <명령> …\` 꼴로만 부른다(다른 셸 명령 없음). 순서: survey ./src --out ./pack → 카드(prompt card 를 하위 에이전트로) → 구조안(prompt plan 을 하위 에이전트로 · plan.json) → check ./pack 걸림 0 까지(최대 3번) → 문서마다 글 초안(prompt text <문서 id> 를 하위 에이전트로 · texts/<문서>.json) → check. 쓰기는 ./pack 안에만. 화면 넘기기 안내는 하지 않는다. 끝에 요약 한 단락만.`
+      const prompt = `kmd-seed 스킬(${SKILL})을 먼저 Read 하고 따른다. 사람이 미리 정한 것: 원본 폴더는 ./src · 꾸러미는 ./pack(빈 폴더 · 이 cwd 안). 명령은 반드시 \`node ${SEED} <명령> …\` 꼴로만 부른다(다른 셸 명령 없음). ${CALL_RULE} 순서: survey ./src --out ./pack → 카드(prompt card 를 하위 에이전트로) → 구조안(prompt plan 을 하위 에이전트로 · plan.json) → check ./pack 걸림 0 까지(최대 3번) → 문서마다 글 초안(prompt text <문서 id> 를 하위 에이전트로 · texts/<문서>.json) → check. 쓰기는 ./pack 안에만. 화면 넘기기 안내는 하지 않는다. 끝에 요약 한 단락만.`
       const allowed = [...subAllow(SEED, ['rules', 'survey', 'prompt', 'check', 'text', 'status']), 'Read', 'Glob', 'Grep', 'Edit(./pack/**)', 'Write(./pack/**)', 'Agent']
       const r = await runNode([process.env.KMD_CLAUDE, ...sessionArgs({ tools: 'Bash,Read,Write,Edit,Glob,Grep,Agent', allowed, budget: 6, model: E.model || SESSION_MODEL })], { cwd: base, input: prompt, env: await safeEnv(), timeoutMs: 40 * 60_000 })
       // 세션 출력을 남긴다(H9 · 앞 판은 r.out 이 없어 거절 원인을 확정하지 못했다)
@@ -1421,7 +1424,7 @@ async function runMigrate(E, C) {
       //   사용자 MCP · 사용자 settings · 집 폴더 숨은 파일은 막고 환경은 ENV_ALLOW 만(sessionArgs · safeEnv)
       const MIGf = fwd(MIG)
       const SKILL = fwd(path.join(ROOT, '.claude', 'skills', 'kmd-migrate', 'SKILL.md'))
-      const prompt = `kmd-migrate 스킬(${SKILL})을 먼저 Read 하고 따른다. 지식 폴더 ${fwd(dir)} · 대상 ${DOC} › ${H} 하나. 사람 승인 자리는 이 프롬프트가 대신한다: 고르기는 이 항목으로 승인됨. 명령은 반드시 「node ${MIGf} <명령> …」 꼴로만 부른다(scan · trail · rec · check · rules · 다른 셸 명령 없음). 새 글은 ./hc.md · 입력은 ./input.json(지금 폴더)에 쓰고 「node ${MIGf} check ${fwd(dir)} ./input.json」 가 걸림 0 이 될 때까지 고친다(최대 3번). put 은 하지 않는다. 지식 폴더의 파일을 직접 고치지 않는다. 끝에 승인 표만 낸다.`
+      const prompt = `kmd-migrate 스킬(${SKILL})을 먼저 Read 하고 따른다. 지식 폴더 ${fwd(dir)} · 대상 ${DOC} › ${H} 하나. 사람 승인 자리는 이 프롬프트가 대신한다: 고르기는 이 항목으로 승인됨. 명령은 반드시 「node ${MIGf} <명령> …」 꼴로만 부른다(scan · trail · rec · check · rules · 다른 셸 명령 없음). ${CALL_RULE} 새 글은 ./hc.md · 입력은 ./input.json(지금 폴더)에 쓰고 「node ${MIGf} check ${fwd(dir)} ./input.json」 가 걸림 0 이 될 때까지 고친다(최대 3번). put 은 하지 않는다. 지식 폴더의 파일을 직접 고치지 않는다. 끝에 승인 표만 낸다.`
       const allowed = subAllow(MIGf, ['scan', 'trail', 'rec', 'check', 'rules']).concat(['Read', 'Glob', 'Grep', 'Edit(./**)', 'Write(./**)'])
       const r = await runNode([process.env.KMD_CLAUDE, ...sessionArgs({ tools: 'Bash,Read,Write,Edit,Glob,Grep', allowed, budget: 3, model: E.model || SESSION_MODEL })], { cwd: work, input: prompt, env: await safeEnv() })
       const outFile = path.join(work, 'session.out.jsonl')

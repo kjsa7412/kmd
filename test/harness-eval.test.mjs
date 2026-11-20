@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadKnowledge } from '../core/knowledge.js'
 import { scoreKnowledge, gateOf, itemsOf, factText, natureOf } from '../scripts/harness-eval.mjs'
-import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES } from '../scripts/channel-eval.mjs'
+import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow } from '../scripts/channel-eval.mjs'
 
 const FIX = path.resolve('test/fixture/harness/빈지식')
 const gold = JSON.parse(fs.readFileSync(path.join(FIX, 'gold.json'), 'utf8'))
@@ -142,6 +142,8 @@ test('H14 · H15 · H16 · H8: 다듬기 검출률 · http 입력 · 골든 값�
     JSON.stringify({ type: 'result', result: 'kmd-migrate.mjs check 끝' }),
   ].join('\n')
   assert.deepEqual(bashCommands(out), ['node C:/k/scripts/kmd-migrate.mjs check C:/kn ./input.json'], '말 · 결과 · 다른 도구 글은 세지 않는다')
+  // 세션 스킬 허락: 하위 명령마다 맨 꼴과 따옴표 꼴 둘(real-2 kmd-seed 의 `node "…/kmd-seed.mjs" check` 거절)
+  assert.deepEqual(subAllow('C:/k/scripts/kmd-seed.mjs', ['check']), ['Bash(node C:/k/scripts/kmd-seed.mjs check:*)', 'Bash(node "C:/k/scripts/kmd-seed.mjs" check:*)'])
 })
 
 test('H19 · 견주기 · --model-commit: edit-source 채널 몫 점수 · report --compare 표 · 커밋 들이기만 다른 모델', async () => {
