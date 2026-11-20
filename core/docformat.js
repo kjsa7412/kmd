@@ -143,8 +143,10 @@ export function deadLinks(text, { doc, old = null, has }) {
       const part = (at < 0 ? h : h.slice(0, at)).split('?')[0]
       const frag = at < 0 ? '' : safeDec(h.slice(at + 1)).normalize('NFC').trim()
       if (part && !/\.md$/i.test(part)) continue
-      const p = part ? path.posix.normalize(path.posix.join(path.posix.dirname(from), safeDec(part).normalize('NFC').replace(/\\/g, '/'))) : from
-      if (!p.startsWith('docs/')) continue
+      // 「/」 로 시작하면 지식 뿌리 기준(화면 linkTarget 과 같은 셈 · gate 검토) · 뿌리 밖(..)은 보지 않는다
+      const r0 = part ? String(safeDec(part) ?? '').normalize('NFC').replace(/\\/g, '/') : ''
+      const p = !part ? from : r0.startsWith('/') ? path.posix.normalize(r0.replace(/^\/+/, '')) : path.posix.normalize(path.posix.join(path.posix.dirname(from), r0))
+      if (p === '..' || p.startsWith('../') || p.startsWith('/') || !p.startsWith('docs/')) continue
       if (!has(p, frag || null)) out.push({ href: h, doc: p, heading: frag || null })
     }
     return seg

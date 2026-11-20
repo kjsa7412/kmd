@@ -87,7 +87,7 @@ export const INTAKE_SCHEMA = {
       },
     },
     newDoc: { type: ['object', 'null'], properties: { path: { type: 'string' }, sections: { type: 'array', items: { type: 'object', properties: { heading: { type: 'string' }, content: { type: 'string' } }, required: ['heading', 'content'] } } }, description: '이어지는 문서가 없을 때만: 경로(폴더/이름 · .md 없이)와 ## 항목들' },
-    names: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, kind: { type: 'string' } }, required: ['name'] }, description: '새로 세운 항목마다: name 은 그 항목의 머리 그대로 · kind 는 종류 한 낱말(이 항목은 무엇의 하나인가)' },
+    names: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, kind: { type: 'string' }, gist: { type: 'string' } }, required: ['name', 'gist'] }, description: '새로 세운 항목마다: name 은 그 항목의 머리 그대로 · kind 는 종류 한 낱말(이 항목은 무엇의 하나인가) · gist 는 그 항목이 무엇인가를 15 ~ 60자 한 문장으로(이름을 되풀이하지 않는다)' },
     why: { type: 'string' },
   },
   required: ['record', 'updates'],
@@ -118,7 +118,7 @@ export function intakePromptOf(g, { writeRules = '' } = {}) {
       '- 문서 이름은 파일 이름이 아니라 그 글의 갈래 · 주제로 짓는다. 날짜 · 번호 · 판 · 회사 약어 같은 파일 이름 조각은 문서 이름에 쓰지 않는다.',
       '- 같은 갈래의 문서가 후보에 있으면 새 문서를 세우지 않고 그 문서에 새 항목으로 넣는다. 항목 머리는 「언제 · 무엇」(예: 2026-10-21 HNC 통화).',
       formLine(g),
-      '- 새로 세운 항목마다 names 에 { name: 그 항목의 머리 그대로, kind: 종류 } 를 싣는다. 종류는 「이 항목은 무엇의 하나인가」 의 한 낱말이다(테이블 · 화면 · 모듈 · 회의 · 절차 · 용어 · 이슈 …): 아래 항목 종류에 같은 뜻이 있으면 그것을 쓴다. 열쇠와 장부 줄은 kmd 가 짓는다.',
+      '- 새로 세운 항목마다 names 에 { name: 그 항목의 머리 그대로, kind: 종류, gist: 뜻 한 줄 } 를 싣는다. 종류는 「이 항목은 무엇의 하나인가」 의 한 낱말이다(테이블 · 화면 · 모듈 · 회의 · 절차 · 용어 · 이슈 …): 아래 항목 종류에 같은 뜻이 있으면 그것을 쓴다. 뜻 한 줄은 그 항목이 무엇인가를 15 ~ 60자 한 문장으로 쓰고 이름을 되풀이하지 않는다(생성 룰 R5-3 · 예: { name: "2026-10-21 HNC 통화", kind: "회의", gist: "HNC 와 수집 주기 변경 일정을 맞춘 전화 회의" }). 회의록처럼 모으는 문서의 새 항목도 같다. 열쇠와 장부 줄은 kmd 가 짓는다.',
       ...(g.type === 'send' ? ['- 넣을 것은 개인 지식에서 보낸 글이다. 개인 문서의 꼴 · 말 · 머리를 그대로 옮기지 않고 이 지식의 작성기준과 후보 문서의 꼴에 맞춘다. 문서를 통째로 보냈으면 후보 항목과 견주어 달라진 것만 고친다(같은 내용이면 updates 를 비우고 why 에 까닭).'] : []),
       ...(commit ? ['- 커밋은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 문서와 상관없는 커밋이면 updates 를 비우고 why 에 까닭을 쓴다.'] : []),
       '- 파일을 통째로 옮기지 않는다. 대상의 지금으로 요약 · 정리해 쓴다. 인사말 · 말할 거리 · 빈 칸 양식 · 준비 체크 상태는 옮기지 않는다(기록에 남는다). 값을 담은 표 · 목록은 그 사실을 그대로 살린다.',
@@ -238,8 +238,11 @@ export function draftToSave(k, g, draft, { measure = false } = {}) {
   //   있는 머리는 그 머리에 닿는 장부 항목을 건드린 항목으로 단다. 짜임 머리(개요 · 변경 이력 …)는 짝을 세우지 않는다(H-O13)
   const sq = (x) => String(x || '').normalize('NFC').replace(/\s+/g, '').toLowerCase()
   const kindBy = new Map((Array.isArray(draft.names) ? draft.names : []).filter((n) => n && typeof n.name === 'string' && typeof n.kind === 'string' && n.kind.trim()).map((n) => [sq(bareHeading(n.name)), n.kind.trim()]))
+  //   뜻 한 줄(채널 평가 P3 · R5-3) — 초안이 적은 gist 를 그대로 장부 줄에 싣는다(없으면 저장 문이 gist 오류로 다시 짓게 한다)
+  const gistBy = new Map((Array.isArray(draft.names) ? draft.names : []).filter((n) => n && typeof n.name === 'string' && typeof n.gist === 'string' && n.gist.trim()).map((n) => [sq(bareHeading(n.name)), n.gist.trim()]))
+  const byHead = (m, h) => m.get(sq(h)) || m.get(sq(String(h).replace(/^[^:：]{1,60}[:：]\s+/, ''))) || m.get(sq(String(h).replace(/[:：][\s\S]*$/, ''))) || null
   const natureFor = (doc) => natureOfDoc(k.forms, doc).kind || '서술' // 성격이 적히지 않은 문서는 서술의 씨앗 종류(이름으로 짐작하지 않는다 · O-9)
-  const w = weave(k, { lines: sections.map((s) => ({ doc: s.doc, heading: s.heading, act: s.base == null ? 'new' : 'edit', kind: kindBy.get(sq(s.heading)) || kindBy.get(sq(String(s.heading).replace(/^[^:：]{1,60}[:：]\s+/, ''))) || kindBy.get(sq(String(s.heading).replace(/[:：][\s\S]*$/, ''))) || null, nature: natureFor(s.doc) })) })
+  const w = weave(k, { lines: sections.map((s) => ({ doc: s.doc, heading: s.heading, act: s.base == null ? 'new' : 'edit', kind: byHead(kindBy, s.heading), ...(byHead(gistBy, s.heading) ? { gist: byHead(gistBy, s.heading) } : {}), nature: natureFor(s.doc) })) })
   if (w.errors.length) return { ok: false, why: w.errors.slice(0, 3).map((e) => `${e.at}: ${e.why}`).join(' / ') }
   const names = w.names
   for (const f of w.fold) warn.push(`fold:${f.what}`)

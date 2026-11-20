@@ -100,6 +100,9 @@ before(async () => {
   // 채널 평가 P1 · P2 — 기록만 보내기 · held 를 볼 받는 팀 지식
   mkKnowledge(path.join(tmp, 'kn', 'apvh'), '## proc\n\n- `proc:순서`: 순서')
   fs.writeFileSync(path.join(tmp, 'kn', 'apvh', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n')
+  // 채널 평가 gate 검토 — 보내기가 새 머리를 세울 받는 팀 지식
+  mkKnowledge(path.join(tmp, 'kn', 'apvn'), '## proc\n\n- `proc:순서`: 순서')
+  fs.writeFileSync(path.join(tmp, 'kn', 'apvn', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
   fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sendTickMs: 3600000, inboxTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
@@ -267,6 +270,41 @@ test('보내기(채널 평가 P1 · P2 · P12): 기록만 보내기는 원천 �
   } finally {
     await pc.close()
     for (const [k, v] of [['KMD_SEND_KEY', env0.key], ['FAKE_CLAUDE_MODE', env0.mode], ['FAKE_CLAUDE_LOG', env0.log], ['FAKE_CLAUDE_MCP_LOG', env0.mcp]]) if (v === undefined) delete process.env[k]; else process.env[k] = v
+  }
+})
+
+// 채널 평가 gate 검토 — 보내기 초안이 받는 팀 문서에 새 머리를 세운다: weave 가 지은 장부 짝(names · 초안의 gist)을 같이 보내
+//   팀 저장 문의 짝 검사(pair)에 막히지 않는다 · 들어가면 받는 팀 항목 장부에 그 항목이 선다
+test('보내기(채널 평가 P4 · gate 검토): 새 머리는 장부 짝(names · gist)과 같이 보낸다 · 제안 오류 없음 · 장부에 선다', async () => {
+  await s.hub.setOwner(SHELL, 'apvn', { owner: 'kim' })
+  await ensureRecordsDoc(s, 'apvn')
+  const proot = path.join(tmp, 'pcp4')
+  mkKnowledge(path.join(proot, 'mine'), '')
+  fs.writeFileSync(path.join(proot, 'mine', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n\n## 야간 점검\n야간에는 경보 기록을 먼저 보고 통신 상태를 본다.\n')
+  const me = await signIn(s, { id: 'kim9', admin: true })
+  const env0 = { key: process.env.KMD_SEND_KEY, mode: process.env.FAKE_CLAUDE_MODE }
+  process.env.KMD_SEND_KEY = me.key
+  process.env.FAKE_CLAUDE_MODE = 'gist'
+  const pc = await startServer({ root: proot, mode: 'pc', user: 'kim9', port: 0, log: () => {}, scryptN: 1 << 15 })
+  fs.writeFileSync(path.join(proot, '.kmd', 'teams.json'), JSON.stringify([s.url]))
+  const ME = { user: pc.pcUser, admin: true, pc: true }
+  try {
+    await pc.hub.sendRoute(ME, 'mine', { to: 'apvn', url: s.url })
+    const pick = { to: 'apvn', docs: [{ path: 'docs/점검.md' }] }
+    const pv = await pc.hub.sendPreview(ME, 'mine', pick)
+    assert.equal(pv.approve, true, JSON.stringify(pv))
+    const pr = pv.proposals[0].propose
+    assert.deepEqual(pr.errors, [], JSON.stringify(pr.errors))
+    assert.ok(pr.items.some((x) => x.kind === '신설' && x.at.includes('야간 점검')), JSON.stringify(pr.items))
+    const r = await pc.hub.sendPicked(ME, 'mine', pick)
+    assert.deepEqual({ put: r.put, fail: r.fail }, { put: 1, fail: undefined }, JSON.stringify(r))
+    s.hub.forget?.('apvn')
+    const k = await s.hub.get('apvn')
+    assert.match(k.byDocPath.get('docs/점검.md').sections.find((x) => x.h === '야간 점검').body, /경보 기록/)
+    assert.match(fs.readFileSync(path.join(tmp, 'kn', 'apvn', '_vocab.md'), 'utf8'), /proc:야간/, '새 머리의 장부 짝이 섰다')
+  } finally {
+    await pc.close()
+    for (const [k, v] of [['KMD_SEND_KEY', env0.key], ['FAKE_CLAUDE_MODE', env0.mode]]) if (v === undefined) delete process.env[k]; else process.env[k] = v
   }
 })
 

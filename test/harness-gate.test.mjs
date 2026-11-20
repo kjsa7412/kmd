@@ -122,5 +122,9 @@ test('채널 평가 P3 · P4 · P5 · P11: 뜻 한 줄 · 장부 짝 · 근거 �
   const sp = linked('[결정](결정 기록.md#2026-11-10 전송 주기)')
   assert.deepEqual(sp.errors, [])
   assert.match(sp.items[0].after, /\[결정\]\(결정%20기록\.md#2026-11-10%20전송%20주기\)/)
+  // 「/」 로 시작하는 링크는 지식 뿌리 기준(화면 linkTarget 과 같은 셈 · gate 검토) · 뿌리 밖(..)은 보지 않는다
+  assert.deepEqual(linked('[결정](/docs/결정%20기록.md#2026-11-10 전송 주기)').errors, [])
+  assert.deepEqual(linked('[결정](/docs/없는기록.md)').errors.map((e) => e.code), ['link'])
+  assert.deepEqual(linked('[밖](../../밖.md)').errors, [])
   assert.deepEqual(linked('[자기](#수집기) · [바깥](https://example.invalid/a b.md) · `[코드](없음.md)`').errors, [])
 })

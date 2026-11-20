@@ -191,7 +191,7 @@ function answer() {
   //   커밋: 「바뀐 값: A → B」 의 A 가 든 후보 항목을 B 로(꼭 한 번이면 바꿀 곳 · 아니면 새 글) · 없으면 updates 비움
   //   파일: 파일의 ## 머리가 후보 항목과 같으면 그 항목을 파일 글로(새 글) · 나머지는 새 문서(경로 = 파일 이름)
   //   FAKE_CLAUDE_MODE=bad → 처음 답에 지어낸 값(999초) · badall → 고쳐 써도 · content → 커밋도 바꿀 곳 대신 새 글 · nosec → 새 문서에 항목 없음 ·
-  //   names → 새 항목을 장부에 올린다(term:<머리>) · outside → 후보 밖 문서를 고친다
+  //   names → 새 항목을 장부에 올린다(term:<머리>) · gist → 새 항목 + 뜻 한 줄(proc:<머리>) · outside → 후보 밖 문서를 고친다
   if (prompt.startsWith('넣을 것을 지식에 들인다')) {
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'intake\n')
     const FIXI = '\n\n지난 초안이 kmd 검사에 걸렸다'
@@ -251,6 +251,8 @@ function answer() {
     // 바뀐 것 — 넣은 항목의 머리를 한 줄씩(파일 이름의 숫자가 요약에 들어 「본문 반영」 에 걸리지 않게: 바뀐 것 칸이 있으면 그 칸의 값만 본다)
     out.record.changes = [...out.updates.map((u) => `고침: ${u.heading}`), ...(out.newDoc?.sections || []).map((s) => `새로: ${s.heading}`)]
     if (mode === 'names') out.names = rest.map((s) => ({ name: s.heading, kind: 'term' }))
+    // gist → 새 머리마다 장부 짝 + 뜻 한 줄(채널 평가 P3 · P4 · 보내기의 새 머리)
+    if (mode === 'gist') out.names = rest.map((s) => ({ name: s.heading, kind: 'proc', gist: `${s.heading} 때 무엇을 어떤 차례로 보는지 정한 절차` }))
     out.why = out.updates.length ? '같은 항목이 있다' : '이어지는 문서가 없다'
     return say({ structured_output: out })
   }

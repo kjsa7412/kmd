@@ -60,6 +60,13 @@ test('칸 쓰고 읽기: 넣은 것 · 되돌린 항목 · 떼기(json 칸은 �
   assert.deepEqual(parsePut(put2).map((x) => [x.heading, x.from, x.to]), [['점검', '', '정기 점검 09:00, 야간 점검 21:00'], ['값: 설명', '3', '']])
   assert.deepEqual(parsePut(`## 넣은 것\n- ${DOC} › 값: 설명: — → 3`).map((x) => [x.heading, x.from, x.to]), [['값: 설명', '', '3']])
   assert.deepEqual(rowsAdded('| 일 | 때 |\n|---|---|\n| 백업 | 02:00 |', '| 일 | 때 |\n|---|---|\n| 백업 | 02:00 |\n| 정기 점검 | 09:00 |\n| 야간 점검 | `21:00` |', '09:00, 21:00'), ['정기 점검 09:00', '야간 점검 21:00'])
+  // 표 행과 표 밖 값이 섞였다(gate 검토) — 행이 덮지 못한 값(재시도 3회의 3)도 「새로: 값」 으로 남는다
+  const mixOld = '수집 주기는 5초다.\n\n| 일 | 때 |\n|---|---|\n| 백업 | 02:00 |'
+  const mixNew = '수집 주기는 5초다. 재시도는 3회다.\n\n| 일 | 때 |\n|---|---|\n| 백업 | 02:00 |\n| 정기 점검 | 09:00 |'
+  const mixD = valueDiff(mixOld, mixNew)
+  const mixRows = rowsAdded(mixOld, mixNew, mixD.to)
+  assert.deepEqual(mixRows, ['정기 점검 09:00', '3'], JSON.stringify(mixD))
+  assert.equal(renderPut([{ doc: DOC, heading: '점검', ...mixD, rows: mixRows }]), `## 넣은 것\n- ${DOC} › 점검: 새로: 정기 점검 09:00 · 새로: 3`)
   // json 칸(받아들인 경고)은 울타리 끝까지 뗀다(울타리 안의 「## 」 줄에서 멈추지 않는다)
   const held = '## 받아들인 경고\n```json\n[{ "id": "x",\n## "why": "가짜" }]\n```'
   const rv = renderReverted([{ rec: '2026-1103-롤백', doc: DOC, heading: '롤백' }])

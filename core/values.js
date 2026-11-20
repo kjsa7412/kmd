@@ -152,15 +152,19 @@ export function rowsAdded(oldText, newText, to) {
   const had = new Set(String(oldText || '').split('\n').map((l) => l.trim()))
   const lines = String(newText || '').split('\n')
   const out = []
+  const got = new Set()
   lines.forEach((l, i) => {
     const t = l.trim()
     if (!/^\|.*\|$/.test(t) || had.has(t) || /^\|[\s:|-]+\|$/.test(t)) return
     if (lines[i + 1] && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1]) && /-/.test(lines[i + 1])) return // 표 머리 줄
     const cells = t.replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map((x) => x.trim().replace(/[`*]/g, ''))
     const vals = [...new Set(valueList(t))].filter((v) => want.has(v))
-    if (vals.length && cells[0]) out.push(`${cells[0]} ${vals.join(', ')}`)
+    if (vals.length && cells[0]) { out.push(`${cells[0]} ${vals.join(', ')}`); vals.forEach((v) => got.add(v)) }
   })
-  return out.slice(0, DIFF_MAX)
+  if (!out.length) return []
+  // 표 행이 덮지 못한 새 값(표 밖 문장 · 첫 칸이 빈 행)은 그 값 그대로 한 줄 더한다 — 행만 적어 값이 빠지지 않게(gate 검토)
+  const rest = [...want].filter((v) => !got.has(v))
+  return [...out.slice(0, DIFF_MAX), ...(rest.length ? [rest.join(', ')] : [])]
 }
 
 // 지식에 있는 말 — 그 문서의 항목 머리(「값: 설명」 이면 값도) · 항목 장부의 항목(종류:값) · 라벨 · 별칭(값과 같이 빈칸을 뺀다)

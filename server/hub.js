@@ -465,7 +465,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       docIds: new Set(docsOf.map((x) => docRel(x.doc))),
       touches: [...touches],
       g: { type: 'send', src: { type: 'send', title: it.title, md: it.body, from }, docs, forms: Array.isArray(b.forms) ? b.forms : [], formsOwn, kinds: Array.isArray(b.kinds) ? b.kinds : [] },
-      // draftToSave 가 보는 지식 — 후보 항목의 지금 글 전체(값 근거) · 항목 장부는 받는 쪽이 본다(보내기는 장부에 항목을 세우지 않는다)
+      // draftToSave 가 보는 지식 — 후보 항목의 지금 글 전체(값 근거) · 항목 장부는 받는 쪽이 본다(새 머리의 장부 짝은 weave 가 지어 names 로 같이 보내고 받는 팀의 저장 문이 판정한다)
       k: { byDocPath, vocab: { coords: new Set() } },
       // 초안 세션이 읽는 받는 팀 지식(채널 평가 P2) — 팀 서버가 내준 읽기 열쇠(그 지식 하나 · 읽기만 · 20분)로만 붙는다.
       //   열쇠를 받지 못하면(옛 팀 서버 · 닿지 않음) 세션은 MCP 없이 재료만으로 짓는다: 기기 열쇠는 넘기지 않는다
@@ -539,7 +539,17 @@ ${genRulesBlock({ profile: 'shape' })}`
     const record = draft
       ? { title: draft.input.record.title, body: draft.input.record.body }
       : { title: String(it.title || '보낸 글').slice(0, 200), body: [`${from || '개인 지식'} 에서 보낸 글이다. 항목 글은 고치지 않았다.`, intakeSrcPart({ type: 'send', from: from || '개인 지식' }, it.body, why)].join('\n\n') }
-    return { record: { ...record, ...(m.touches.length ? { touches: m.touches } : { touchesEmpty: '개인 지식에서 보낸 글: 받는 지식의 항목 장부에서 맞는 항목을 찾지 못했다' }) }, sections: draft ? draft.input.sections : [] }
+    //   새 머리의 장부 짝(names · weave 가 지은 것 · 뜻 한 줄은 초안의 gist)도 같이 싣는다 — 받는 팀의 저장 문이 짝 없는 새 머리를 pair 오류로 막는다(채널 평가 P4)
+    const names = draft && Array.isArray(draft.input.names) && draft.input.names.length ? draft.input.names : null
+    return { record: { ...record, ...(m.touches.length ? { touches: m.touches } : { touchesEmpty: '개인 지식에서 보낸 글: 받는 지식의 항목 장부에서 맞는 항목을 찾지 못했다' }) }, sections: draft ? draft.input.sections : [], ...(names ? { names } : {}) }
+  }
+  // 창에서 뺀 넣을 곳이 있으면 그 머리의 장부 짝도 뺀다(남긴 머리를 가리키는 names 만 · 자리가 없는 이름은 남긴다)
+  const namesLeft = (names, sections) => {
+    if (!Array.isArray(names) || !names.length) return null
+    const key = (doc, h) => `${String(doc || '').replace(/^docs\//, '').replace(/\.md$/, '')}\n${String(h || '').trim()}`
+    const at = new Set(sections.map((s) => key(s.doc, s.heading)))
+    const left = names.filter((n) => !(n.doc && n.heading) || at.has(key(n.doc, n.heading)))
+    return left.length ? left : null
   }
   // 받는 팀의 propose(기기 열쇠 · 쓰지 않는다) — 보낸 지문(sent/)은 save 때만 단다(propose 는 받지 않는다)
   const sendPropose = (d, key, input) => sendLib.post(d.url, d.kn, input, key, { path: 'propose', timeoutMs: 60_000 })
@@ -569,7 +579,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     const key = await sendKeyOf(d.url)
     if (approved) {
       // 뺀 것이 있는 보내기는 다른 보낸 지문(tag) — 뒤에 남은 항목을 보내도 「이미 넣음」 이 되지 않게
-      const input = { record: { ...approved.record, tags: [`sent/${approved.tag || it.sha}`] }, sections: approved.sections, ...(approved.excluded?.length ? { excluded: approved.excluded } : {}), proposal: approved.proposal, kit: sendLib.SEND_REV, channel: 'send' }
+      const input = { record: { ...approved.record, tags: [`sent/${approved.tag || it.sha}`] }, sections: approved.sections, ...(approved.names?.length ? { names: approved.names } : {}), ...(approved.excluded?.length ? { excluded: approved.excluded } : {}), proposal: approved.proposal, kit: sendLib.SEND_REV, channel: 'send' }
       let r
       try {
         r = await sendLib.post(d.url, d.kn, input, key, { path: 'save', timeoutMs: 120_000 })
@@ -6444,11 +6454,12 @@ ${genRulesBlock({ profile: 'shape' })}`
             if (c.errors.length) { failRow(`저장 제안에 오류가 있다: ${c.errors[0].why}`); continue }
             const out = new Set(ex[it.sha] || [])
             const ats = c.items.map((x) => x.at)
-            let approved = { record: c.input.record, sections: c.input.sections, proposal: c.proposal }
+            let approved = { record: c.input.record, sections: c.input.sections, ...(c.input.names?.length ? { names: c.input.names } : {}), proposal: c.proposal }
             if ([...out].some((a) => ats.includes(a))) {
               keep(it)
               if (ats.every((a) => out.has(a))) { res.skipped++; continue }
               const sections = c.input.sections.filter((s) => !out.has(atOfSection(c.items, s)))
+              const names = namesLeft(c.input.names, sections)
               // 뺀 「잇기」 — 그 항목을 기록의 건드린 항목에서 뺀다(이을 항목이 남지 않으면 기록 모음 달 항목)
               const drop = new Set(c.items.filter((x) => x.kind === '잇기' && x.coord && out.has(x.at)).map((x) => x.coord))
               const { touches: t0, touchesEmpty: _e, ...r0 } = c.input.record
@@ -6459,7 +6470,7 @@ ${genRulesBlock({ profile: 'shape' })}`
               const excl = [...out].filter((a) => ats.includes(a)).map((a) => ({ name: a.slice(0, 200), why: '보내기 창에서 뺌' }))
               let p
               try {
-                p = await sendPropose(dest, key, { record, sections, excluded: excl })
+                p = await sendPropose(dest, key, { record, sections, ...(names ? { names } : {}), excluded: excl })
               } catch (e) {
                 const w = waitOf(dest, payload, e)
                 res.waits.push(w)
@@ -6472,7 +6483,7 @@ ${genRulesBlock({ profile: 'shape' })}`
               const left = new Set(ats.filter((a) => !out.has(a)))
               const seen = new Set(c.warnIds || [])
               if ((p.items || []).some((x) => !left.has(x.at)) || (p.warnings || []).some((w) => !seen.has(w.id))) { failRow('뺀 뒤 저장 제안이 창에서 본 것과 다르다: 보내기 확인 창에서 다시 본다'); continue }
-              approved = { record, sections, excluded: excl, proposal: p.proposal, tag: sha16(`${it.sha}\n${[...left].sort().join('\n')}`) }
+              approved = { record, sections, ...(names ? { names } : {}), excluded: excl, proposal: p.proposal, tag: sha16(`${it.sha}\n${[...left].sort().join('\n')}`) }
             }
             payload.approved = { [it.sha]: approved }
           }
