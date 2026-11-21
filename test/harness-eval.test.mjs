@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadKnowledge } from '../core/knowledge.js'
 import { scoreKnowledge, gateOf, itemsOf, factText, natureOf } from '../scripts/harness-eval.mjs'
-import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf, launchOf, meterStatsOf, probeLoad, LOAD_NODE_MS } from '../scripts/channel-eval.mjs'
+import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf, launchOf, meterStatsOf, probeLoad, LOAD_NODE_MS, refitMeterRows, mcpSliceOf } from '../scripts/channel-eval.mjs'
 
 const FIX = path.resolve('test/fixture/harness/빈지식')
 const gold = JSON.parse(fs.readFileSync(path.join(FIX, 'gold.json'), 'utf8'))
@@ -397,4 +397,45 @@ test('T13: 띄움 · 비 API · 계측 통째 · 견주기의 API 밖 줄 · 부
   assert.equal(typeof p.nodeMs, 'number')
   assert.equal(typeof p.load, 'boolean')
   assert.ok(p.busy == null || (p.busy >= 0 && p.busy <= 100))
+})
+
+// loop 검토: 옛 꼴 meter(apiMs 만 · procMs · nonApiMs 없음)인 행도 계측 파일 줄로 감싸개 안을 다시 달아 「감싸개 밖」 을 같은 규칙으로 센다
+test('T13 감싸개 밖: 옛 꼴 meter 행은 refitMeterRows 로 procMs 를 다시 달고 compareOf 가 숫자를 낸다 · 맞지 않는 줄은 달지 않는다', () => {
+  const lines = [
+    { run: 'a', ms: 9_000, dur: 8_500, api: 6_000, turns: 2 },
+    { run: 'b', ms: 4_000, dur: 3_800, api: 3_000, turns: 1 }, { run: 'b', ms: 5_000, dur: 4_800, api: 3_500, turns: 1 },
+  ]
+  const ch = (rows) => ({ total: totalsOf(rows), rows })
+  const old = () => ({ tag: 'old', channels: {
+    a: ch([{ ms: 10_000, cost: 0, meter: { procs: 1, results: 1, apiMs: 6_000, turns: 2 } }, { ms: 500, cost: 0, base: true }]),
+    b: ch([{ ms: 7_000, cost: 0, meter: { procs: 1, results: 2, apiMs: 3_500, turns: 2 } }]),
+  } })
+  const A = old()
+  assert.deepEqual(refitMeterRows(A, lines), { fitted: 2, missed: 0, lines: 3, used: 3 })
+  assert.equal(A.channels.a.rows[0].meter.procMs, 9_000)
+  assert.equal(A.channels.a.rows[0].meter.nonApiMs, 3_000)
+  assert.equal(A.channels.b.rows[0].meter.procMs, 5_000, '한 프로세스의 마지막 줄')
+  assert.equal(A.channels.b.rows[0].meter.procFrom, 'meterFile')
+  // 새 꼴(procMs 있음) 쪽과 견주면 양쪽 다 숫자다
+  const B = { tag: 'new', channels: { a: ch([{ ms: 12_000, cost: 0, meter: { apiMs: 6_000, procMs: 9_000 } }]), b: ch([{ ms: 8_000, cost: 0, meter: { apiMs: 3_000, procMs: 6_000 } }]) } }
+  const c = compareOf(A, B)
+  assert.deepEqual(c.total.wrapOut.out, [3, 5])
+  assert.ok(c.md.some((l) => /감싸개 밖\(행 ms - 감싸개 안 ms[^)]*\) 3 → 5초/.test(l)))
+  // 줄이 행과 맞지 않으면(apiMs 다름) 달지 않고 그 채널은 양쪽에서 빠진다
+  const A2 = old()
+  A2.channels.b.rows[0].meter.apiMs = 1
+  assert.deepEqual(refitMeterRows(A2, lines), { fitted: 1, missed: 1, lines: 3, used: 3 })
+  assert.equal(A2.channels.b.rows[0].meter.procMs, undefined)
+  assert.deepEqual(compareOf(A2, B).total.wrapOut.out, [1, 3])
+  // 아무 것도 다시 달지 않은 옛 꼴은 「-」
+  assert.deepEqual(compareOf(old(), B).total.wrapOut.out, [null, null])
+})
+
+test('T13 MCP 부름 줄: 행 도중 calls.jsonl 이 .1 로 돌면 .1 의 꼬리를 잇고 · 못 가르면 rotated partial', () => {
+  const L = (at) => ({ at, tool: 'save', ms: 10 })
+  assert.deepEqual(mcpSliceOf({ n: 1, head: 't1' }, [L('t1'), L('t2')], () => { throw new Error('읽지 않는다') }), { lines: [L('t2')], rotated: null })
+  assert.deepEqual(mcpSliceOf({ n: 0, head: null }, [L('t1')]), { lines: [L('t1')], rotated: null })
+  assert.deepEqual(mcpSliceOf({ n: 2, head: 't1' }, [L('t4')], () => [L('t1'), L('t2'), L('t3')]), { lines: [L('t3'), L('t4')], rotated: 'joined' })
+  assert.deepEqual(mcpSliceOf({ n: 2, head: 't1' }, [L('t9')], () => [L('t5')]), { lines: [L('t9')], rotated: 'partial' })
+  assert.deepEqual(mcpSliceOf(null, [L('t1')]), { lines: [], rotated: null })
 })

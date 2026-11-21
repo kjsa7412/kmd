@@ -518,6 +518,31 @@ export function launchOf(lasts = []) {
   const withApi = lasts.filter((l) => typeof l.ms === 'number' && (typeof l.api === 'number' || l.noResult))
   return { launchMs: sum(withDur.map((l) => Math.max(0, l.ms - l.dur))), launchProcs: withDur.length, nonApiMs: sum(withApi.map((l) => Math.max(0, l.ms - (l.noResult ? 0 : l.api)))) }
 }
+// 옛 결과의 행 meter 에 감싸개 안 시간(procMs) · 프로세스 밖(launchOf)을 다시 단다(T13 · report --compare · 같은 규칙으로 양쪽):
+//   measure 는 행마다 계측 파일을 이어 잘라 읽었다(slice(m0)) · 그래서 행 순서(채널 순 · rows 순)로 meter.results 줄씩 차례로 가른다.
+//   가른 줄의 마지막 result 들이 행의 apiMs · turns 와 맞을 때만 단다(procFrom: 'meterFile') · 어긋나면 그 행은 그대로(감싸개 밖 「-」)
+export function refitMeterRows(J, lines = []) {
+  let at = 0
+  let fitted = 0
+  let missed = 0
+  for (const c of Object.values(J?.channels || {})) {
+    for (const r of c.rows || []) {
+      const m = r.meter
+      if (!m || !m.results) continue
+      const part = lines.slice(at, at + m.results)
+      at += m.results
+      if (m.procMs != null) continue
+      const runs = new Map()
+      for (const l of part) runs.set(l.run, l)
+      const lasts = [...runs.values()]
+      const ok = part.length === m.results && runs.size === m.procs && sum(lasts.map((l) => l.api)) === (m.apiMs || 0) && sum(part.map((l) => l.turns)) === (m.turns || 0)
+      if (!ok) { missed++; continue }
+      Object.assign(m, { ...(m.nonApiMs == null ? launchOf(lasts) : {}), procMs: sum(lasts.map((l) => l.ms)), procFrom: 'meterFile' })
+      fitted++
+    }
+  }
+  return { fitted, missed, lines: lines.length, used: at }
+}
 // 계측 파일 통째(T13 · 「내 셈」 과 같은 셈): 모든 kind 의 프로세스: 프로세스당 띄움(ms - dur) · dur - api · 비 API 합 · API 합 · init 중앙값 · 끊긴 수.
 //   real-1 처럼 diag 가 없는 옛 계측도 ms · dur · api 로 견준다(init 칸의 대리값)
 export function meterStatsOf(lines = []) {
@@ -577,13 +602,24 @@ export function totalsOf(rs = []) {
     tokens: rs.some((r) => r.tokens) ? Object.fromEntries(['input', 'output', 'cacheRead', 'cacheWrite'].map((k) => [k, sum(rs.map((r) => r.tokens?.[k]))])) : null,
   }
 }
+// 이 행의 MCP 부름 줄(T13): 앞에 센 줄 수(n) · 첫 줄 시각(head) 뒤의 줄. hub.mcpLog 는 5MB 를 넘으면 calls.jsonl 을 .1 로 돌린다:
+//   첫 줄 시각이 바뀌었거나 줄 수가 줄었으면 돌림이 있었다 · .1 의 첫 줄이 앞 head 와 같으면 .1 의 꼬리(n 뒤) + 새 파일 전체(rotated: 'joined') ·
+//   아니면(행 도중 두 번 넘게 돌았다) 다 가르지 못한다(rotated: 'partial' · 새 파일 전체만)
+export function mcpSliceOf(before, cur = [], readPrev = () => []) {
+  if (!before) return { lines: [], rotated: null }
+  const same = (cur[0]?.at ?? null) === before.head && cur.length >= before.n
+  if (same || (before.n === 0 && before.head == null)) return { lines: cur.slice(before.n), rotated: null }
+  const prev = readPrev() || []
+  if ((prev[0]?.at ?? null) === before.head && prev.length >= before.n) return { lines: [...prev.slice(before.n), ...cur], rotated: 'joined' }
+  return { lines: cur, rotated: 'partial' }
+}
 //   fn(row) 이 돌려준 칸을 row 에 얹고 · 앞뒤 savelog · 계측 줄 · 지식 수를 끊어 읽는다
 async function measure(E, t, meta, fn) {
   const slFile = t?.savelogFile ? t.savelogFile() : null
   const sl0 = slFile ? readJsonl(slFile).length : 0
   // MCP 부름 측정 줄(T13 · server/hub.js mcpLog): savelog 옆 <data>/mcplog/calls.jsonl · 도구 이름 · ms 만
   const mlFile = slFile ? path.join(path.dirname(path.dirname(slFile)), 'mcplog', 'calls.jsonl') : null
-  const ml0 = mlFile ? readJsonl(mlFile).length : 0
+  const mlB = mlFile ? (() => { const ls = readJsonl(mlFile); return { n: ls.length, head: ls[0]?.at ?? null } })() : null
   const m0 = readJsonl(E.meterFile).length
   const dir = meta.dir || t?.dir
   const kid = meta.kid || t?.kn || KN
@@ -618,11 +654,12 @@ async function measure(E, t, meta, fn) {
     rounds: Math.max(0, ...saves.map((l) => Number(l.rounds) || 0)), fail: saves.map((l) => l.fail).filter(Boolean), dup: saves.filter((l) => l.dup).length,
     ms: sum(saves.map((l) => l.ms)), cost: r4(sum([...saves, ...costLines].map((l) => l.cost?.usd))), kit: [...new Set(saves.map((l) => l.kit).filter((x) => x != null))],
   }
-  const mls = mlFile ? readJsonl(mlFile).slice(ml0) : []
-  if (mls.length) {
+  const mlc = mlFile ? mcpSliceOf(mlB, readJsonl(mlFile), () => readJsonl(mlFile + '.1')) : { lines: [], rotated: null }
+  const mls = mlc.lines
+  if (mls.length || mlc.rotated) {
     const by = {}
     for (const l of mls) { const b = (by[l.tool] ||= { n: 0, ms: 0 }); b.n++; b.ms += Number(l.ms) || 0 }
-    row.mcp = { calls: mls.length, ms: sum(mls.map((l) => Number(l.ms) || 0)), errs: mls.filter((l) => l.err).length, by }
+    row.mcp = { calls: mls.length, ms: sum(mls.map((l) => Number(l.ms) || 0)), errs: mls.filter((l) => l.err).length, by, ...(mlc.rotated ? { rotated: mlc.rotated } : {}) }
   }
   row.warned = row.savelog.warned.length
   row.accepted = row.savelog.accepted
@@ -1890,7 +1927,7 @@ export function compareOf(A, B) {
     for (const [k, label] of [['procs', '프로세스'], ['cut', '끊긴 프로세스(result 없음)'], ['launchPer', '프로세스당 띄움 ms - dur(초)'], ['durApiPer', '프로세스당 dur - api(초)'], ['nonApiSec', '비 API 합 ms - api(초)'], ['apiSec', 'API 합(초)'], ['initMed', 'init 중앙값(ms)'], ['wrapMed', '감싸개 몫 중앙값(ms · 시험 도구)'], ['rowSec', '모든 행 ms 합(바탕 포함 · 초)'], ['procSec', '감싸개 안 합(모든 프로세스 ms · 초)'], ['outSec', '감싸개 밖(행 합 - 감싸개 안 · 초 · 회계 몫)'], ['toolSec', '시험 도구 몫 합(초 · preMs 웃값 · 없으면 wrapMs)']]) md.push(`| ${label} | ${v(ms[0], k)}${k === 'toolSec' && ms[0]?.toolBy ? ` (${ms[0].toolBy})` : ''} | ${v(ms[1], k)}${k === 'toolSec' && ms[1]?.toolBy ? ` (${ms[1].toolBy})` : ''} |`)
     md.push('')
   }
-  // 감싸개 밖 시간 · 시험 도구 몫 · MCP 서버 몫(T13): 같은 규칙으로 양쪽을 센다(행 ms - 감싸개 안 ms · 옛 결과는 apiMs + nonApiMs 로 감싸개 안을 다시 센다).
+  // 감싸개 밖 시간 · 시험 도구 몫 · MCP 서버 몫(T13): 같은 규칙으로 양쪽을 센다(행 ms - 감싸개 안 ms · 옛 결과(procMs 없음)는 report 가 계측 파일 줄에서 refitMeterRows 로 procMs 를 다시 단다 · 못 단 행이 있는 채널은 「-」).
   //   회계 몫이다: 채널 몫 합(목표 판정)에서 빼지 않는다 · 제품 시간 줄임이 아니다
   const wrapOut = (c) => {
     const rs = (c?.rows || []).filter((r) => !r.base && r.ran !== false && r.meter)
@@ -1900,10 +1937,11 @@ export function compareOf(A, B) {
     return { row: sum(rs.map((r) => r.ms || 0)) / 1000, out: proc.every((x) => x != null) && rs.length ? sum(rs.map((r, i) => Math.max(0, (r.ms || 0) - proc[i]))) / 1000 : null, pre: rs.some((r) => r.meter.preMs != null) ? sum(rs.map((r) => r.meter.preMs || 0)) / 1000 : null, mcp: rs.some((r) => r.mcp) ? sum(rs.map((r) => r.mcp?.ms || 0)) / 1000 : null, tools }
   }
   const wo = both.map((r) => ({ name: r.name, a: wrapOut(A.channels[r.name]), b: wrapOut(B.channels[r.name]) }))
-  const woSum = (k, i) => { const v = wo.map((x) => x[i][k]).filter((x) => x != null); return v.length ? Math.round(sum(v)) : null }
+  //   감싸개 밖은 양쪽 다 셀 수 있는 채널만 더한다(한쪽만 「-」 인 채널은 양쪽에서 뺀다 · 같은 채널 집합)
+  const woSum = (k, i) => { const v = wo.filter((x) => k !== 'out' || (x.a.out != null && x.b.out != null)).map((x) => x[i][k]).filter((x) => x != null); return v.length ? Math.round(sum(v)) : null }
   total.wrapOut = Object.fromEntries(['row', 'out', 'pre', 'mcp'].map((k) => [k, [woSum(k, 'a'), woSum(k, 'b')]]))
   const ar = (p) => `${p[0] ?? '-'} → ${p[1] ?? '-'}`
-  md.push('### 감싸개 밖 · 시험 도구 몫 · MCP 서버 몫(T13 · 같은 규칙으로 양쪽)', '', `채널 몫(계측 줄이 있는 행) ${ar(total.wrapOut.row)}초 · 감싸개 밖(행 ms - 감싸개 안 ms: 서버 저장 · 일 줄 · 시험 도구) ${ar(total.wrapOut.out)}초 · 시험 도구 몫(preMs 웃값) ${ar(total.wrapOut.pre)}초 · kmd MCP 서버 처리 ${ar(total.wrapOut.mcp)}초 · 모두 회계 몫이다: 채널 몫 합(목표 판정)에서 빼지 않는다 · 제품 시간 줄임이 아니다(- 는 옛 계측에 없다)`, '')
+  md.push('### 감싸개 밖 · 시험 도구 몫 · MCP 서버 몫(T13 · 같은 규칙으로 양쪽)', '', `채널 몫(계측 줄이 있는 행) ${ar(total.wrapOut.row)}초 · 감싸개 밖(행 ms - 감싸개 안 ms: 서버 저장 · 일 줄 · 시험 도구) ${ar(total.wrapOut.out)}초 · 시험 도구 몫(preMs 웃값) ${ar(total.wrapOut.pre)}초 · kmd MCP 서버 처리 ${ar(total.wrapOut.mcp)}초 · 모두 회계 몫이다: 채널 몫 합(목표 판정)에서 빼지 않는다 · 제품 시간 줄임이 아니다(- 는 옛 계측에 없다) · 계측 파일로 다시 단 행 ${A.refit?.fitted ?? 0}/${(A.refit?.fitted ?? 0) + (A.refit?.missed ?? 0)} → ${B.refit?.fitted ?? 0}/${(B.refit?.fitted ?? 0) + (B.refit?.missed ?? 0)}(바탕 행 · 계측 줄 없는 행은 이 절에 들지 않는다 · 판 전체 바탕 포함 값은 위 계측 통째 표)`, '')
   const tb = {}
   for (const x of wo) for (const [k, v] of Object.entries(x.b.tools)) { const b = (tb[k] ||= { ms: 0, n: 0 }); b.ms += v.ms; b.n += v.n }
   if (Object.keys(tb).length) {
@@ -1932,7 +1970,10 @@ async function report() {
     // 계측 통째(T13): 결과가 가리키는 계측 파일(meters)이 남아 있으면 모든 프로세스의 띄움 · 비 API 를 같은 셈으로
     for (const J of [A, B]) {
       const ms = [...new Set([...(J.meters || []), ...(J.meter ? [J.meter] : [])])].map((m) => path.resolve(ROOT, m)).filter((m) => fss.existsSync(m))
-      if (ms.length) J.meterStats = meterStatsOf(ms.flatMap((m) => readJsonl(m)))
+      const lines = ms.flatMap((m) => readJsonl(m))
+      if (ms.length) J.meterStats = meterStatsOf(lines)
+      // 옛 결과의 행에 감싸개 안(procMs) · 프로세스 밖을 계측 파일 줄에서 다시 단다(refitMeterRows · 「감싸개 밖」 절이 양쪽을 같은 규칙으로 센다)
+      if (ms.length) J.refit = refitMeterRows(J, lines)
       // 판 통째 감싸개 밖(T13 · 옛 결과에도 같은 규칙): 모든 행(바탕 포함) ms 합 - 감싸개 안 합 · 서버 저장 · 일 줄 · 시험 도구 · 행 사이 걸음이 든다
       if (J.meterStats) { const rowSec = Math.round(sum(Object.values(J.channels || {}).flatMap((c) => c.rows || []).map((r) => r.ms || 0)) / 1000); Object.assign(J.meterStats, { rowSec, outSec: rowSec - J.meterStats.procSec }) }
     }

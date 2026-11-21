@@ -364,7 +364,9 @@ export { SEED_RULES }
 // 하위 에이전트가 부르는 꼴(채널 평가 T10 ⑦ · real-4 · 4b 의 거절은 「cd <저장소> && node scripts/… check」 · 「ls … || mkdir …」 였다):
 //   스크립트는 절대 경로(앞으로 빗금 · 시험 허락 subAllow 와 같은 꼴) 한 줄 · cd · && · || · ls · mkdir 없음 · 폴더는 survey 가 만들어 두었다
 export const SEED_SCRIPT = fileURLToPath(new URL('../scripts/kmd-seed.mjs', import.meta.url)).split(path.sep).join('/')
-const checkCmd = (pack) => `node ${SEED_SCRIPT} check "${pack}"`
+//   빈칸이 든 경로(설치된 판 ~/.kmd-app/versions/<판> 이 「C:/Users/홍 길동/…」 같은 곳)면 스크립트 경로도 따옴표로 감싼다(subAllow 가 두 꼴을 다 허락한다)
+export const seedCheckCmd = (pack, script = SEED_SCRIPT) => `node ${/\s/.test(script) ? `"${script}"` : script} check "${pack}"`
+const checkCmd = (pack) => seedCheckCmd(pack)
 const CALL_LINE = '- 명령은 위 한 줄 그대로 부른다: cd · && · || · 파이프 · 2>&1 · ls · mkdir 을 쓰지 않는다. cards/ · texts/ · prompts/ 폴더는 이미 있다(파일은 Write 로 바로 쓴다).'
 
 const CARD_FORM = '{ "src": "m:<16자>", "path": "<원본 경로>", "topic": "<대상 이름>", "form": "대상|사건|대장|서술", "date": "YYYY-MM-DD|null", "names": ["종류:값"], "facts": ["확정 사실 한 줄(값 글자 그대로)"], "secret": false, "note": "애매한 것 한 줄" }'

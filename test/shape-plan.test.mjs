@@ -381,6 +381,8 @@ test('글 짓기 세션: 작은 재료는 첫 말에 싣고 크면 md/ 를 읽�
 test('SEED_WRITE_SCHEMA: 글 짓기 세션은 summary 필수 · 공유 SHAPE_WRITE_SCHEMA 는 그대로', () => {
   assert.deepEqual(SEED_WRITE_SCHEMA.required, ['items', 'why', 'summary'])
   assert.deepEqual(SHAPE_WRITE_SCHEMA.required, ['items', 'why'], '공유 스키마는 바뀌지 않는다')
-  assert.deepEqual(SEED_WRITE_SCHEMA.properties, SHAPE_WRITE_SCHEMA.properties)
+  assert.deepEqual(SEED_WRITE_SCHEMA.properties.summary, { type: 'string', minLength: 1 }, '빈 요약도 막는다')
+  assert.deepEqual(SHAPE_WRITE_SCHEMA.properties.summary, { type: 'string' }, '공유 스키마의 summary 는 그대로')
+  assert.deepEqual({ ...SEED_WRITE_SCHEMA.properties, summary: null }, { ...SHAPE_WRITE_SCHEMA.properties, summary: null })
   assert.match(fs.readFileSync(new URL('../server/hub.js', import.meta.url), 'utf8'), /claudeSession\(\{ cwd: dir, schema: SEED_WRITE_SCHEMA/)
 })

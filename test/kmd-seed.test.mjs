@@ -198,10 +198,13 @@ test('프롬프트 — 카드 · 구조안 · 글에 작성기준(좋은 예 · 
   assert.match(text, /배포 창/)
   assert.throws(() => promptOf(P, 'text', { doc: '없음' }), /구조안에 없는 문서/)
   // 부르는 꼴(채널 평가 T10 ⑦): check 는 스크립트 절대 경로 한 줄 · cd · ls · mkdir 없음 · 폴더는 이미 있다
-  const { SEED_SCRIPT } = await import('../core/survey.js')
+  const { SEED_SCRIPT, seedCheckCmd } = await import('../core/survey.js')
+  // 빈칸이 든 경로는 스크립트도 따옴표로 감싼다(시험 허락 subAllow 의 따옴표 꼴과 맞는다)
+  assert.equal(seedCheckCmd('C:/p/pack', 'C:/Users/홍 길동/.kmd-app/versions/1/scripts/kmd-seed.mjs'), 'node "C:/Users/홍 길동/.kmd-app/versions/1/scripts/kmd-seed.mjs" check "C:/p/pack"')
+  assert.equal(seedCheckCmd('C:/p/pack', 'C:/k/scripts/kmd-seed.mjs'), 'node C:/k/scripts/kmd-seed.mjs check "C:/p/pack"')
   assert.ok(path.isAbsolute(SEED_SCRIPT) && !SEED_SCRIPT.includes('\\'), '앞으로 빗금 절대 경로(시험 허락 subAllow 와 같은 꼴)')
   for (const p of [promptOf(P, 'plan'), text]) {
-    assert.ok(p.includes(`node ${SEED_SCRIPT} check "`), 'check 는 절대 경로 한 줄')
+    assert.ok(p.includes(seedCheckCmd(P.pack).split(' check ')[0] + ' check "'), 'check 는 절대 경로 한 줄')
     assert.ok(!/node scripts\/kmd-seed\.mjs/.test(p), '저장소 상대 경로(cd 를 부르게 하는 꼴)가 없다')
     assert.match(p, /cd · && · \|\| · 파이프 · 2>&1 · ls · mkdir 을 쓰지 않는다/)
   }
