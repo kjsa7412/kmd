@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url'
 import { loadKnowledge } from '../core/knowledge.js'
 import { RECORDS_DOC_PATH } from '../core/guard.js'
 import { itemsOf, scoreKnowledge, gateOf, freshKn, factText } from './harness-eval.mjs'
+import { pendingCutOf } from '../core/agent.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const FIX_DIR = path.join(ROOT, 'test/fixture/harness/빈지식')
@@ -194,6 +195,7 @@ let buf = ''
 // 진단(T3 · T9): 띄움 → init(kmd 연결 상태) · 뒤늦은 연결 · 첫 차례 캐시 · 첫 도구 · API 다시 시도 · 마지막 도구 결과 뒤 꼬리
 const D = { initMs: null, kmd: null, kmdAt: null, kmdUsed: false, firstTool: null, first: null, retries: 0, tools: 0 }
 let lastRes = null
+let gotResult = false
 const eat = (l) => {
   if (!l.startsWith('{')) return
   let j
@@ -208,6 +210,7 @@ const eat = (l) => {
   }
   if (j.type === 'user' && Array.isArray(j.message?.content) && j.message.content.some((c) => c.type === 'tool_result')) lastRes = Date.now()
   if (j.type !== 'result') return
+  gotResult = true
   const u = j.usage || null
   // modelUsage — 모델별 토큰 · 비용(보조 모델 · API 다시 시도로 다시 생성한 몫까지 · usage 는 마지막 응답 몫만 담을 때가 있다 · real-2b kmd-migrate 출력 1680 대 4673)
   const mu = j.modelUsage && typeof j.modelUsage === 'object' ? Object.fromEntries(Object.entries(j.modelUsage).map(([m, x]) => [m, { input: x.inputTokens || 0, output: x.outputTokens || 0, cacheRead: x.cacheReadInputTokens || 0, cacheWrite: x.cacheCreationInputTokens || 0, cost: x.costUSD ?? null }])) : null
@@ -216,7 +219,8 @@ const eat = (l) => {
 }
 p.stdout.on('data', (c) => { process.stdout.write(c); buf += c; let i; while ((i = buf.indexOf('\\n')) >= 0) { eat(buf.slice(0, i).trim()); buf = buf.slice(i + 1) } })
 p.on('error', (e) => { process.stderr.write(String(e.message)); process.exit(1) })
-p.on('close', (code) => { if (buf.trim()) eat(buf.trim()); pidLine('end'); process.exitCode = code ?? 1 })
+// result 없이 끝난 프로세스(init 에서 끊김 · pending 끊기 T9) — 진단만 한 줄(돈 0 · 차례 0)
+p.on('close', (code) => { if (buf.trim()) eat(buf.trim()); if (!gotResult && D.initMs != null) try { fs.appendFileSync(LOG, JSON.stringify({ kind: KIND, run: RUN, at: Date.now(), ms: Date.now() - t0, cost: 0, turns: 0, err: false, noResult: true, model: null, tokens: null, diag: { ...D, tailMs: null } }) + '\\n') } catch {} pidLine('end'); process.exitCode = code ?? 1 })
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGBREAK']) process.on(sig, () => { killTree(); process.exit(1) })
 `
 // end 줄이 없는 안쪽(끊긴 감싸개의 고아)을 나무째 끈다 — 채널마다 끝에(finally)
@@ -313,6 +317,12 @@ export default async function (o) {
   process.env.KMD_APP_HOME = path.join(home, '.kmd-app')
   process.env.KMD_NO_CLAUDE = '1'
   process.env.KMD_CLAUDE_AGENT = agentWrap
+  // pending 끊기(T9) — 감싸개를 걸면 core/agent.js 가 판을 모르므로 감싼 cli 의 판으로 정해 준다(가짜는 끔 · 사람이 준 값은 그대로)
+  if (process.env.KMD_MCP_PENDING_CUT == null) {
+    let ver = ''
+    if (cli) try { ver = execFileSync(process.execPath, [cli, '--version'], { encoding: 'utf8', timeout: 30_000, windowsHide: true }) } catch (e) { console.error('Claude Code 판을 읽지 못했다: ' + e.message) }
+    process.env.KMD_MCP_PENDING_CUT = !fake && pendingCutOf(ver) ? '1' : '0'
+  }
   process.env.KMD_CLAUDE = claudeWrap
   for (const k of ['FAKE_AGENT_SCRIPT', 'FAKE_AGENT_MODE', 'FAKE_CLAUDE_MODE', 'FAKE_AGENT_LOG', 'FAKE_CLAUDE_LOG', 'FAKE_AGENT_WAIT_MS', 'FAKE_CLAUDE_READ']) delete process.env[k]
   // 걸린 것을 먼저 확인한다(가짜 판에서 진짜를 부르지 않게)
@@ -472,7 +482,7 @@ export function meterRowOf(row = {}, ml = [], { selfCost = false } = {}) {
     }
     // 진단(T3 · T9 · 감싸개가 프로세스마다 마지막 result 줄에 싣는다) — kmd 를 붙였으나 한 번도 쓰지 않은 프로세스(kmdUnused · 세션 들이기에서는 다시 띄움의 까닭 · 스키마 부름은 안 쓸 수 있다) · API 다시 시도 · init 까지 · 뒤늦은 kmd 연결 · 첫 차례 캐시(C1) · 첫 도구 · 마지막 도구 결과 뒤 꼬리
     const dg = lasts.map((l) => l.diag).filter(Boolean)
-    if (dg.length) meter.diag = { kmdUnused: dg.filter((d) => d.kmd != null && !d.kmdUsed).length, retries: sum(dg.map((d) => d.retries)), initMs: dg.map((d) => d.initMs), kmd: dg.map((d) => d.kmd), kmdAt: dg.map((d) => d.kmdAt), firstTool: dg.map((d) => d.firstTool), firstCacheRead: dg.map((d) => d.first?.cacheRead ?? null), tailMs: dg.map((d) => d.tailMs) }
+    if (dg.length) meter.diag = { cut: lasts.filter((l) => l.noResult).length, kmdUnused: lasts.filter((l) => !l.noResult && l.diag && l.diag.kmd != null && !l.diag.kmdUsed).length, retries: sum(dg.map((d) => d.retries)), initMs: dg.map((d) => d.initMs), kmd: dg.map((d) => d.kmd), kmdAt: dg.map((d) => d.kmdAt), firstTool: dg.map((d) => d.firstTool), firstCacheRead: dg.map((d) => d.first?.cacheRead ?? null), tailMs: dg.map((d) => d.tailMs) }
     if (multi.length) meter.multiSample = multi.slice(0, 2).map((ls) => ls.map((l) => ({ cost: l.cost, turns: l.turns, tokens: l.tokens })))
     Object.assign(out, { meter, cost: meter.cost, calls: meter.procs, turns: meter.turns, tokens: meter.tokens, models: meter.models })
     if (out.serverCost != null && Math.abs(meter.cost - out.serverCost) > 0.001) out.costGap = r4(meter.cost - out.serverCost)
@@ -1612,6 +1622,8 @@ async function run() {
     head, meter: path.relative(ROOT, E.meterFile), meters: [...new Set([...(prev?.meters || []), path.relative(ROOT, E.meterFile)])], maxUsd: fake ? null : maxUsd, loops: E.loops,
     // 셈 규칙(RULES · 견주기가 양쪽을 대 본다) — 토큰 · 차례(H17) · 건 수(H10 · H4) · 들어감 판정(H1) · 채점(H11 ~ H13 · gold.json 판)
     tokensRule: RULES.tokens, rowRule: RULES.rows, putRule: RULES.put, scoreRule: scoreRuleOf(await goldRev()),
+    // pending 끊기(T9 · core/agent.js pendingCut) — 1 이면 init 에 kmd 가 pending 인 프로세스를 곧바로 끊고 다시 띄운 판
+    pendingCut: process.env.KMD_MCP_PENDING_CUT === '1',
     channels: { ...(prev?.channels || {}) },
   }
   const save = () => fs.writeFile(outFile, JSON.stringify(result, null, 1) + '\n')

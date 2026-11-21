@@ -3,7 +3,7 @@
 // `claude -p --output-format stream-json` 한 번:
 //   도구      내장은 Read · Glob · Grep 만(일 폴더 안 원본 · 바꾼 글을 읽는다) · MCP 는 kmd 하나(그 지식 · 그 일감의 단기 열쇠)
 //   허락      --permission-mode dontAsk + --allowedTools mcp__kmd — 읽기는 일 폴더 안만(기본) · 그 밖은 묻지 않고 거절(쓰기 · 셸 · 웹 없음)
-//   연결      init 에 kmd 가 connected 가 아니면 끊고 다시 띄운다(세 번까지 — 도구 없이 헤매지 않게)
+//   연결      init 에 kmd 가 connected 가 아니면 끊고 다시 띄운다(세 번까지 — 도구 없이 헤매지 않게) · pending 은 판에 따라(pendingCut)
 //   일 순서   --append-system-prompt-file 에 스킬(agent/skills/kmd-build) · 일 설명은 표준 입력
 //   캐시      system 글(생성 룰 · 스킬 · 작성 가이드)은 일감마다 글자까지 같고 바뀌는 것(일 설명 · 원천)은 표준 입력으로만 간다(C1).
 //             Claude Code 는 system 글 머리(환경 칸)에 일 폴더 경로를 싣는다: 일 폴더도 고정 이름 자리(kmd-agent-w0 ~ w7)를 잡아 써서
@@ -12,7 +12,7 @@
 // 환경변수는 허용 목록만(claude.js 와 같다). 시험은 KMD_CLAUDE_AGENT 에 가짜(node 스크립트)를 준다 —
 // KMD_CLAUDE(한 번 부르기 가짜)만 있으면 에이전트는 없는 것으로 본다(시험이 세션 길을 막을 때).
 
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -37,6 +37,34 @@ export function agentWorkDir({ staleMs = 3 * 3600_000 } = {}) {
     }
   }
   return fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-agent-'))
+}
+
+// pending 끊기(채널 평가 T9) — Claude Code 2.1.92 의 -p 는 MCP 붙기를 5초만 기다리고(고정 · 그 뒤 「proceeding」),
+//   init 에 pending 인 서버의 도구는 그 세션 안에 끝내 붙지 않는다(real-4: pending 5 프로세스 모두 kmd 를 한 번도 못 씀 · 850초 · $1.12 ·
+//   init 까지 24초 넘게 걸린 바쁜 때만 생김 · 시험 MCP 서버를 6.5초 늦게 답하게 해 35초 세션에서도 끝내 안 붙음을 확인).
+//   그런 판은 init 에서 곧바로 끊고 다시 띄운다(돈 0 · 띄움 시간만). 새 판(2.1.19x · 188)은 뒤에서 붙으므로 끝까지 둔다(2026-11-17).
+//   KMD_MCP_PENDING_CUT=1|0 이 판 판정을 덮는다 · 가짜 에이전트(KMD_CLAUDE_AGENT)는 판을 모르므로 끄는 쪽(시험 · 채널 평가가 정해 준다)
+export const PENDING_CUT_BELOW = [2, 1, 190]
+export function pendingCutOf(ver) {
+  const m = /(\d+)\.(\d+)\.(\d+)/.exec(String(ver || ''))
+  if (!m) return false
+  const v = m.slice(1).map(Number)
+  for (let i = 0; i < 3; i++) if (v[i] !== PENDING_CUT_BELOW[i]) return v[i] < PENDING_CUT_BELOW[i]
+  return false
+}
+let ccVer
+function claudeVersion() {
+  if (ccVer !== undefined) return ccVer
+  const win = process.platform === 'win32'
+  try { ccVer = String(spawnSync(win ? 'claude.cmd' : 'claude', ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true, shell: win }).stdout || '') } catch { ccVer = '' }
+  return ccVer
+}
+export function pendingCut(env = process.env) {
+  const v = env.KMD_MCP_PENDING_CUT
+  if (v === '1') return true
+  if (v === '0') return false
+  if (env.KMD_CLAUDE_AGENT) return false
+  return pendingCutOf(claudeVersion())
 }
 
 export function agentAvailable() {
@@ -102,9 +130,10 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
     const quoted = opt.shell ? argv.map((a) => (a === '' ? '""' : /[\s"{}&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : argv
     line('sys', `Claude Code 를 띄운다. 도구 ${tools.join(' · ')}${mcp ? ' · kmd' : ''}${model ? ` · 모델 ${model}` : ''} · 예산 $${budget}`)
     // kmd 연결(MCP) 판정 — init 의 상태가 failed 같은 끝난 실패면 곧바로 끊고 다시 띄운다(세 번까지).
-    //   「pending」(붙는 중)은 끊지 않는다: 새 판 Claude Code(2.1.19x)는 MCP 를 뒤에서 붙이며 init 에 늘 pending 으로 알린다(2026-11-17 · 188 에서 세션이 모두 여기서 끊겼다).
+    //   「pending」(붙는 중)은 옛 판(pendingCut · 2.1.92 등)이면 곧바로 끊고, 새 판이면 끊지 않는다: 새 판 Claude Code(2.1.19x)는 MCP 를 뒤에서 붙이며 init 에 늘 pending 으로 알린다(2026-11-17 · 188 에서 세션이 모두 여기서 끊겼다).
     //   pending 으로 시작한 세션은 끝까지 두고, kmd 도구를 한 번도 못 쓴 채 끝났을 때만 못 붙은 것으로 보고 다시 띄운다
     //   다시 띄운 프로세스가 쓴 돈도 센다(P12 · 앞 프로세스 몫을 더한다)
+    const cut = !!mcp && pendingCut()
     let before = 0
     const plus = (r) => (before ? { ...r, cost: (r.cost || 0) + before } : r)
     for (let attempt = 1; ; attempt++) {
@@ -139,7 +168,8 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
         if (j.type === 'system' && j.subtype === 'init') {
           line('sys', `시작: ${j.model || 'Claude'}${j.mcp_servers?.length ? ' · ' + j.mcp_servers.map((s) => `${s.name} ${s.status === 'connected' ? '이어짐' : s.status}`).join(' · ') : ''}`)
           const k = (j.mcp_servers || []).find((s) => s.name === 'kmd')
-          if (mcp && k && k.status === 'pending') mcpPending = true
+          if (mcp && k && k.status === 'pending' && cut) { line('sys', 'kmd 연결이 pending 이다: 이 판은 세션 안에 붙지 않는다(곧바로 끊음)'); mcpDown = true; stop() }
+          else if (mcp && k && k.status === 'pending') mcpPending = true
           else if (mcp && k && k.status !== 'connected') { mcpDown = true; stop() }
         }
         if (j.type === 'assistant' && !firstUse && j.message?.usage) {

@@ -333,3 +333,27 @@ test('캐시 자리: 지식 · 파일 · 커밋이 달라도 system 글과 일 �
     for (const k of ['FAKE_AGENT_SYS', 'FAKE_AGENT_SCRIPT', 'KMD_AGENT_ROOT']) delete process.env[k]
   }
 })
+
+// 채널 평가 T9 — 옛 판(2.1.92)은 init 에 pending 인 kmd 가 세션 안에 끝내 붙지 않는다: 곧바로 끊고 다시 띄운다(돈 0 · 세 번이면 실패)
+test('pending 끊기: 판 판정 · 끊는 판은 init 에서 곧바로 끊고 다시 띄운다', async () => {
+  const { runAgent, pendingCutOf, pendingCut } = await import('../core/agent.js')
+  assert.equal(pendingCutOf('2.1.92 (Claude Code)'), true)
+  assert.equal(pendingCutOf('2.1.190'), false)
+  assert.equal(pendingCutOf('2.2.0'), false)
+  assert.equal(pendingCutOf(''), false, '판을 모르면 끊지 않는다')
+  assert.equal(pendingCut({ KMD_CLAUDE_AGENT: 'x' }), false, '가짜 에이전트는 끄는 쪽')
+  assert.equal(pendingCut({ KMD_CLAUDE_AGENT: 'x', KMD_MCP_PENDING_CUT: '1' }), true)
+  const sys = path.join(tmp, 'pending-sys.jsonl')
+  Object.assign(process.env, { FAKE_AGENT_MODE: 'pending', KMD_MCP_PENDING_CUT: '1', FAKE_AGENT_SYS: sys })
+  try {
+    const lines = []
+    const r = await runAgent({ prompt: '(knowledge id: 회의)', mcp: { url: 'http://127.0.0.1:9/mcp', token: 't' }, onLine: (l) => lines.push(l) })
+    assert.equal(r.ok, false)
+    assert.equal(r.cost, 0, '끊은 프로세스는 돈을 쓰지 않았다')
+    assert.equal(fs.readFileSync(sys, 'utf8').trim().split('\n').length, 3, '세 번 띄웠다')
+    assert.ok(lines.some((l) => /pending 이다/.test(l.x)))
+    assert.ok(!lines.some((l) => l.k === 'tool'), '도구를 부르기 전에 끊었다')
+  } finally {
+    for (const k of ['FAKE_AGENT_MODE', 'KMD_MCP_PENDING_CUT', 'FAKE_AGENT_SYS']) delete process.env[k]
+  }
+})

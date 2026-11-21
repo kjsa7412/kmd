@@ -330,6 +330,9 @@ test('T3 · T9 계측 줄: 한 result 프로세스의 토큰은 modelUsage 합 �
   assert.deepEqual(Object.keys(m.meter.byModel), ['claude-sonnet-4-6', 'claude-haiku-4-5'])
   assert.equal(m.meter.auxCost, 0.02, '주 모델 밖의 비용이 보조 모델 몫')
   assert.deepEqual([m.meter.diag.kmdUnused, m.meter.diag.retries, m.meter.diag.tailMs, m.meter.diag.firstTool, m.meter.diag.kmdAt, m.meter.diag.firstCacheRead], [1, 1, [16000, null], ['Read', null], [null, 15000], [0, null]])
+  // pending 끊기(T9): result 없이 끝난 프로세스(noResult)는 cut 으로 세고 kmd 안 씀 · 돈에 넣지 않는다
+  const c = meterRowOf({ cost: 0.338, calls: 2 }, [ml[0], { run: 'c', cost: 0, turns: 0, err: false, noResult: true, model: null, tokens: null, diag: { initMs: 30000, kmd: 'pending', kmdAt: null, kmdUsed: false, firstTool: null, first: null, retries: 0, tools: 0, tailMs: null } }])
+  assert.deepEqual([c.meter.diag.cut, c.meter.diag.kmdUnused, c.meter.procs, c.meter.cost], [1, 0, 2, 0.338])
   // 견주기: modelUsage 토큰이 usage 셈과 다른 채널은 「토큰 · 차례」 규칙 다름으로 가른다
   const A = { tag: 'a', day: 'd', tokensRule: 'old', channels: { x: { total: { cost: 1, ms: 1000, turns: 1, rows: 1, put: 1 }, rows: [{ meter: { procs: 1, results: 1 } }] } } }
   const B = { tag: 'b', day: 'd', tokensRule: RULES.tokens, channels: { x: { total: { cost: 1, ms: 1000, turns: 1, rows: 1, put: 1 }, rows: [{ meter: m.meter }] } } }

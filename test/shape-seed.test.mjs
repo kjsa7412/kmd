@@ -441,8 +441,8 @@ test('팀 — 올리기 → 조사 → Claude 구조안 · 짓기(팀 일꾼 일
     const w1 = await t.work()
     delete process.env.FAKE_CLAUDE_MODE
     delete process.env.FAKE_CLAUDE_EFFORT_LOG
-    // 채널 평가 T4: 구조안은 생각 정도 low(KMD_INGEST_EFFORT · KMD_SHAPE_PLAN_EFFORT 가 비면) · 고쳐 받기도 같다
-    assert.deepEqual(fs.readFileSync(path.join(t.tmp, 'effort.log'), 'utf8').trim().split('\n').filter((l) => l.startsWith('바탕 세우기 구조안')).map((l) => l.split(' ').pop()), ['low', 'low'])
+    // 채널 평가 T4: 구조안은 생각 정도 medium(KMD_INGEST_EFFORT · KMD_SHAPE_PLAN_EFFORT 가 비면 · low 는 F1 이 흔들려 되돌림) · 고쳐 받기도 같다
+    assert.deepEqual(fs.readFileSync(path.join(t.tmp, 'effort.log'), 'utf8').trim().split('\n').filter((l) => l.startsWith('바탕 세우기 구조안')).map((l) => l.split(' ').pop()), ['medium', 'medium'])
     assert.equal(w1.job.type, 'shape-plan')
     v = await t.s.hub.seedView(t.AD, id)
     assert.equal(v.run.state, 'done', JSON.stringify(v.run))

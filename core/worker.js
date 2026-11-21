@@ -47,8 +47,9 @@ const timeoutOf = (prompt) => Math.min(15 * 60_000, INTAKE_TIMEOUT + Math.floor(
 // 생각 정도(KMD_INGEST_EFFORT · low · medium · high · max · 비면 그 PC 의 기본)
 const EFFORT = () => envOf('KMD_INGEST_EFFORT', 'KMD_TIDY_EFFORT') || ''
 // 구조안의 생각 정도(KMD_SHAPE_PLAN_EFFORT · 비면 KMD_INGEST_EFFORT · 그것도 비면 low) · 채널 평가 T4: 팀 구조안 한 번이 모델 기본 생각으로 321초(생성 309초 · 생각 약 1만 토큰)였다.
-//   개인 기초 세우기 구조안 세션(server/hub.js claudeSession)은 처음부터 low 로 F1 0.88 ~ 0.923 이다 · 팀 길을 같은 값으로 맞춘다
-const PLAN_EFFORT = () => process.env.KMD_SHAPE_PLAN_EFFORT || EFFORT() || 'low'
+//   low 로 내렸더니 구조안 321초 → 108 ~ 110초였으나 실측 두 번(real-4 · 4b) 중 한 번 F1 0.88(알갱이 자리 0.857 · 옛 판 다시 채점은 둘 다 1)로 T4 되돌림 조건에 걸렸다:
+//   기본을 medium 으로 올린다(다시 재기 남음 · TODO T4)
+const PLAN_EFFORT = () => process.env.KMD_SHAPE_PLAN_EFFORT || EFFORT() || 'medium'
 // Claude 한 번의 예산 상한(KMD_INGEST_BUDGET · 달러 · 비면 1.0) — 들이기 한 번은 파일 하나 + 후보 다섯 × 1500자를 읽고 기록과 항목 글을 같이 쓴다
 //   (옛 정리 기본 0.5 는 긴 항목에서 생각 글만으로 넘겼다 · 188 「4. 구성 순서」 · 11-03)
 const BUDGET = () => (Number(envOf('KMD_INGEST_BUDGET', 'KMD_TIDY_BUDGET')) > 0 ? Number(envOf('KMD_INGEST_BUDGET', 'KMD_TIDY_BUDGET')) : 1.0)
