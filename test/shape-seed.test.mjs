@@ -531,3 +531,30 @@ test('팀 — 폴더 그대로는 짜임 걸음(I1 · 채널 shape · 넣지 못
     assert.match(fs.readFileSync(path.join(t.root, id2, 'docs', '안내.md'), 'utf8'), /09:00 접수/)
   } finally { await t.done() }
 })
+
+// 채널 평가 T13: claudeSession 의 설정 폴더(kmd-session-cfg-* · 사용자 훅 끄기)는 띄우지 않고 끝냄 · 끊음 · 답 뒤 끝냄 · 답 기다리다 끊음 모두에서 지운다
+test('Claude 세션 설정 폴더: end · kill(띄우기 전 · 뒤) · close 에서 남지 않는다', LONG, async () => {
+  const { claudeSession } = await import('../core/claude.js')
+  const keep = { KMD_CLAUDE: process.env.KMD_CLAUDE, FAKE_CLAUDE_MODE: process.env.FAKE_CLAUDE_MODE }
+  process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
+  delete process.env.FAKE_CLAUDE_MODE
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-cfgtest-'))
+  fs.mkdirSync(path.join(cwd, 'md'))
+  fs.writeFileSync(path.join(cwd, '재료.tsv'), 'src\tpath\tpick\n')
+  const cfgs = () => new Set(fs.readdirSync(os.tmpdir()).filter((x) => x.startsWith('kmd-session-cfg-')))
+  const before = cfgs()
+  const mine = () => [...cfgs()].filter((x) => !before.has(x))
+  const open = () => claudeSession({ cwd, schema: { type: 'object' }, idleMs: 30_000, maxMs: 60_000 })
+  try {
+    const a = open(); assert.equal(mine().length, 1, '만들 때 설정 폴더 하나'); await a.end()
+    const b = open(); b.kill('시험')
+    const c = open(); const r = await c.ask('다른 일'); assert.ok(r, '답 하나'); await c.end()
+    process.env.FAKE_CLAUDE_MODE = 'hang'
+    const d = open(); const pending = d.ask('다른 일'); await new Promise((ok) => setTimeout(ok, 500)); d.kill('시험'); assert.equal((await pending).error, 'fail')
+    for (let i = 0; i < 100 && mine().length; i++) await new Promise((ok) => setTimeout(ok, 100))
+    assert.deepEqual(mine(), [], '설정 폴더가 남지 않는다')
+  } finally {
+    for (const [k, v] of Object.entries(keep)) { if (v == null) delete process.env[k]; else process.env[k] = v }
+    fs.rmSync(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  }
+})

@@ -119,6 +119,12 @@ test('approve: 승인한 해시로 save = 들어감(기록 + 항목 글 한 덩�
   assert.equal(last.mode, 'approve')
   assert.equal(last.rounds, 2, '다시 제안 수')
   assert.deepEqual(last.accepted, [])
+  // 채널 평가 T10 ⑧: 들어간 줄에 단계 시각(hub stageMsOf · core stageLap) · 모두 0 이상의 수
+  for (const k of ['pre', 'wait', 'recover', 'prepare', 'check', 'write', 'commit', 'after', 'post']) assert.ok(Number.isFinite(last.stageMs?.[k]) && last.stageMs[k] >= 0, `stageMs.${k}: ${JSON.stringify(last.stageMs)}`)
+  assert.ok(!('_t0' in last.stageMs) && !('_t' in last.stageMs), '안쪽 시각 칸은 싣지 않는다')
+  // 입력 오류 · 충돌 줄에도 칸이 있다(core 걸음 전에 끊기면 null)
+  const miss = savelogOf('apv').filter((l) => l.err === 'E_APPROVE').at(-1)
+  assert.ok('stageMs' in miss, JSON.stringify(miss))
 })
 
 test('approve: 경고가 든 제안서를 그대로 승인 = 들어감 + 「## 받아들인 경고」 · brief mine.accepted', async () => {

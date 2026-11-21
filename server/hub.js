@@ -1793,13 +1793,12 @@ ${genRulesBlock({ profile: 'shape' })}`
   }
 
   // hub.save 의 몸(meta · 자리 · 속도를 넘은 뒤) — 커밋 뒤는 던지지 않는다(S-D49)
-  async function saveIn(ctx, id, meta, input, opt, channel, logLine, t0) {
+  async function saveIn(ctx, id, meta, input, opt, channel, logLine, t0, stage = {}) {
     // 저장 입력은 한 꼴(O-11): 2판은 입력 오류 · 저장 문이 짓는 칸은 걷는다
     input = inputIn(input)
     // 무인 세션의 측정 칸(설계 9-1 · 생성 룰 판 · 앞선 값 카드 수): 서버 코드만 opt 로 단다
     if (opt.ruleLog) logLine = { ...logLine, ...opt.ruleLog }
-    // 단계 시각(채널 평가 T10 ⑧): 저장 문 걸음마다 ms(측정 줄에만 · stageMsOf)
-    const stage = {}
+    // 단계 시각(채널 평가 T10 ⑧): 저장 문 걸음마다 ms(측정 줄에만 · stageMsOf) · stage 는 hub.save 가 만들어 넘긴다(입력 오류 · 충돌 측정 줄에도 싣는다)
     // form — 세션(MCP)의 기록 글은 서식 칸으로(작성기준 6절 · 템플릿/기록.md) · 칸을 kmd 가 머리를 달아 엮는다 · 메모는 바뀐 것이 없어도 된다
     if (opt.form && input?.record && typeof input.record === 'object') {
       //   http 길(opt.form 'http' · 화면 · API 열쇠)은 바뀐 것(changes)이 꼭 있다(채널 평가 P7 · D3) · 세션은 요약만인 기록도 받는다
@@ -1883,7 +1882,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (r0.same) {
         cache.delete(id)
         if (channel) {
-          try { await savelog(id, { ...logLine, rec: r0.id, n: 0, put: 0, stale: [], same: true, ms: Date.now() - t0, err: null }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+          try { await savelog(id, { ...logLine, rec: r0.id, n: 0, put: 0, stale: [], same: true, ms: Date.now() - t0, stageMs: stageMsOf(stage, t0), err: null }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
         }
         return { same: true, id: r0.id, docs: [], note: '같은 것을 이미 저장했다. 다시 쓰지 않았다', warnings: [] }
       }
@@ -2783,14 +2782,15 @@ ${genRulesBlock({ profile: 'shape' })}`
       const t0 = Date.now()
       //   kit — 세션 스킬 판(MCP 가 넘긴 수 · 없으면 null · S-D15)
       const logLine = { at: localStamp(), kn: id, user: ctx.user || null, device: ctx.device || null, ch: channel || (opt.system ? 'system' : 'server'), kit: Number.isInteger(opt.kit) ? opt.kit : null }
+      const stage = {}
       try {
-        return await saveIn(ctx, id, meta, input, opt, channel, logLine, t0)
+        return await saveIn(ctx, id, meta, input, opt, channel, logLine, t0, stage)
       } catch (e) {
         // 아무것도 쓰지 못했다 — 센 첨부를 되돌린다
         if (took) await giveBack(id, took)
         // 저장 전체가 실패한 것도 측정 줄로(rec 없음 · S-D29)
         if (channel && e instanceof KmdError) {
-          try { await savelog(id, { ...logLine, n: Array.isArray(input?.sections) ? input.sections.length : 0, stale: e.details?.stale || [], conflictWith: e.conflictWith || [], ms: Date.now() - t0, err: e.code, targets: saveTargets(input), mode: 'approve', ...(e.unproposed ? { unproposed: true } : {}), ...(e.approveMiss ? { approve: e.approveMiss } : {}) }) } catch (x) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${x.message}`) }
+          try { await savelog(id, { ...logLine, n: Array.isArray(input?.sections) ? input.sections.length : 0, stale: e.details?.stale || [], conflictWith: e.conflictWith || [], ms: Date.now() - t0, stageMs: stageMsOf(stage, t0), err: e.code, targets: saveTargets(input), mode: 'approve', ...(e.unproposed ? { unproposed: true } : {}), ...(e.approveMiss ? { approve: e.approveMiss } : {}) }) } catch (x) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${x.message}`) }
         }
         throw e
       }

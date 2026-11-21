@@ -917,9 +917,11 @@ const SEED_PRIOR_RULE = [
 // 글 짓기 세션(Z9) — 재료 글을 프롬프트에 싣지 않는다. 세션 폴더 md/<16자>.md 를 읽어 목표 항목마다 쓴다
 //   작은 재료 예외(채널 평가 T10 ⑤): 재료 글 합(앞선 값 발췌 포함)이 SEED_INLINE_MAX 자 이하면 글을 첫 말에 싣고 다시 읽지 않게 한다(Read 차례를 줄인다) ·
 //   files[].text · prior[].text 가 모두 있을 때만(seedInlineOk) · 넘으면 지금 길: 세션 폴더의 md/ 사본은 그대로 둔다
+//   재료 글에 구분자를 흉내 내는 줄(`<<<` · `>>>` · `[target `)이 있으면 싣지 않고 지금 길(Read 도구 결과로 갈린다 · 재료 밖 지시처럼 보이지 않게)
 export const SEED_WRITE_HEAD = '바탕 세우기 항목 글을 짓는다(세션).'
 export const SEED_INLINE_MAX = 20000
-export const seedInlineOk = (files, prior = []) => { const all = [...files, ...prior]; return all.length > 0 && all.every((f) => typeof f.text === 'string') && all.reduce((a, f) => a + f.text.length, 0) <= SEED_INLINE_MAX }
+const SEED_INLINE_FENCE = /^\s*(?:<<<|>>>|\[target )/m
+export const seedInlineOk = (files, prior = []) => { const all = [...files, ...prior]; return all.length > 0 && all.every((f) => typeof f.text === 'string') && all.reduce((a, f) => a + f.text.length, 0) <= SEED_INLINE_MAX && !all.some((f) => SEED_INLINE_FENCE.test(f.text)) }
 export function seedWriteSessionPromptOf(g, files, { writeRules = WRITE_RULES, form = '', prior = [] } = {}) {
   const inline = files.length > 0 && seedInlineOk(files, prior)
   return [
