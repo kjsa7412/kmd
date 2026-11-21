@@ -170,6 +170,9 @@ const deltaOf = (a, b) => (a && b && !a.error && !b.error ? Object.fromEntries([
 //   그래서 감싸개는 안쪽 대상 · 기록 파일을 글에 박아 둔다(환경으로 넘기지 못한다) · 인자 · 표준 입력 · 출력은 손대지 않고 넘긴다.
 //   끊기: core/agent.js · core/claude.js 는 감싸개를 「가짜」 로 보고 p.kill() 만 부른다(Windows 는 감싸개 node 만 죽고 처리기가 돌지 않는다).
 //   그래서 감싸개는 안쪽을 띄운 뒤 「지킴이」(떨어진 node)를 하나 띄운다: 감싸개가 사라지면 안쪽을 나무째(taskkill /T /F) 끈다.
+//   지킴이는 안쪽의 첫 출력(init 줄)을 넘기기 전에 띄운다(없으면 20초 뒤): 안쪽의 띄움 · init 과 CPU 를 나누지 않게(T13 · 감싸개 몫) · 첫 출력을 넘기기 전이라
+//   pending 끊기(init 을 읽고 곧바로 끊음)보다 늘 먼저다. 그 전에 끊긴 안쪽은 채널 끝 reapPids 가 거둔다.
+//   시각 칸(T13 · init 쓰임 표): wrapMs(감싸개 node 가 뜬 때 → 안쪽을 띄운 때 · 시험 도구 몫) · t.firstOut(첫 출력 바이트) · t.init · t.firstAsst(첫 assistant) · t.close(닫힘): 모두 안쪽을 띄운 때부터 ms
 //   안쪽 pid 는 PIDS 파일에 start · end 줄로 남기고, channel-eval 은 채널마다 끝에 end 없는 안쪽을 거둔다(reapPids).
 const WATCH = `const [w, i] = process.argv.slice(1).map(Number); const { spawnSync } = require('node:child_process'); const alive = (p) => { try { process.kill(p, 0); return true } catch (e) { return e.code === 'EPERM' } }; const kill = () => { if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(i), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }); else { try { process.kill(i, 'SIGKILL') } catch {} } }; const t = setInterval(() => { if (!alive(i)) { clearInterval(t); return } if (!alive(w)) { kill(); clearInterval(t) } }, 1000)`
 const wrapSrc = (inner, log, kind, pids) => `// channel-eval 계측 감싸개(scripts/channel-eval.mjs 가 지었다 · 손대지 않는다)
@@ -181,12 +184,15 @@ const KIND = ${JSON.stringify(kind)}
 const PIDS = ${JSON.stringify(pids)}
 const RUN = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 const t0 = Date.now()
+const wrapMs = Math.max(0, Math.round(t0 - performance.timeOrigin))
+const T = { firstOut: null, init: null, firstAsst: null }
 const p = spawn(process.execPath, [INNER, ...process.argv.slice(2)], { stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true })
 const pidLine = (k) => { try { fs.appendFileSync(PIDS, JSON.stringify({ k, run: RUN, wrap: process.pid, inner: p.pid, at: Date.now() }) + '\\n') } catch {} }
-if (p.pid) {
-  pidLine('start')
-  try { spawn(process.execPath, ['-e', ${JSON.stringify(WATCH)}, String(process.pid), String(p.pid)], { detached: true, stdio: 'ignore', windowsHide: true }).unref() } catch {}
-}
+let watched = false
+const watch = () => { if (watched || !p.pid) return; watched = true; clearTimeout(watchLate); try { spawn(process.execPath, ['-e', ${JSON.stringify(WATCH)}, String(process.pid), String(p.pid)], { detached: true, stdio: 'ignore', windowsHide: true }).unref() } catch {} }
+const watchLate = setTimeout(watch, 20000)
+watchLate.unref()
+if (p.pid) pidLine('start')
 const killTree = () => { if (!p.pid) return; if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(p.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }); else p.kill('SIGKILL') }
 process.stdin.pipe(p.stdin)
 p.stdin.on('error', () => {})
@@ -200,10 +206,11 @@ const eat = (l) => {
   if (!l.startsWith('{')) return
   let j
   try { j = JSON.parse(l) } catch { return }
-  if (j.type === 'system' && j.subtype === 'init') { D.initMs = Date.now() - t0; const k = (j.mcp_servers || []).find((x) => x.name === 'kmd'); D.kmd = k ? k.status : null }
+  if (j.type === 'system' && j.subtype === 'init') { D.initMs = T.init = Date.now() - t0; const k = (j.mcp_servers || []).find((x) => x.name === 'kmd'); D.kmd = k ? k.status : null }
   else if (j.type === 'system' && j.subtype === 'api_retry') D.retries++
   else if (j.type === 'system' && Array.isArray(j.mcp_servers)) { const k = j.mcp_servers.find((x) => x.name === 'kmd'); if (k && k.status === 'connected' && D.kmdAt == null) D.kmdAt = Date.now() - t0 }
   if (j.type === 'assistant') {
+    if (T.firstAsst == null) T.firstAsst = Date.now() - t0
     const u0 = j.message?.usage
     if (!D.first && u0) D.first = { cacheRead: u0.cache_read_input_tokens || 0, cacheWrite: u0.cache_creation_input_tokens || 0, input: u0.input_tokens || 0 }
     for (const c of j.message?.content || []) if (c.type === 'tool_use') { D.tools++; D.firstTool ||= String(c.name || ''); if (String(c.name || '').startsWith('mcp__kmd')) D.kmdUsed = true }
@@ -214,13 +221,13 @@ const eat = (l) => {
   const u = j.usage || null
   // modelUsage — 모델별 토큰 · 비용(보조 모델 · API 다시 시도로 다시 생성한 몫까지 · usage 는 마지막 응답 몫만 담을 때가 있다 · real-2b kmd-migrate 출력 1680 대 4673)
   const mu = j.modelUsage && typeof j.modelUsage === 'object' ? Object.fromEntries(Object.entries(j.modelUsage).map(([m, x]) => [m, { input: x.inputTokens || 0, output: x.outputTokens || 0, cacheRead: x.cacheReadInputTokens || 0, cacheWrite: x.cacheCreationInputTokens || 0, cost: x.costUSD ?? null }])) : null
-  const diag = { ...D, tailMs: lastRes ? Date.now() - lastRes : null }
+  const diag = { ...D, tailMs: lastRes ? Date.now() - lastRes : null, wrapMs, t: { ...T } }
   fs.appendFileSync(LOG, JSON.stringify({ kind: KIND, run: RUN, at: Date.now(), ms: Date.now() - t0, cost: j.total_cost_usd ?? null, turns: j.num_turns ?? null, dur: j.duration_ms ?? null, api: j.duration_api_ms ?? null, err: !!j.is_error, model: j.model || (j.modelUsage ? Object.keys(j.modelUsage).join(',') : null), tokens: u ? { input: u.input_tokens || 0, output: u.output_tokens || 0, cacheRead: u.cache_read_input_tokens || 0, cacheWrite: u.cache_creation_input_tokens || 0 } : null, ...(mu ? { modelUsage: mu } : {}), diag }) + '\\n')
 }
-p.stdout.on('data', (c) => { process.stdout.write(c); buf += c; let i; while ((i = buf.indexOf('\\n')) >= 0) { eat(buf.slice(0, i).trim()); buf = buf.slice(i + 1) } })
+p.stdout.on('data', (c) => { if (T.firstOut == null) { T.firstOut = Date.now() - t0; watch() } process.stdout.write(c); buf += c; let i; while ((i = buf.indexOf('\\n')) >= 0) { eat(buf.slice(0, i).trim()); buf = buf.slice(i + 1) } })
 p.on('error', (e) => { process.stderr.write(String(e.message)); process.exit(1) })
 // result 없이 끝난 프로세스(init 에서 끊김 · pending 끊기 T9) — 진단만 한 줄(돈 0 · 차례 0)
-p.on('close', (code) => { if (buf.trim()) eat(buf.trim()); if (!gotResult && D.initMs != null) try { fs.appendFileSync(LOG, JSON.stringify({ kind: KIND, run: RUN, at: Date.now(), ms: Date.now() - t0, cost: 0, turns: 0, err: false, noResult: true, model: null, tokens: null, diag: { ...D, tailMs: null } }) + '\\n') } catch {} pidLine('end'); process.exitCode = code ?? 1 })
+p.on('close', (code) => { if (buf.trim()) eat(buf.trim()); if (!gotResult && D.initMs != null) try { fs.appendFileSync(LOG, JSON.stringify({ kind: KIND, run: RUN, at: Date.now(), ms: Date.now() - t0, cost: 0, turns: 0, err: false, noResult: true, model: null, tokens: null, diag: { ...D, tailMs: null, wrapMs, t: { ...T, close: Date.now() - t0 } } }) + '\\n') } catch {} clearTimeout(watchLate); pidLine('end'); process.exitCode = code ?? 1 })
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGBREAK']) process.on(sig, () => { killTree(); process.exit(1) })
 `
 // end 줄이 없는 안쪽(끊긴 감싸개의 고아)을 나무째 끈다 — 채널마다 끝에(finally)
@@ -467,7 +474,7 @@ export function meterRowOf(row = {}, ml = [], { selfCost = false } = {}) {
       else for (const l of ls) if (l.tokens) for (const k of TK) tk[k] += l.tokens[k] || 0
     }
     const multi = [...runs.values()].filter((ls) => ls.length > 1)
-    const meter = { procs: runs.size, results: ml.length, multiResultProcs: multi.length, cost: r4(sum(lasts.map((l) => l.cost))), turns: sum(ml.map((l) => l.turns)), apiMs: sum(lasts.map((l) => l.api)), errors: lasts.filter((l) => l.err).length, models: [...new Set(ml.flatMap((l) => String(l.model || '').split(',')).filter(Boolean))], tokens: anyTk ? tk : null }
+    const meter = { procs: runs.size, results: ml.length, multiResultProcs: multi.length, cost: r4(sum(lasts.map((l) => l.cost))), turns: sum(ml.map((l) => l.turns)), apiMs: sum(lasts.map((l) => l.api)), ...launchOf(lasts), errors: lasts.filter((l) => l.err).length, models: [...new Set(ml.flatMap((l) => String(l.model || '').split(',')).filter(Boolean))], tokens: anyTk ? tk : null }
     if (fromMU) {
       meter.tokensFrom = fromMU === runs.size ? 'modelUsage' : 'mixed'
       meter.usageTokens = ut
@@ -482,17 +489,65 @@ export function meterRowOf(row = {}, ml = [], { selfCost = false } = {}) {
     }
     // 진단(T3 · T9 · 감싸개가 프로세스마다 마지막 result 줄에 싣는다) — kmd 를 붙였으나 한 번도 쓰지 않은 프로세스(kmdUnused · 세션 들이기에서는 다시 띄움의 까닭 · 스키마 부름은 안 쓸 수 있다) · API 다시 시도 · init 까지 · 뒤늦은 kmd 연결 · 첫 차례 캐시(C1) · 첫 도구 · 마지막 도구 결과 뒤 꼬리
     const dg = lasts.map((l) => l.diag).filter(Boolean)
-    if (dg.length) meter.diag = { cut: lasts.filter((l) => l.noResult).length, kmdUnused: lasts.filter((l) => !l.noResult && l.diag && l.diag.kmd != null && !l.diag.kmdUsed).length, retries: sum(dg.map((d) => d.retries)), initMs: dg.map((d) => d.initMs), kmd: dg.map((d) => d.kmd), kmdAt: dg.map((d) => d.kmdAt), firstTool: dg.map((d) => d.firstTool), firstCacheRead: dg.map((d) => d.first?.cacheRead ?? null), tailMs: dg.map((d) => d.tailMs) }
+    if (dg.length) meter.diag = { cut: lasts.filter((l) => l.noResult).length, kmdUnused: lasts.filter((l) => !l.noResult && l.diag && l.diag.kmd != null && !l.diag.kmdUsed).length, retries: sum(dg.map((d) => d.retries)), initMs: dg.map((d) => d.initMs), kmd: dg.map((d) => d.kmd), kmdAt: dg.map((d) => d.kmdAt), firstTool: dg.map((d) => d.firstTool), firstCacheRead: dg.map((d) => d.first?.cacheRead ?? null), tailMs: dg.map((d) => d.tailMs), wrapMs: dg.map((d) => d.wrapMs ?? null), firstOutMs: dg.map((d) => d.t?.firstOut ?? null), firstAsstMs: dg.map((d) => d.t?.firstAsst ?? null) }
     if (multi.length) meter.multiSample = multi.slice(0, 2).map((ls) => ls.map((l) => ({ cost: l.cost, turns: l.turns, tokens: l.tokens })))
     Object.assign(out, { meter, cost: meter.cost, calls: meter.procs, turns: meter.turns, tokens: meter.tokens, models: meter.models })
     if (out.serverCost != null && Math.abs(meter.cost - out.serverCost) > 0.001) out.costGap = r4(meter.cost - out.serverCost)
   } else out.cost = r4(row.cost || 0)
   return out
 }
+// 프로세스 밖 시간(T13): 프로세스마다 마지막 result 줄: 띄움(ms - dur · 감싸개가 안쪽을 띄운 때부터 Claude Code 가 세기 시작할 때까지 + 끝 꼬리) ·
+//   비 API(ms - api · 띄움 + init + 도구 응답 + 훅) · result 없는 줄(끊긴 프로세스 noResult)은 통째로 비 API 다. dur · api 가 없는 줄은 뺀다(옛 가짜)
+export function launchOf(lasts = []) {
+  const withDur = lasts.filter((l) => typeof l.ms === 'number' && typeof l.dur === 'number')
+  const withApi = lasts.filter((l) => typeof l.ms === 'number' && (typeof l.api === 'number' || l.noResult))
+  return { launchMs: sum(withDur.map((l) => Math.max(0, l.ms - l.dur))), launchProcs: withDur.length, nonApiMs: sum(withApi.map((l) => Math.max(0, l.ms - (l.noResult ? 0 : l.api)))) }
+}
+// 계측 파일 통째(T13 · 「내 셈」 과 같은 셈): 모든 kind 의 프로세스: 프로세스당 띄움(ms - dur) · dur - api · 비 API 합 · API 합 · init 중앙값 · 끊긴 수.
+//   real-1 처럼 diag 가 없는 옛 계측도 ms · dur · api 로 견준다(init 칸의 대리값)
+export function meterStatsOf(lines = []) {
+  const runs = new Map()
+  for (const l of lines) runs.set(l.run, l)
+  const ls = [...runs.values()]
+  const res = ls.filter((l) => !l.noResult && typeof l.dur === 'number' && typeof l.api === 'number')
+  const med = (xs) => { const v = xs.filter((x) => typeof x === 'number').sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null }
+  const r1 = (x) => Math.round(x / 100) / 10
+  const n = res.length || 1
+  return {
+    procs: ls.length, cut: ls.filter((l) => l.noResult).length,
+    launchPer: r1(sum(res.map((l) => l.ms - l.dur)) / n), durApiPer: r1(sum(res.map((l) => l.dur - l.api)) / n),
+    nonApiSec: Math.round(sum(ls.map((l) => (l.noResult ? l.ms : typeof l.api === 'number' ? l.ms - l.api : 0))) / 1000), apiSec: Math.round(sum(res.map((l) => l.api)) / 1000),
+    initMed: med(ls.map((l) => l.diag?.initMs)), wrapMed: med(ls.map((l) => l.diag?.wrapMs)),
+  }
+}
+// 부하 탐침(T13): 행 시간 밖에서(채널 시작 · 끝) 잰다: node 빈 띄움 중앙값(세 번) · git --version · CPU 바쁨(1초 동안 os.cpus 차) · 떠 있는 node · claude 수 · 남은 메모리.
+//   node 빈 띄움이 LOAD_NODE_MS(기본 1000 · 조용한 PC 바닥의 2 ~ 3배를 넉넉히)를 넘으면 그 채널의 행에 load 표시: 그 행의 시간은 제품 몫과 PC 부하가 섞였다
+export const LOAD_NODE_MS = Number(process.env.CHANNEL_EVAL_LOAD_MS) > 0 ? Number(process.env.CHANNEL_EVAL_LOAD_MS) : 1000
+export async function probeLoad() {
+  const os = await import('node:os')
+  const time = (cmd, a) => { const t = Date.now(); try { execFileSync(cmd, a, { stdio: 'ignore', windowsHide: true, timeout: 60_000 }) } catch { return null } return Date.now() - t }
+  const nodes = [0, 1, 2].map(() => time(process.execPath, ['-e', '0'])).filter((x) => x != null).sort((a, b) => a - b)
+  const gitMs = time('git', ['--version'])
+  const tick = () => os.cpus().reduce((a, c) => { const t = c.times; a.idle += t.idle; a.all += t.user + t.nice + t.sys + t.idle + t.irq; return a }, { idle: 0, all: 0 })
+  const c0 = tick()
+  await sleep(1000)
+  const c1 = tick()
+  const busy = c1.all > c0.all ? Math.round((1 - (c1.idle - c0.idle) / (c1.all - c0.all)) * 100) : null
+  let procs = null
+  try {
+    const out = process.platform === 'win32' ? execFileSync('tasklist', ['/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true, timeout: 30_000 }) : execFileSync('ps', ['-eo', 'comm'], { encoding: 'utf8', timeout: 30_000 })
+    const names = out.split('\n').map((l) => l.replace(/^"/, '').split(/[",]/)[0].trim().toLowerCase())
+    procs = { node: names.filter((x) => x === 'node.exe' || x === 'node').length, claude: names.filter((x) => x === 'claude.exe' || x === 'claude').length }
+  } catch (e) { console.error('프로세스 수를 읽지 못했다: ' + e.message) }
+  const nodeMs = nodes.length ? nodes[Math.floor(nodes.length / 2)] : null
+  return { at: new Date().toISOString(), nodeMs, gitMs, busy, procs, freeMB: Math.round(os.freemem() / 1048576), load: nodeMs != null && nodeMs > LOAD_NODE_MS }
+}
 // 채널 합(rows · 바탕 rows) — 들어감의 분모(rows)는 저장 걸음만(앞 걸음 aux 는 시간 · 비용에만 · H10)
 export function totalsOf(rs = []) {
   return {
     rows: rs.filter((r) => !r.aux).length, auxRows: rs.filter((r) => r.aux).length, ms: sum(rs.map((r) => r.ms)), cost: r4(sum(rs.map((r) => r.cost))), serverCost: rs.some((r) => r.serverCost != null) ? r4(sum(rs.map((r) => r.serverCost))) : null, selfCostRows: rs.filter((r) => r.costSource === 'self').length, costGapRows: rs.filter((r) => r.costGap != null).length,
+    // API 시간 · 행 시간 가운데 API 밖(T13): 같은 채널 집합으로만 견준다 · 부하 표시 행(load)
+    apiMs: sum(rs.map((r) => r.meter?.apiMs)), outMs: sum(rs.filter((r) => r.meter).map((r) => Math.max(0, (r.ms || 0) - (r.meter.apiMs || 0)))), launchMs: sum(rs.map((r) => r.meter?.launchMs)), loadRows: rs.filter((r) => r.load).length,
     calls: sum(rs.map((r) => r.calls)), turns: sum(rs.map((r) => r.turns)), fix: sum(rs.map((r) => r.fix)), fixTries: sum(rs.map((r) => r.fixTries)), fails: sum(rs.map((r) => r.fails)), failCalls: sum(rs.map((r) => r.failCalls)),
     put: rs.filter((r) => r.put).length, empty: rs.filter((r) => r.empty).length, recovered: [...new Set(rs.flatMap((r) => r.recoveredCodes || []))], nolog: rs.filter((r) => r.nolog).length, needHuman: rs.filter((r) => r.needHuman).length,
     warned: sum(rs.map((r) => r.warned)), accepted: sum(rs.map((r) => r.accepted)),
@@ -1624,6 +1679,8 @@ async function run() {
     tokensRule: RULES.tokens, rowRule: RULES.rows, putRule: RULES.put, scoreRule: scoreRuleOf(await goldRev()),
     // pending 끊기(T9 · core/agent.js pendingCut) — 1 이면 init 에 kmd 가 pending 인 프로세스를 곧바로 끊고 다시 띄운 판
     pendingCut: process.env.KMD_MCP_PENDING_CUT === '1',
+    // 부하 탐침(T13): 판 머리 한 번(채널마다는 channels.<채널>.load) · 기준 LOAD_NODE_MS
+    load: { head: await probeLoad(), nodeMsLimit: LOAD_NODE_MS },
     channels: { ...(prev?.channels || {}) },
   }
   const save = () => fs.writeFile(outFile, JSON.stringify(result, null, 1) + '\n')
@@ -1632,6 +1689,7 @@ async function run() {
     console.log(`\n■ ${name}${C.dead ? '' : ` — ${C.note}`}`)
     if (C.dead) { result.channels[name] = { ran: false, why: C.dead, rows: [] }; console.log(`  몰 수 없음: ${C.dead}`); await save(); continue }
     if (E.over) { result.channels[name] = { ran: false, why: `예산 넘음(계측 누계 $${E.spent().toFixed(3)} > $${E.maxUsd})`, codes: ['BUDGET'], rows: [] }; console.log('  예산 넘음: 돌리지 않는다'); await save(); continue }
+    const loadStart = await probeLoad()
     const t0 = Date.now()
     let out
     try { out = await C.run(E, cfgOf(C, fake)) } catch (e) { out = { rows: [], error: `${e.code || ''} ${e.message}`.trim(), stack: String(e.stack || '').split('\n').slice(0, 4).join(' | ') }; console.log(`  넘어짐: ${out.error}`) } finally {
@@ -1639,12 +1697,18 @@ async function run() {
       const killed = reapPids(E)
       if (killed.length) console.log(`  ! 남은 Claude 프로세스 ${killed.length}개를 껐다: ${killed.join(' ')}`)
     }
+    const wall = Date.now() - t0
+    const loadEnd = await probeLoad()
     const rows = out.rows || []
+    // 부하 표시(T13): 채널 시작 · 끝 탐침 가운데 하나라도 기준을 넘으면 그 채널의 행 모두(가장 가까운 탐침이 그 둘이다)
+    const loadMs = Math.max(loadStart.nodeMs ?? 0, loadEnd.nodeMs ?? 0)
+    for (const r of rows) { r.loadNodeMs = loadMs; if (loadStart.load || loadEnd.load) r.load = true }
+    console.log(`  부하: node 띄움 ${loadStart.nodeMs ?? '-'} → ${loadEnd.nodeMs ?? '-'}ms · git ${loadStart.gitMs ?? '-'} → ${loadEnd.gitMs ?? '-'}ms · CPU ${loadStart.busy ?? '-'} → ${loadEnd.busy ?? '-'}% · node ${loadStart.procs?.node ?? '-'} · claude ${loadStart.procs?.claude ?? '-'}${loadStart.load || loadEnd.load ? ' (부하 판)' : ''}`)
     const main = rows.filter((r) => !r.base && r.ran !== false)
     const baseRows = rows.filter((r) => r.base)
     const chs = main.filter((r) => r.channelOk != null)
     result.channels[name] = {
-      ran: !out.error && main.length > 0, expectCh: C.ch, llm: C.llm, note: C.note, wallMs: Date.now() - t0, fed: fedOf(cfgOf(C, fake)), feedRev: C.feedRev ?? 1,
+      ran: !out.error && main.length > 0, expectCh: C.ch, llm: C.llm, note: C.note, wallMs: wall, load: { start: loadStart, end: loadEnd }, fed: fedOf(cfgOf(C, fake)), feedRev: C.feedRev ?? 1,
       channelOk: chs.length ? chs.every((r) => r.channelOk) : null, total: totalsOf(main), base: totalsOf(baseRows),
       codes: [...new Set(main.flatMap((r) => r.codes || []))], expected: main.some((r) => r.expect) ? { rows: main.filter((r) => r.expect).length, ok: main.filter((r) => r.expect && r.expectOk).length } : null, ...(out.error ? { error: out.error, stack: out.stack } : {}),
       ...(main.some((r) => r.proxy) ? { proxy: main.find((r) => r.proxy).proxy } : {}),
@@ -1783,6 +1847,23 @@ export function compareOf(A, B) {
   const arrow = (p, d = 3) => `${num(p[0], d)} → ${num(p[1], d)}`
   const cond = (r) => (!r.both ? '한쪽만' : r.same ? '같음' : [r.models.differ ? '모델 다름' : '', r.rules.length ? `규칙 다름(${r.rules.join(' · ')})` : '', r.feed ? `원천 다름(${JSON.stringify(r.feed.before)} → ${JSON.stringify(r.feed.after)}${r.feed.rev[0] !== r.feed.rev[1] ? ` · 넣는 법 ${r.feed.rev[0]} → ${r.feed.rev[1]}` : ''}${r.feed.note ? ' · 설명 다름' : ''})` : ''].filter(Boolean).join(' · '))
   for (const r of rows) md.push(`| ${r.name} | ${cond(r)} | ${r.models.before.join(',') || '-'} → ${r.models.after.join(',') || '-'} | ${arrow(r.usd)} | ${pct(...r.usd)} | ${arrow(r.sec, 0)} | ${pct(...r.sec)} | ${arrow(r.turns, 0)} | ${arrow(r.tokens.input, 0)} | ${arrow(r.tokens.output, 0)} | ${arrow(r.tokens.cacheRead, 0)} | ${arrow(r.tokens.cacheWrite, 0)} | ${r.put[0]} → ${r.put[1]} | ${arrow(r.baseUsd)} |`)
+  // 프로세스 밖 시간(T13): 양쪽에 돈 채널의 행 시간 = API(계측 apiMs) + API 밖(띄움 · init · 도구 응답 · 훅 · 저장 · PC 부하) · 옛 결과도 rows 로 다시 센다
+  const split = (c) => { const rs = (c?.rows || []).filter((r) => !r.base && r.ran !== false && r.meter); return { api: sum(rs.map((r) => r.meter.apiMs || 0)) / 1000, out: sum(rs.map((r) => Math.max(0, (r.ms || 0) - (r.meter.apiMs || 0)))) / 1000, launch: rs.some((r) => r.meter.launchMs != null) ? sum(rs.map((r) => r.meter.launchMs || 0)) / 1000 : null, load: (c?.rows || []).filter((r) => r.load).length } }
+  const sp = both.map((r) => ({ name: r.name, a: split(A.channels[r.name]), b: split(B.channels[r.name]) }))
+  const spSum = (k, i) => Math.round(sum(sp.map((x) => x[i][k] || 0)))
+  total.split = { api: [spSum('api', 'a'), spSum('api', 'b')], out: [spSum('out', 'a'), spSum('out', 'b')], loadRows: [spSum('load', 'a'), spSum('load', 'b')] }
+  md.push('', '### 프로세스 밖 시간(T13 · 행 시간 = API + API 밖)', '', `양쪽에 돈 채널 ${sp.length} · API ${total.split.api[0]}초 → ${total.split.api[1]}초 (${pct(...total.split.api)}) · API 밖 ${total.split.out[0]}초 → ${total.split.out[1]}초 (${pct(...total.split.out)}) · 부하 표시 행 ${total.split.loadRows[0]} → ${total.split.loadRows[1]}(부하 행의 API 밖 시간은 제품 몫과 PC 부하가 섞였다 · 제품 절감으로 세지 않는다)`, '')
+  const ms = [A.meterStats, B.meterStats]
+  if (ms[0] || ms[1]) {
+    const v = (x, k) => (x && x[k] != null ? x[k] : '-')
+    md.push('| 계측 통째(모든 프로세스) | 앞 | 뒤 |', '|---|---|---|')
+    for (const [k, label] of [['procs', '프로세스'], ['cut', '끊긴 프로세스(result 없음)'], ['launchPer', '프로세스당 띄움 ms - dur(초)'], ['durApiPer', '프로세스당 dur - api(초)'], ['nonApiSec', '비 API 합 ms - api(초)'], ['apiSec', 'API 합(초)'], ['initMed', 'init 중앙값(ms)'], ['wrapMed', '감싸개 몫 중앙값(ms · 시험 도구)']]) md.push(`| ${label} | ${v(ms[0], k)} | ${v(ms[1], k)} |`)
+    md.push('')
+  }
+  const lh = [A.load?.head, B.load?.head]
+  if (lh[0] || lh[1]) md.push(`부하 탐침(판 머리): node 띄움 ${lh[0]?.nodeMs ?? '-'} → ${lh[1]?.nodeMs ?? '-'}ms · git ${lh[0]?.gitMs ?? '-'} → ${lh[1]?.gitMs ?? '-'}ms · CPU ${lh[0]?.busy ?? '-'} → ${lh[1]?.busy ?? '-'}% · 기준 ${B.load?.nodeMsLimit ?? LOAD_NODE_MS}ms${lh[1]?.load ? ' · 뒤는 부하 판' : ''}${lh[0]?.load ? ' · 앞은 부하 판' : ''}`, '')
+  md.push('| 채널 | API 초 앞 → 뒤 | API 밖 초 앞 → 뒤 | 띄움 초 앞 → 뒤 | 부하 행 |', '|---|---|---|---|---|')
+  for (const x of sp) md.push(`| ${x.name} | ${Math.round(x.a.api)} → ${Math.round(x.b.api)} | ${Math.round(x.a.out)} → ${Math.round(x.b.out)} | ${x.a.launch == null ? '-' : Math.round(x.a.launch)} → ${x.b.launch == null ? '-' : Math.round(x.b.launch)} | ${x.a.load} → ${x.b.load} |`)
   md.push('', '### 품질(채널이 넣은 골든 원천 범위 · score.scope)', '', '| 채널 | 조건 | 알갱이 범위 | F1 | 빠짐 | 지금 값 | 성격 | 알갱이 자리 | 중복 |', '|---|---|---|---|---|---|---|---|---|')
   const qd = (p) => `${p[0] ?? '-'} → ${p[1] ?? '-'}${typeof p[0] === 'number' && typeof p[1] === 'number' && p[0] !== p[1] ? ` (${p[1] - p[0] > 0 ? '+' : ''}${r4(p[1] - p[0])})` : ''}`
   for (const r of rows) md.push(`| ${r.name} | ${cond(r)}${r.rescored ? ' · 다시 채점' : ''} | ${r.scope[0] || '-'} → ${r.scope[1] || '-'} | ${qd(r.quality.f1)} | ${qd(r.quality.missRate)} | ${qd(r.quality.valueRate)} | ${qd(r.quality.nature)} | ${qd(r.quality.factPlaced)} | ${qd(r.quality.dupRate)} |`)
@@ -1797,6 +1878,11 @@ async function report() {
     // 셈 규칙이 다른 옛 결과는 저장된 rows 로 다시 세고(recountRun) · 지식 폴더가 남아 있으면 지금 채점으로 다시 매긴다(rescoreRun · --no-rescore 로 끈다)
     const fit = async (J) => (process.argv.includes('--no-rescore') ? recountRun(J) : rescoreRun(recountRun(J)))
     const [A, B] = [await fit(A0), await fit(B0)]
+    // 계측 통째(T13): 결과가 가리키는 계측 파일(meters)이 남아 있으면 모든 프로세스의 띄움 · 비 API 를 같은 셈으로
+    for (const J of [A, B]) {
+      const ms = [...new Set([...(J.meters || []), ...(J.meter ? [J.meter] : [])])].map((m) => path.resolve(ROOT, m)).filter((m) => fss.existsSync(m))
+      if (ms.length) J.meterStats = meterStatsOf(ms.flatMap((m) => readJsonl(m)))
+    }
     console.log(compareOf(A, B).md.join('\n'))
     return
   }

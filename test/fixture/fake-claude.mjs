@@ -15,6 +15,8 @@ import fs from 'node:fs'
 
 const args = process.argv.slice(2)
 const val = (k) => args[args.indexOf(k) + 1]
+// 사용자 훅 끄기(--settings 파일의 disableAllHooks · 채널 평가 T13): 없으면 is_error
+const noHooks = () => { try { return JSON.parse(fs.readFileSync(val('--settings'), 'utf8')).disableAllHooks === true } catch { return false } }
 const say = (o) => process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, total_cost_usd: 0.001, model: 'fake-claude', ...o }) + '\n')
 
 // 세션(바탕 세우기 Z9 · core/claude.js claudeSession) — `--input-format stream-json` 으로 줄마다 말을 받고 턴마다 result 하나.
@@ -28,7 +30,7 @@ function session() {
   if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
   const tools = 'Read,Glob,Grep'
   const files = fs.readdirSync(process.cwd())
-  const ok = args.includes('-p') && val('--tools') === tools && val('--allowedTools') === tools && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && files.includes('md') && files.every((x) => ['재료.tsv', 'md', 'cards'].includes(x))
+  const ok = args.includes('-p') && val('--tools') === tools && val('--allowedTools') === tools && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && noHooks() && files.includes('md') && files.every((x) => ['재료.tsv', 'md', 'cards'].includes(x))
   out({ type: 'system', subtype: 'init', model: 'fake-claude', tools: ['Glob', 'Grep', 'Read', 'StructuredOutput'], cwd: process.cwd() })
   let buf = ''
   let turn = 0
@@ -114,7 +116,7 @@ function answer() {
     fs.appendFileSync(process.env.FAKE_CLAUDE_MCP_LOG, JSON.stringify({ auth: k?.headers?.Authorization || null, url: k?.url || null, allow: val('--allowedTools') || '', deny: val('--disallowedTools') || '', cfg: val('--mcp-config') }) + '\n')
   }
   if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
-  const ok = args.includes('-p') && val('--tools') === 'Read,Glob,Grep' && val('--permission-mode') === 'dontAsk' && args.includes('--strict-mcp-config') && JSON.parse(fs.readFileSync(val('--mcp-config'), 'utf8')).mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
+  const ok = args.includes('-p') && val('--tools') === 'Read,Glob,Grep' && val('--permission-mode') === 'dontAsk' && args.includes('--strict-mcp-config') && JSON.parse(fs.readFileSync(val('--mcp-config'), 'utf8')).mcpServers && val('--json-schema') && noHooks() && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
   if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
   if (prompt.startsWith('이 물음에는 {"ok": true}')) return say({ structured_output: { ok: true } }) // checkClaude

@@ -221,7 +221,16 @@ export function serial(key, f) {
 // format — 서식 맞춤(작성기준 「기록과 이력」 · 6-3 서식 계약): 지식은 그대로 두고 양식 · 서식만 바꾼 저장. 부르는 코드가 정한다(사람이 보낸 태그로 가르지 않는다)
 //         있는 항목만(지문 필수 · 새 항목 · 지우기 · 이름 바꾸기 · 장부 · 첨부 없음) · 옛 글과 새 글의 값 장부가 같아야 한다(날짜 표기만 맞춤) · 이력(log/ · 태그 format · 이력 갈래 「서식」)
 //   shape.strict — approve 모드 지식의 짜임 걸음(저장 승인 P-D24 · P7): 항목 하나라도 걸리면 넣지 못함 대신 걸음 입력 오류(E_INPUT · details.stepFail · 아무것도 쓰지 않는다)
-export function save(dir, input, { user, now = new Date(), system = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false, format = false } = {}) {
+// 단계 시각(채널 평가 T10 ⑧): stage 객체를 주면 저장 문의 걸음마다 ms 를 더한다(측정만 · 결과 · 쓰기와 무관)
+//   wait(입력 검사 + 줄 기다림) · recover(남은 저널) · prepare(새로 읽기 + 판정) · check(saveNow 의 검사 · 글 짓기) · write(저널 · 파일 쓰기) · commit(git) · after(커밋 뒤 · 서식 알림)
+export function stageLap(stage) {
+  if (!stage || typeof stage !== 'object') return () => {}
+  stage._t0 ??= Date.now()
+  stage._t ??= stage._t0
+  return (k) => { const n = Date.now(); stage[k] = (stage[k] || 0) + n - stage._t; stage._t = n }
+}
+export function save(dir, input, { user, now = new Date(), system = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false, format = false, stage = null } = {}) {
+  const lap = stageLap(stage)
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
   const kmdIntake = !!intake && nfc(user).trim().toLowerCase() === 'kmd'
@@ -268,7 +277,9 @@ export function save(dir, input, { user, now = new Date(), system = false, guard
   const mode = guard === 'strict' && !system ? 'strict' : 'hold'
   return serial(path.resolve(dir), async () => {
     // 줄 첫머리 — 남은 저널(꺼진 저장)부터 되돌린다. 판정(prepare)이 반쯤 쓴 글을 읽지 않게(S-D7 · 검토 R-18)
+    lap('wait')
     await recover(dir)
+    lap('recover')
     let secs = g0.secs
     let held = []
     let prep = null
@@ -283,13 +294,14 @@ export function save(dir, input, { user, now = new Date(), system = false, guard
       }
       held = cleanHeld(prep.held)
     }
+    lap('prepare')
     // 문서 짜임 — 문서 장부 정확한 줄 · 문서 요약(prepare 가 새로 읽은 지식으로 만든다)
     const place = shape ? (Array.isArray(prep?.place) ? prep.place : []) : []
     const intros = shape ? (Array.isArray(prep?.intros) ? prep.intros : []) : []
     const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
     if (relink.some((x) => !x || !oneLine(x.from?.doc) || !oneLine(x.from?.h) || !oneLine(x.to?.doc) || !oneLine(x.to?.h))) fail('E_INPUT', '짜임 링크 모양이 아니다')
     if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, ledger: system && Array.isArray(input.ledger) ? input.ledger : [], names, forms, natures, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, marks: !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted, format: !!format })
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, ledger: system && Array.isArray(input.ledger) ? input.ledger : [], names, forms, natures, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, marks: !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted, format: !!format, lap })
   })
 }
 
@@ -329,7 +341,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], names = [], forms: formsIn = [], natures: naturesIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null, format = false }) {
+async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], names = [], forms: formsIn = [], natures: naturesIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null, format = false, lap = () => {} }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
@@ -561,6 +573,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
   const workRel = `${sub}/${id}.md`
   const workFull = path.join(dir, sub, `${id}.md`)
   // 중간에 넘어지거나 꺼지면 쓴 것을 되돌린다 — 반쯤 쓴 저장은 남기지 않는다(저널 · 꺼졌으면 다음 저장 · 켤 때)
+  lap('check')
   const j = await begin(dir)
   try {
     await j.add(workRel)
@@ -667,6 +680,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       await writeAtomic(a.full, a.buf)
     }
     let commit
+    lap('write')
     try {
       commit = await commitPaths(dir, [workRel, ...docs, ...books, ...extra, ...atts.map((a) => a.rel)], rec.title, user)
     } catch (e) {
@@ -677,6 +691,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       commit = head
     }
     await j.done()
+    lap('commit')
     if (onCommit) {
       try {
         await onCommit()
@@ -708,6 +723,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       ...(prep?.proposals ? { proposals: prep.proposals } : {}),
       ...(prep?.warnings?.length ? { warnings: prep.warnings } : {}),
     }
+    lap('after')
     return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}), ...(formsIn.length ? { forms: formsIn.length } : {}), ...(formatKept.length ? { formatKept } : {}), ...(docLint.length ? { docLint } : {}), ...(formLint.length ? { formLint } : {}), ...(guardWarn.length ? { guardWarn } : {}), ...(touchesEmpty ? { touchesEmpty } : {}), ...marked }
   } catch (e) {
     await j.undo().catch((u) => console.error(`[save] ${dir} 되돌리기 실패(다음 저장 · 켤 때 저널로 다시): ${u?.message || u}`))

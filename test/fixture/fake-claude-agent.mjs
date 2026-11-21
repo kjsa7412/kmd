@@ -1,6 +1,6 @@
 // 시험용 가짜 Claude Code(에이전트) — KMD_CLAUDE_AGENT 로 주면 core/agent.js 가 node 로 돌린다.
 //
-// 지키는 것을 본다 — `-p` · stream-json · 내장 도구는 Read,Glob,Grep 만 · dontAsk · strict MCP · 설정 파일 둘.
+// 지키는 것을 본다: `-p` · stream-json · 내장 도구는 Read,Glob,Grep 만 · dontAsk · strict MCP · 설정 파일 둘 · 사용자 훅 끄기(--settings).
 // MCP 가 있으면(들이기) 일 폴더의 md 를 읽어 kmd MCP 를 진짜 HTTP 로 부른다:
 //   brief → save(회의록 › 「2026-10-21 HNC 통화」 + 장부 항목 term:펄스명령) — 줄마다 stream-json 을 낸다
 //   FAKE_AGENT_SCRIPT=<mjs> → 시험이 준 대본대로 한다(아래 본문 참고)
@@ -14,12 +14,14 @@ import path from 'node:path'
 const args = process.argv.slice(2)
 const val = (k) => args[args.indexOf(k) + 1]
 const out = (o) => process.stdout.write(JSON.stringify(o) + '\n')
+// 사용자 훅 끄기(--settings 파일의 disableAllHooks · 채널 평가 T13): 없으면 is_error
+const noHooks = () => { try { return JSON.parse(fs.readFileSync(val('--settings'), 'utf8')).disableAllHooks === true } catch { return false } }
 const end = (o) => out({ type: 'result', subtype: 'success', is_error: false, total_cost_usd: 0.01, num_turns: 3, model: 'fake-agent', ...o })
 
 let prompt = ''
 process.stdin.on('data', (c) => (prompt += c))
 process.stdin.on('end', async () => {
-  const ok = args.includes('-p') && val('--output-format') === 'stream-json' && val('--tools') === 'Read,Glob,Grep' && val('--permission-mode') === 'dontAsk' && args.includes('--strict-mcp-config') && fs.existsSync(val('--mcp-config')) && fs.existsSync(val('--append-system-prompt-file'))
+  const ok = args.includes('-p') && val('--output-format') === 'stream-json' && val('--tools') === 'Read,Glob,Grep' && val('--permission-mode') === 'dontAsk' && args.includes('--strict-mcp-config') && fs.existsSync(val('--mcp-config')) && fs.existsSync(val('--append-system-prompt-file')) && noHooks()
   if (!ok) return end({ is_error: true, subtype: 'error', result: '가짜 에이전트: 도구 · 허락 · 설정을 지키지 않았다' })
   if (process.env.FAKE_AGENT_SYS) fs.appendFileSync(process.env.FAKE_AGENT_SYS, JSON.stringify({ system: fs.readFileSync(val('--append-system-prompt-file'), 'utf8'), cwd: process.cwd(), prompt, model: args.includes('--model') ? val('--model') : '' }) + '\n')
   const cfg = JSON.parse(fs.readFileSync(val('--mcp-config'), 'utf8')).mcpServers.kmd

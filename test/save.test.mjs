@@ -281,3 +281,13 @@ test('서버: 남의 기록을 fixes 로 가리키면 403 · 내 기록은 된�
 //   원본 첨부는 같은 저장 덩이(attach · 같은 커밋) · 한 번 8MB · /mcp 본문은 들어온 사람만 12MB(넘으면 413)
 const read2 = (rel) => fs.readFileSync(path.join(sdir(), ...rel.split('/')), 'utf8')
 
+
+// 채널 평가 T10 ⑧: stage 를 주면 저장 문의 걸음마다 ms 를 더한다(측정만 · 결과 · 쓰기와 무관)
+test('단계 시각: stage 에 wait · recover · prepare · check · write · commit · after 가 든다', async () => {
+  const stage = {}
+  const r = await save(dir, { record: { title: '테스트 단계 시각', body: '단계 시각을 잰다.' }, sections: [{ doc: 'docs/테스트 단계 시각.md', heading: '개요', content: '수집 주기는 5초다.' }] }, { ...LEE, stage, prepare: async () => ({}) })
+  assert.ok(r.commit)
+  for (const k of ['wait', 'recover', 'prepare', 'check', 'write', 'commit', 'after']) assert.equal(typeof stage[k], 'number', k)
+  assert.ok(stage._t0 <= stage._t)
+  assert.equal(await status(), '')
+})

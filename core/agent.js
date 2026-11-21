@@ -16,7 +16,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { ENV_ALLOW } from './claude.js'
+import { ENV_ALLOW, noHooksArgs } from './claude.js'
 import { modelArgs } from './models.js'
 
 // 일 폴더 자리(C1) — mkdir 이 잡기다(한 PC 의 개인 프로그램 · 팀 일꾼이 같이 써도 겹치지 않는다) · 끝나면 지워 놓아 준다.
@@ -120,7 +120,7 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
     //   (Read · Glob · Grep 을 통째로 허락했더니 kmd 연결이 없던 에이전트가 ~/.claude.json · .mcp.json 을 읽으며 헤맸다)
     //   -p 에서는 읽기가 어디서나 되므로 사용자 집 폴더의 숨은 파일 · 폴더(.claude · .claude.json · .ssh · .kmd-app …)와 AppData\Roaming 은 막는다
     const deny = ['Read(~/.*)', 'Read(~/.*/**)', 'Read(~/AppData/Roaming/**)', 'Read(~/AppData/Local/Packages/**)']
-    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', tools.join(','), ...(mcp ? ['--allowedTools', 'mcp__kmd'] : []), '--disallowedTools', deny.join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--append-system-prompt-file', sysFile, ...modelArgs(model)]
+    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', tools.join(','), ...(mcp ? ['--allowedTools', 'mcp__kmd'] : []), '--disallowedTools', deny.join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--append-system-prompt-file', sysFile, ...noHooksArgs(cfgDir), ...modelArgs(model)]
     const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
     // kmd 연결을 기다리는 시간 — 정리가 도는 동안 kmd 가 늦게 답하면 기본 대기로는 「pending」 인 채 시작했다
     env.MCP_TIMEOUT ||= process.env.MCP_TIMEOUT || '60000'

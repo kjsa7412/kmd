@@ -454,7 +454,7 @@
 | `<data>/held/` | `heldDir`(hub.js:260) · `keepHeld` · `keepHeldDrop`(1118-1129) · `intakeRunWait`(1209-1239)의 원천 보관은 approve 모드에서 쓰지 않는다. 무인 일은 늘 들어가고 원본은 기록에 첨부되어 지식 안(백업 · 지우기 · 되살리기가 같이 따라감)에 있다. 옛 폴더는 이행이 끝나고 사람이 확인한 뒤의 다른 배포에서 지운다(P12). 지식 지울 때 held/ 를 지우는 줄(1366)도 그때 걷는다 |
 | 기록 모음 문서 | 지식 세우기에서 서버가 세운다. P3 이행에서 없는 지식에 세운다(P-D29) |
 | 들인 자료 갈래 | 규칙 길이 처음 쓸 때 서버 고정 갈래 「들인 자료」 로 세운다(P-D35). 개인 지식도 같다 |
-| savelog | 측정 줄에 P-D37 의 칸(`warned` · `accepted` · `rule` · `fix` · `conflict` · `rounds` · `code` · `unproposed` · `kit`)을 더한다. savelog.mjs 는 옛 줄과 새 줄을 둘 다 읽는다. 개인 프로그램도 같은 칸을 그 PC 의 `<data>/savelog/` 에만 남긴다(P-D43) |
+| savelog | 측정 줄에 P-D37 의 칸(`warned` · `accepted` · `rule` · `fix` · `conflict` · `rounds` · `code` · `unproposed` · `kit`)을 더한다. 단계 시각 `stageMs`(2026-11-21 · 채널 평가 T10 ⑧ · 측정만): `pre`(저장 문 들머리 · 자리 · 입력 꼴) · `wait`(core 입력 검사 + 줄 기다림) · `recover` · `prepare`(새로 읽기 + 판정) · `check` · `write` · `commit` · `after` · `post`(커밋 뒤 hub 몫) ms(`core/save.js` `stageLap`). savelog.mjs 는 옛 줄과 새 줄을 둘 다 읽는다. 개인 프로그램도 같은 칸을 그 PC 의 `<data>/savelog/` 에만 남긴다(P-D43) |
 
 ### 6-2. 이미 쌓인 지식 이행(188 의 DPMS · GDI 등)
 

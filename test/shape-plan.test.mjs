@@ -352,3 +352,19 @@ test('다시 잡기 판단 기준 4 는 스키마와 맞는다(gist 를 요구�
   const d = planOfDraft({ fp: 'f'.repeat(16) }, { docs: [{ id: 'b', was: 'a', items: [{ h: '수집기', from: [{ doc: 'a', h: '수집기' }] }] }], names: [{ coord: '모듈:수집기', doc: 'b', h: '수집기' }], why: '' })
   assert.deepEqual(d.plan.names, [{ coord: '모듈:수집기', label: '', doc: 'b', h: '수집기' }])
 })
+
+// 채널 평가 T10 ⑤: 작은 재료는 글 짓기 세션의 첫 말에 싣는다(다시 Read 하지 않게) · 상한을 넘거나 글이 없으면 지금 길(md/ 를 읽는다)
+test('글 짓기 세션: 작은 재료는 첫 말에 싣고 크면 md/ 를 읽게 한다', async () => {
+  const { SEED_INLINE_MAX, seedInlineOk } = await import('../core/shape.js')
+  const g = { doc: '게이트웨이/설계', targets: [{ doc: '게이트웨이/설계', h: '수집기', part: '' }] }
+  const small = seedWriteSessionPromptOf(g, [{ file: 'b.md', path: '설계서.md', chars: 14, text: '수집기 전송 주기는 5초다.' }], { prior: [{ file: 'a.md', path: '회의.md', date: '2026-11-10', text: '주기를 10초로 정했다.' }] })
+  assert.match(small, /다시 Read 하지 않는다/)
+  assert.match(small, /<<< md\/b\.md · 설계서\.md\n수집기 전송 주기는 5초다\.\n>>>/)
+  assert.match(small, /<<< md\/a\.md · 회의\.md\n주기를 10초로 정했다\.\n>>>/)
+  assert.ok(small.indexOf('[target ') < small.indexOf('<<< md/'), '목표 줄 뒤에 싣는다')
+  const big = seedWriteSessionPromptOf(g, [{ file: 'b.md', path: '설계서.md', text: 'x'.repeat(SEED_INLINE_MAX + 1) }])
+  assert.match(big, /Read 로 읽는다/)
+  assert.doesNotMatch(big, /<<< md\//)
+  assert.equal(seedInlineOk([{ file: 'b.md', text: 'x'.repeat(SEED_INLINE_MAX - 10) }], [{ file: 'a.md', text: 'y'.repeat(11) }]), false, '앞선 값 발췌도 합에 든다')
+  assert.doesNotMatch(seedWriteSessionPromptOf(g, [{ file: 'b.md', path: '설계서.md' }]), /<<< md\//, '글이 없으면 싣지 않는다')
+})

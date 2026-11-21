@@ -709,6 +709,14 @@ ${genRulesBlock({ profile: 'shape' })}`
     const side = seen == null ? 'unknown' : seen !== basesKeyOf(p) ? 'knowledge' : 'input'
     return { miss: 'hash', side, got: String(got || '').slice(0, 8), now: String(p?.proposal || '').slice(0, 8) }
   }
+  // 단계 시각(채널 평가 T10 ⑧): pre(저장 문 들머리 · 자리 · 입력 꼴 · 저장 문 앞 읽기) · core/save.js 걸음(stageLap) · post(커밋 뒤 hub 몫 · 측정 줄 직전까지)
+  function stageMsOf(stage, t0) {
+    try {
+      if (!stage || stage._t0 == null) return null
+      const { _t0, _t, ...ks } = stage
+      return { pre: _t0 - t0, ...ks, post: Date.now() - _t }
+    } catch (e) { log(`단계 시각을 셈하지 못했다: ${e.message}`); return null }
+  }
   // 측정 줄(S-D29) — <data>/savelog/<지식>.jsonl 덧붙이기 · 5MB 넘으면 .1 로 · 던지지 않는다(커밋 뒤 · S-D49)
   const SAVELOG_MAX = config.savelogMax ?? 5 * 1024 * 1024
   async function savelog(id, line) {
@@ -1135,14 +1143,14 @@ ${genRulesBlock({ profile: 'shape' })}`
         if (typeof body !== 'string') return { state: 'fail', why: `재료 글이 없다: ${pathOf.get(x) || x}` }
         f.names.set(x.slice(2), pathOf.get(x) || x)
         await fs.writeFile(path.join(dir, 'md', `${x.slice(2)}.md`), body)
-        files.push({ file: `${x.slice(2)}.md`, path: pathOf.get(x) || x, chars: body.length })
+        files.push({ file: `${x.slice(2)}.md`, path: pathOf.get(x) || x, chars: body.length, text: body })
       }
       // 앞선 값 재료(생성 룰 R2-5 · 채널 평가 P6) — 다른 문서로 가는 날짜 있는 재료 가운데 목표 대상이 나오는 것 · 그 줄 둘레만(seedPriorOf · 값 대조 근거와 같은 글)
       const prior = []
       for (const p of seedPriorOf(w.plan, doc, mats.rows, mats.text)) {
         f.names.set(p.src.slice(2), p.path)
         await fs.writeFile(path.join(dir, 'md', `${p.src.slice(2)}.md`), p.body)
-        prior.push({ file: `${p.src.slice(2)}.md`, path: p.path, date: p.date })
+        prior.push({ file: `${p.src.slice(2)}.md`, path: p.path, date: p.date, text: p.body })
       }
       s = steadySession(id, run, async () => claudeSession({ cwd: dir, schema: SHAPE_WRITE_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
       run.sessions?.add(s)
@@ -1682,7 +1690,7 @@ ${genRulesBlock({ profile: 'shape' })}`
   function noMemo(rec) {
     if (rec && rec.memo != null && rec.memo !== false) throw new KmdError('E_INPUT', '메모(기록만)는 남기지 않는다. 정해진 부분만 골라 다시 제안한다(정해지지 않은 것은 저장하지 않는다)')
   }
-  async function approveSave(ctx, id, meta, input, opt, channel, bag) {
+  async function approveSave(ctx, id, meta, input, opt, channel, bag, stage = null) {
     const rec0 = input.record
     const bad = proposeInputWhy(Object.fromEntries(['proposal', 'distinct', 'excluded', 'forms', 'natures', 'kinds', 'names'].filter((x) => input[x] !== undefined).map((x) => [x, input[x]])))
     if (bad) throw new KmdError('E_INPUT', bad)
@@ -1727,7 +1735,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       bag.items = p.items.length
       return { sections, proposals: p.items.filter((x) => x.kind !== '잇기').map((x) => ({ coord: x.at, doc: x.doc, heading: x.heading, ok: true, changed: x.changed || [] })) }
     }
-    return coreSave(meta.dir, { record: input.record, sections: [], ...(input.names?.length ? { names: input.names } : {}), ...(input.forms?.length ? { forms: input.forms } : {}), ...(input.natures?.length ? { natures: input.natures } : {}), ...(input.attach ? { attach: input.attach } : {}) }, { user: ctx.user, guard: 'strict', prepare, approve: bag, onCommit: () => cache.delete(id) })
+    return coreSave(meta.dir, { record: input.record, sections: [], ...(input.names?.length ? { names: input.names } : {}), ...(input.forms?.length ? { forms: input.forms } : {}), ...(input.natures?.length ? { natures: input.natures } : {}), ...(input.attach ? { attach: input.attach } : {}) }, { user: ctx.user, guard: 'strict', prepare, approve: bag, stage, onCommit: () => cache.delete(id) })
   }
 
   // ── approve 모드 무인 저장 문(저장 승인 설계 P6 · P-D14 · P-D15 · P-D35 · P-D38 · 3-2 「무인 저장」) ──
@@ -1758,7 +1766,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     return { p, errors: p.errors }
   }
   // 무인 저장 문의 몸(saveIn 이 부른다) — coreSave(prepare · approve + intake) 결과(r0) · 판정 오류면 { errors } (쓰지 않았다)
-  async function unattendedSave(ctx, id, meta, input, un, intake, bag) {
+  async function unattendedSave(ctx, id, meta, input, un, intake, bag, stage = null) {
     if (!files.has(id)) files.set(id, new Map())
     const prepare = async () => {
       const k = await loadKnowledge(meta, { cache: files.get(id) })
@@ -1781,7 +1789,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       bag.items = p.items.length
       return { sections, proposals: p.items.filter((x) => x.kind !== '잇기').map((x) => ({ coord: x.at, doc: x.doc, heading: x.heading, ok: true, changed: x.changed || [] })) }
     }
-    return coreSave(meta.dir, { record: input.record, sections: [], ...(input.names?.length ? { names: input.names } : {}), ...(input.forms?.length ? { forms: input.forms } : {}), ...(input.natures?.length ? { natures: input.natures } : {}), ...(input.attach ? { attach: input.attach } : {}) }, { user: ctx.user, guard: 'strict', prepare, approve: bag, ...(intake ? { intake: { tags: intake.tags || [] } } : {}), ...(input.record?.fixes?.length ? { correction: true } : {}), onCommit: () => cache.delete(id) })
+    return coreSave(meta.dir, { record: input.record, sections: [], ...(input.names?.length ? { names: input.names } : {}), ...(input.forms?.length ? { forms: input.forms } : {}), ...(input.natures?.length ? { natures: input.natures } : {}), ...(input.attach ? { attach: input.attach } : {}) }, { user: ctx.user, guard: 'strict', prepare, approve: bag, ...(intake ? { intake: { tags: intake.tags || [] } } : {}), ...(input.record?.fixes?.length ? { correction: true } : {}), stage, onCommit: () => cache.delete(id) })
   }
 
   // hub.save 의 몸(meta · 자리 · 속도를 넘은 뒤) — 커밋 뒤는 던지지 않는다(S-D49)
@@ -1790,6 +1798,8 @@ ${genRulesBlock({ profile: 'shape' })}`
     input = inputIn(input)
     // 무인 세션의 측정 칸(설계 9-1 · 생성 룰 판 · 앞선 값 카드 수): 서버 코드만 opt 로 단다
     if (opt.ruleLog) logLine = { ...logLine, ...opt.ruleLog }
+    // 단계 시각(채널 평가 T10 ⑧): 저장 문 걸음마다 ms(측정 줄에만 · stageMsOf)
+    const stage = {}
     // form — 세션(MCP)의 기록 글은 서식 칸으로(작성기준 6절 · 템플릿/기록.md) · 칸을 kmd 가 머리를 달아 엮는다 · 메모는 바뀐 것이 없어도 된다
     if (opt.form && input?.record && typeof input.record === 'object') {
       //   http 길(opt.form 'http' · 화면 · API 열쇠)은 바뀐 것(changes)이 꼭 있다(채널 평가 P7 · D3) · 세션은 요약만인 기록도 받는다
@@ -1833,10 +1843,10 @@ ${genRulesBlock({ profile: 'shape' })}`
     if (!human && !un && team && (input?.names?.length || input?.forms?.length) && !hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '항목(장부) · 갈래는 지식관리자가 세운다. 저장 제안으로 보낸다')
     let r0
     if (human) {
-      r0 = await approveSave(ctx, id, meta, input, opt, channel, bag)
+      r0 = await approveSave(ctx, id, meta, input, opt, channel, bag, stage)
       if (r0.same) {
         cache.delete(id)
-        try { await savelog(id, { ...logLine, rec: r0.id, n: 0, put: 0, stale: [], conflictWith: [], same: true, ms: Date.now() - t0, err: null, mode: 'approve' }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+        try { await savelog(id, { ...logLine, rec: r0.id, n: 0, put: 0, stale: [], conflictWith: [], same: true, ms: Date.now() - t0, stageMs: stageMsOf(stage, t0), err: null, mode: 'approve' }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
         return { same: true, id: r0.id, docs: [], note: '같은 것을 이미 저장했다. 다시 쓰지 않았다', warnings: [] }
       }
     } else if (un) {
@@ -1844,11 +1854,11 @@ ${genRulesBlock({ profile: 'shape' })}`
       sectionShapes(input.sections)
       const k0 = await hub.get(id)
       input = unattendedTouches(k0, input)
-      r0 = await unattendedSave(ctx, id, meta, input, un, intake, bag)
+      r0 = await unattendedSave(ctx, id, meta, input, un, intake, bag, stage)
       if (r0.ask) return { ask: r0.ask, id: null, put: 0, docs: [], warnings: [] }
       if (r0.same || r0.errors) {
         cache.delete(id)
-        try { await savelog(id, { ...logLine, rec: r0.id || null, n: Array.isArray(input?.sections) ? input.sections.length : 0, put: 0, stale: (r0.errors || []).filter((e) => e.stale).map((e) => e.at), conflictWith: [], same: !!r0.same, ms: Date.now() - t0, err: r0.errors ? 'unattended' : null, mode: 'approve', ...(r0.errors ? { code: r0.errors.map((e) => e.code) } : {}), ...(un.fix ? { fix: un.fix } : {}), ...(un.conflict ? { conflict: un.conflict } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+        try { await savelog(id, { ...logLine, rec: r0.id || null, n: Array.isArray(input?.sections) ? input.sections.length : 0, put: 0, stale: (r0.errors || []).filter((e) => e.stale).map((e) => e.at), conflictWith: [], same: !!r0.same, ms: Date.now() - t0, stageMs: stageMsOf(stage, t0), err: r0.errors ? 'unattended' : null, mode: 'approve', ...(r0.errors ? { code: r0.errors.map((e) => e.code) } : {}), ...(un.fix ? { fix: un.fix } : {}), ...(un.conflict ? { conflict: un.conflict } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
         return r0.same ? { same: true, id: r0.id, docs: [], note: '같은 것을 이미 저장했다. 다시 쓰지 않았다', warnings: [] } : { errors: r0.errors, id: null, put: 0, docs: [], warnings: [] }
       }
     } else if (opt.shape) {
@@ -1857,7 +1867,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (input?.sections?.length || input?.names?.length) throw new KmdError('E_INPUT', '짜임 걸음은 sections · names 를 입력으로 받지 않는다')
       if (!files.has(id)) files.set(id, new Map())
       // 바탕 세우기의 장부 항목(Z7) — 엔진이 구조안에서 지은 것(opt.shape.names · 서버 코드만 단다 · 입력 names 는 받지 않는다)
-      r0 = await coreSave(meta.dir, { record: input.record, sections: [], ...(input?.forms?.length ? { forms: input.forms } : {}), ...(Array.isArray(opt.shape.names) && opt.shape.names.length ? { names: opt.shape.names } : {}), ...(Array.isArray(opt.shape.natures) && opt.shape.natures.length ? { natures: opt.shape.natures } : {}) }, { user: ctx.user, system: !!opt.system, guard: 'hold', marks: true, correction: true, prepare: opt.shape.prepare || null, shape: { tags: opt.shape.tags, strict: true }, onCommit: () => cache.delete(id) })
+      r0 = await coreSave(meta.dir, { record: input.record, sections: [], ...(input?.forms?.length ? { forms: input.forms } : {}), ...(Array.isArray(opt.shape.names) && opt.shape.names.length ? { names: opt.shape.names } : {}), ...(Array.isArray(opt.shape.natures) && opt.shape.natures.length ? { natures: opt.shape.natures } : {}) }, { user: ctx.user, system: !!opt.system, guard: 'hold', marks: true, correction: true, prepare: opt.shape.prepare || null, shape: { tags: opt.shape.tags, strict: true }, stage, onCommit: () => cache.delete(id) })
     } else if (team) {
       // 저장 승인 문 밖의 팀 저장(다듬기 등 서버 코드가 정한 채널) — 같은 항목 판정(gatePrepare) · 하나라도 걸리면 아무것도 쓰지 않는다(입력 오류 · P11)
       sectionShapes(input.sections)
@@ -1869,7 +1879,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         return gatePrepare(k, input, { user: ctx.user, newDoc: true, intake: !!intake })
       }
       if (!files.has(id)) files.set(id, new Map())
-      r0 = await coreSave(meta.dir, { record: input.record, sections: [], names: input.names, forms: input.forms, ...(input.attach ? { attach: input.attach } : {}) }, { user: ctx.user, guard: opt.guard || 'hold', holdWhy: opt.holdWhy || null, prepare, marks: true, correction, ...(intake ? { intake: { tags: intake.tags || [] } } : {}), onCommit: () => cache.delete(id) })
+      r0 = await coreSave(meta.dir, { record: input.record, sections: [], names: input.names, forms: input.forms, ...(input.attach ? { attach: input.attach } : {}) }, { user: ctx.user, guard: opt.guard || 'hold', holdWhy: opt.holdWhy || null, prepare, marks: true, correction, ...(intake ? { intake: { tags: intake.tags || [] } } : {}), stage, onCommit: () => cache.delete(id) })
       if (r0.same) {
         cache.delete(id)
         if (channel) {
@@ -1879,7 +1889,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       }
     } else {
       // 문서 고치기(opt.edit)는 넣은 것 칸(옛 값 → 새 값 · 이력 「고침」)을 남기고 · edit 태그 하나를 받고 · 지식관리자만 항목 지우기 · 이름 바꾸기(structure · S-D44)
-      r0 = await coreSave(meta.dir, input, { user: ctx.user, system: !!opt.system, guard: opt.guard || 'hold', holdWhy: opt.holdWhy || null, ...(opt.edit ? { marks: true, asEdit: true, structure: !!opt.edit.structure, ...(opt.edit.accepted?.length ? { accepted: opt.edit.accepted } : {}) } : {}) })
+      r0 = await coreSave(meta.dir, input, { user: ctx.user, system: !!opt.system, guard: opt.guard || 'hold', holdWhy: opt.holdWhy || null, stage, ...(opt.edit ? { marks: true, asEdit: true, structure: !!opt.edit.structure, ...(opt.edit.accepted?.length ? { accepted: opt.edit.accepted } : {}) } : {}) })
     }
     // ── 여기부터 던지지 않는다(S-D49): 하나씩 try/catch + log ──
     cache.delete(id)
@@ -1901,7 +1911,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       // 측정 줄(S-D29) — conflictWith 는 E_CONFLICT 때만 · 들이기 비용은 S7
       //   ok — 넣은 자리
       //   cost — 들이기 일감이면 일꾼이 알린 claude 비용 합 · 횟수(S-D29 · 2-5) · warn — 새 항목을 세우며 names 를 싣지 않았다(names-missing · S-D32)
-      try { await savelog(id, { ...logLine, rec: r0.id, n: Array.isArray(input?.sections) ? input.sections.length : 0, put, ok: proposals.filter((p) => p.applied).map((p) => p.coord), targets: saveTargets(input), stale: [], conflictWith: [], same: false, ms: Date.now() - t0, err: null, cost: intake?.cost || null, ...(intake?.warn?.length ? { warn: intake.warn } : {}), ...(human ? { mode: 'approve', accepted: bag.accepted.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, rounds: roundsTake(ctx, id) } : {}), ...(un ? { mode: 'approve', warned: bag.values.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, ...(un.fix ? { fix: un.fix } : {}), ...(un.conflict ? { conflict: un.conflict } : {}) } : {}), ...(opt.shape ? { mode: 'approve', warned: (r0.warnings || []).map((w) => /^값 대조\(([a-z-]+)\)/.exec(String(w))?.[1]).filter(Boolean) } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+      try { await savelog(id, { ...logLine, rec: r0.id, n: Array.isArray(input?.sections) ? input.sections.length : 0, put, ok: proposals.filter((p) => p.applied).map((p) => p.coord), targets: saveTargets(input), stale: [], conflictWith: [], same: false, ms: Date.now() - t0, stageMs: stageMsOf(stage, t0), err: null, cost: intake?.cost || null, ...(intake?.warn?.length ? { warn: intake.warn } : {}), ...(human ? { mode: 'approve', accepted: bag.accepted.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, rounds: roundsTake(ctx, id) } : {}), ...(un ? { mode: 'approve', warned: bag.values.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, ...(un.fix ? { fix: un.fix } : {}), ...(un.conflict ? { conflict: un.conflict } : {}) } : {}), ...(opt.shape ? { mode: 'approve', warned: (r0.warnings || []).map((w) => /^값 대조\(([a-z-]+)\)/.exec(String(w))?.[1]).filter(Boolean) } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
     }
     // 그 사람의 「오늘 바뀐 것」 한 줄 — 본인 줄만(남에게 알리지 않는다 · K-D13)
     const title = input?.record?.title || ''

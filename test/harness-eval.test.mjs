@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadKnowledge } from '../core/knowledge.js'
 import { scoreKnowledge, gateOf, itemsOf, factText, natureOf } from '../scripts/harness-eval.mjs'
-import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf } from '../scripts/channel-eval.mjs'
+import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf, launchOf, meterStatsOf, probeLoad, LOAD_NODE_MS } from '../scripts/channel-eval.mjs'
 
 const FIX = path.resolve('test/fixture/harness/빈지식')
 const gold = JSON.parse(fs.readFileSync(path.join(FIX, 'gold.json'), 'utf8'))
@@ -370,4 +370,31 @@ test('T6 · T7 · T8: 코드는 앞 원인 · 뒤 원인 순으로 쌓이고 · 
   // T8 — 글 짓기는 문서마다 동작 내역을 새로 연다: 끝에 한 번 읽은 마지막 문서 몫(0.0576)이 아니라 문서마다 더한다
   assert.equal(feedDocsCost([{ feedCost: 0.0712 }, { feedCost: 0.0806 }, { feedCost: 0.0576 }]), 0.2094)
   assert.equal(feedDocsCost([]), 0)
+})
+
+// T13 프로세스 밖 시간 · 부하 탐침: 띄움(ms - dur) · 비 API(ms - api · 끊긴 프로세스는 통째) · 계측 통째 · 견주기의 API · API 밖 · 탐침 꼴
+test('T13: 띄움 · 비 API · 계측 통째 · 견주기의 API 밖 줄 · 부하 탐침', async () => {
+  const lasts = [{ run: 'a', ms: 10_000, dur: 8_000, api: 6_000 }, { run: 'b', ms: 5_000, noResult: true, diag: { initMs: 4000 } }, { run: 'c', ms: 3_000 }]
+  assert.deepEqual(launchOf(lasts), { launchMs: 2000, launchProcs: 1, nonApiMs: 4000 + 5000 })
+  const st = meterStatsOf([{ run: 'a', ms: 9_000, dur: 7_000, api: 5_000 }, ...lasts])
+  assert.equal(st.procs, 3)
+  assert.equal(st.cut, 1)
+  assert.equal(st.launchPer, 2)
+  assert.equal(st.durApiPer, 2)
+  assert.equal(st.nonApiSec, 9)
+  assert.equal(st.initMed, 4000)
+  const row = meterRowOf({ cost: 0 }, [{ run: 'a', ms: 10_000, dur: 8_000, api: 6_000, cost: 0.1, turns: 2, diag: { initMs: 1500, wrapMs: 120, t: { firstOut: 900, init: 1500, firstAsst: 3000 } } }])
+  assert.equal(row.meter.launchMs, 2000)
+  assert.deepEqual([row.meter.diag.wrapMs, row.meter.diag.firstOutMs, row.meter.diag.firstAsstMs], [[120], [900], [3000]])
+  const t = totalsOf([{ ms: 12_000, cost: 0, meter: { apiMs: 6000, launchMs: 2000 }, load: true }, { ms: 1000, cost: 0 }])
+  assert.deepEqual([t.apiMs, t.outMs, t.launchMs, t.loadRows], [6000, 6000, 2000, 1])
+  const J = (ms, api, load) => ({ tag: 'x', channels: { a: { total: totalsOf([{ ms, cost: 0, meter: { apiMs: api } }]), rows: [{ ms, cost: 0, meter: { apiMs: api }, ...(load ? { load: true } : {}) }] } }, ...(load ? { load: { head: { nodeMs: 3000, load: true }, nodeMsLimit: LOAD_NODE_MS } } : {}) })
+  const c = compareOf(J(10_000, 9_000), J(20_000, 8_000, true))
+  assert.deepEqual(c.total.split, { api: [9, 8], out: [1, 12], loadRows: [0, 1] })
+  assert.ok(c.md.some((l) => /API 밖 1초 → 12초/.test(l)))
+  assert.ok(c.md.some((l) => /뒤는 부하 판/.test(l)))
+  const p = await probeLoad()
+  assert.equal(typeof p.nodeMs, 'number')
+  assert.equal(typeof p.load, 'boolean')
+  assert.ok(p.busy == null || (p.busy >= 0 && p.busy <= 100))
 })

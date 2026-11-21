@@ -22,6 +22,16 @@ export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APP
 export const SESSION_TOOLS = ['Read', 'Glob', 'Grep']
 const SESSION_DENY = ['Read(~/.*)', 'Read(~/.*/**)', 'Read(~/AppData/Roaming/**)', 'Read(~/AppData/Local/Packages/**)']
 export const MCP_READ = ['brief', 'match', 'section', 'search']
+// 사용자 훅을 돌리지 않는다(격리 · 하네스 H-D34 · 권한 모델 7절): 일꾼 프로세스는 이 PC 사람의 훅(~/.claude/settings.json hooks)을 싣지 않는다.
+//   훅은 도구 입력(지식 글)을 받아 밖으로 넘길 수 있고, 도구마다 node 를 띄워 init · 도구 응답을 늦춘다(채널 평가 T13).
+//   설정 파일은 일 폴더 밖(cfgDir)에 두고 --settings 로 넘긴다(셸을 거쳐도 따옴표가 깨지지 않게 · 인라인 JSON 을 쓰지 않는다).
+//   권한 · 도구는 --tools · --allowedTools · --disallowedTools · dontAsk 로 따로 주므로 바뀌지 않는다. 관리 정책(managed) 훅은 막히지 않는다(맞는 동작)
+export const NO_HOOKS = { disableAllHooks: true }
+export function noHooksArgs(dir) {
+  const f = path.join(dir, 'settings.json')
+  fs.writeFileSync(f, JSON.stringify(NO_HOOKS))
+  return ['--settings', f]
+}
 // 폴더 하나를 읽지 못하게 하는 규칙(Claude Code 권한 꼴 · 절대 경로는 「//」 · Windows 는 /c/… 꼴) — Read 규칙은 Glob · Grep 에도 걸린다
 export const denyDir = (dir) => {
   const p = path.resolve(dir).split(path.sep).join('/').replace(/^([A-Za-z]):/, (_, d) => '/' + d.toLowerCase())
@@ -38,7 +48,7 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
   const allow = mcp ? (mcp.read ? MCP_READ.map((t) => `mcp__kmd__${t}`).join(',') : 'mcp__kmd') : ''
   //   MCP 설정 폴더(열쇠가 든 mcp.json)도 읽지 못한다 — 임시 폴더(~/AppData/Local/Temp)는 SESSION_DENY 밖이다
   const deny = [...SESSION_DENY, ...denyDir(cfgDir), ...(mcp?.read ? ['mcp__kmd__propose', 'mcp__kmd__save'] : [])]
-  const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', tools.join(','), ...(allow ? ['--allowedTools', allow] : []), '--disallowedTools', deny.join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
+  const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', tools.join(','), ...(allow ? ['--allowedTools', allow] : []), '--disallowedTools', deny.join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...noHooksArgs(cfgDir), ...modelArgs(model)]
   if (/^(low|medium|high|max)$/.test(effort)) args.push('--effort', effort)
   if (process.env.ANTHROPIC_API_KEY) args.push('--bare')
   const fake = process.env.KMD_CLAUDE
@@ -136,7 +146,10 @@ export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], b
   const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
   if (Number(thinking) > 0) env.MAX_THINKING_TOKENS = String(Math.round(Number(thinking)))
   const tl = tools.join(',')
-  const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', tl, '--allowedTools', tl, '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
+  // 설정 폴더(사용자 훅 끄기 · 세션 폴더 밖): 닫힐 때 지운다
+  const cfgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-session-cfg-'))
+  const dropCfg = () => { try { fs.rmSync(cfgDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch (e) { console.error('세션 설정 폴더를 지우지 못했다: ' + e.message) } }
+  const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', tl, '--allowedTools', tl, '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...noHooksArgs(cfgDir), ...modelArgs(model)]
   if (/^(low|medium|high|max)$/.test(effort)) args.push('--effort', effort)
   if (process.env.ANTHROPIC_API_KEY) args.push('--bare')
   const fake = process.env.KMD_CLAUDE
@@ -182,13 +195,14 @@ export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], b
     p.stderr.on('data', (c) => { se += c; if (se.length > 8000) se = se.slice(-8000) })
     p.stdin.on('error', () => {}) // 먼저 닫힌 세션에 쓰기(EPIPE) — 닫힘에서 까닭을 낸다
     closed = new Promise((ok) => {
-      p.on('error', (e) => { se += String(e.message); clearTimeout(idle); clearTimeout(all); ended ||= 'error'; finish(parse({ code: -1, so: '', se })); ok() })
+      p.on('error', (e) => { se += String(e.message); clearTimeout(idle); clearTimeout(all); ended ||= 'error'; dropCfg(); finish(parse({ code: -1, so: '', se })); ok() })
       p.on('close', (code) => {
         clearTimeout(idle)
         clearTimeout(all)
         if (buf) line(buf)
         if (wait) finish(ended && ended !== 'end' && ended !== 'error' ? { error: 'fail', message: ended } : parse({ code: code || 1, so: '', se: se || `닫혔다(종료 ${code})` }))
         ended ||= 'closed'
+        dropCfg()
         ok()
       })
     })
@@ -208,7 +222,7 @@ export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], b
       })
     },
     async end() {
-      if (!p) return
+      if (!p) { dropCfg(); return }
       ended ||= 'end'
       try { p.stdin.end() } catch {}
       const t = setTimeout(() => { try { p.kill() } catch {} }, 10_000)
@@ -216,7 +230,7 @@ export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], b
       clearTimeout(t)
     },
     kill(why = '그만뒀다') {
-      if (!p) { ended ||= why; return }
+      if (!p) { ended ||= why; dropCfg(); return }
       stop(why)
       finish({ error: 'fail', message: why })
     },

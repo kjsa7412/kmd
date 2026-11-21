@@ -357,3 +357,16 @@ test('pending 끊기: 판 판정 · 끊는 판은 init 에서 곧바로 끊고 �
     for (const k of ['FAKE_AGENT_MODE', 'KMD_MCP_PENDING_CUT', 'FAKE_AGENT_SYS']) delete process.env[k]
   }
 })
+
+// 채널 평가 T13 · 격리: 일꾼 프로세스는 사용자 훅을 싣지 않는다(--settings 파일의 disableAllHooks · 가짜 에이전트 · 가짜 claude 는 없으면 is_error 로 거절한다)
+test('사용자 훅 끄기: noHooksArgs 는 설정 폴더에 disableAllHooks 파일을 쓰고 --settings 로 넘긴다', async () => {
+  const { noHooksArgs, NO_HOOKS } = await import('../core/claude.js')
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-nohooks-'))
+  try {
+    const a = noHooksArgs(d)
+    assert.equal(a[0], '--settings')
+    assert.equal(path.dirname(a[1]), d)
+    assert.deepEqual(JSON.parse(fs.readFileSync(a[1], 'utf8')), NO_HOOKS)
+    assert.equal(NO_HOOKS.disableAllHooks, true)
+  } finally { fs.rmSync(d, { recursive: true, force: true }) }
+})
