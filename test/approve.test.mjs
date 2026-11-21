@@ -15,6 +15,10 @@ import { startServer } from '../server/http.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
 import { TEAM_KIT_REV } from '../core/teamkit.js'
 import { freshItems, parseAccepted, parseLinked, parseFresh, KMD_PART_RE } from '../core/parts.js'
+import crypto from 'node:crypto'
+import { execFileSync } from 'node:child_process'
+import { fileToMd } from '../core/importer.js'
+import { makeMcp } from '../server/mcp.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -356,4 +360,82 @@ test('채널 평가 T10: 승인한 제안 그대로면 save 는 { knowledge, pro
   assert.equal(miss.error, 'E_APPROVE')
   const again = await mcp('save', { knowledge: 'apv', proposal: miss.details.propose.proposal, kit: KIT })
   assert.ok(again.saved, JSON.stringify(again))
+})
+
+// 비율 한 칸 바꾸는 입력(T10 시험들) — 지금 글을 읽어 다른 값으로
+const flip = async (kn, title, over = {}, call = mcp) => {
+  const sec = await call('section', { knowledge: kn, coord: 'proc:카나리' })
+  const cur = /요청의 (\d+)% 만/.exec(sec.content)[1]
+  const to = String(Number(cur) + 1)
+  return { cur, to, inp: { knowledge: kn, record: { title: `${title}: 첫 30분 비율 ${to}%`, changes: [`첫 30분 비율: ${cur}% → ${to}%`], why: ['테스트: 비율을 바꿈'], touches: ['proc:카나리'], ...(over.record || {}) }, sections: [{ coord: 'proc:카나리', base: sec.base, edits: [{ find: `요청의 ${cur}% 만`, replace: `요청의 ${to}% 만` }] }] } }
+}
+const fileOf = async (name, text) => {
+  const buf = Buffer.from(text)
+  const md = (await fileToMd(name, buf, { convert: true })).md
+  return { tags: [`ingest/${name}`, `md/${crypto.createHash('sha256').update(md.trim()).digest('hex').slice(0, 16)}`], attach: [{ path: `docs/assets/${name}`, b64: buf.toString('base64') }] }
+}
+
+test('채널 평가 T10: 대량 넣기(ingest/ 표지 + attach)도 proposal 만 · 두 파일 차례로 · E_APPROVE 뒤 새 지문으로 다시 들어 proposal + attach 만', async () => {
+  const A = await fileOf('테스트 A.txt', '# 테스트 A\n\n카나리 비율을 바꾼다.\n')
+  const a = await flip('apv', '테스트 A', { record: { tags: A.tags } })
+  const pa = await mcp('propose', a.inp)
+  assert.deepEqual(pa.errors, [], JSON.stringify(pa.errors))
+  const ra = await mcp('save', { knowledge: 'apv', proposal: pa.proposal, kit: KIT, attach: A.attach })
+  assert.ok(ra.saved, JSON.stringify(ra))
+  assert.equal(savelogOf('apv').at(-1).ch, 'bulk', '꺼낸 입력의 ingest/ 표지로 채널이 대량 넣기')
+  assert.ok(fs.existsSync(path.join(kdir('apv'), 'docs', 'assets', '테스트 A.txt')), '첨부는 save 때 따로 받아 같은 저장에 든다')
+  // 첨부 없이 proposal 만 = 대량 넣기 증명이 없어 E_INPUT(아무것도 쓰지 않음)
+  const B = await fileOf('테스트 B.txt', '# 테스트 B\n\n카나리 비율을 다시 바꾼다.\n')
+  const b = await flip('apv', '테스트 B', { record: { tags: B.tags } })
+  const pb = await mcp('propose', b.inp)
+  assert.deepEqual(pb.errors, [], JSON.stringify(pb.errors))
+  const n0 = snap(kdir('apv'))
+  const noAtt = await mcp('save', { knowledge: 'apv', proposal: pb.proposal, kit: KIT })
+  assert.equal(noAtt.error, 'E_INPUT', JSON.stringify(noAtt))
+  assert.equal(snap(kdir('apv')), n0)
+  // 승인과 다른 지문(E_APPROVE) → 같은 입력을 새 지문으로 들어 둔다 → proposal + attach 만으로 들어간다
+  const miss = await mcp('save', { ...b.inp, proposal: 'c'.repeat(64), kit: KIT, attach: B.attach })
+  assert.equal(miss.error, 'E_APPROVE', JSON.stringify(miss))
+  const rb = await mcp('save', { knowledge: 'apv', proposal: miss.details.propose.proposal, kit: KIT, attach: B.attach })
+  assert.ok(rb.saved, JSON.stringify(rb))
+  assert.equal(savelogOf('apv').at(-1).ch, 'bulk')
+  assert.match(fs.readFileSync(path.join(kdir('apv'), 'docs', '배포절차.md'), 'utf8'), new RegExp(`요청의 ${b.to}% 만`))
+})
+
+test('채널 평가 T10: 30분이 지난 제안 입력은 꺼내지 않는다(E_INPUT · 아무것도 쓰지 않음)', async () => {
+  const { inp } = await flip('apv', '테스트 지남')
+  const p = await mcp('propose', inp)
+  assert.deepEqual(p.errors, [])
+  const n0 = snap(kdir('apv'))
+  const real = Date.now
+  Date.now = () => real() + 31 * 60_000
+  let late
+  try { late = await mcp('save', { knowledge: 'apv', proposal: p.proposal, kit: KIT }) } finally { Date.now = real }
+  assert.equal(late.error, 'E_INPUT', JSON.stringify(late))
+  assert.match(late.message || JSON.stringify(late), /30분/)
+  assert.equal(snap(kdir('apv')), n0, '아무것도 쓰지 않는다')
+})
+
+test('채널 평가 T10: 개인 프로그램(PC) MCP 도 승인한 제안이면 save 는 { knowledge, proposal } 만', async () => {
+  const pcRoot = path.join(tmp, 'pc')
+  copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), path.join(pcRoot, 'apv'))
+  fs.rmSync(path.join(pcRoot, 'apv', 'work'), { recursive: true, force: true })
+  fs.writeFileSync(path.join(pcRoot, 'apv', 'README.md'), '# 승인 지식\n')
+  fs.writeFileSync(path.join(pcRoot, 'apv', '_members.md'), '# 사람\n\n- 주인: kim\n- 저장 방식: 승인\n')
+  const G = (...a) => execFileSync('git', ['-c', 'user.name=테스트', '-c', 'user.email=t@t', '-c', 'core.autocrlf=false', ...a], { cwd: path.join(pcRoot, 'apv'), encoding: 'utf8' })
+  G('init', '-q'); G('add', '-A'); G('commit', '-q', '-m', '처음')
+  fs.mkdirSync(path.join(tmp, 'pcdata'), { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'pcdata', 'serve.json'), JSON.stringify({ curateOnStart: false, decideMs: 3600000, inboxTickMs: 3600000 }))
+  const pc = await startServer({ root: pcRoot, data: path.join(tmp, 'pcdata'), mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  try {
+    const ME = { user: 'kim', admin: true, pc: true }
+    const m = makeMcp(pc.hub)
+    const call = async (name, args) => (await m.call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, ME)).result.structuredContent
+    const { inp, to } = await flip('apv', '테스트 개인', {}, call)
+    const p = await call('propose', inp)
+    assert.deepEqual(p.errors, [], JSON.stringify(p.errors))
+    const r = await call('save', { knowledge: 'apv', proposal: p.proposal })
+    assert.ok(r.saved, JSON.stringify(r))
+    assert.match(fs.readFileSync(path.join(pcRoot, 'apv', 'docs', '배포절차.md'), 'utf8'), new RegExp(`요청의 ${to}% 만`))
+  } finally { await pc.close() }
 })

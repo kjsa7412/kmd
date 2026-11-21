@@ -2078,6 +2078,8 @@ ${genRulesBlock({ profile: 'shape' })}`
   const errWhy = (e) => `${e?.at && !['기록', '저장'].includes(e.at) ? `${e.at}: ` : ''}${e?.why || '검사에 걸렸다'}`.replace(/\s+/g, ' ').slice(0, 300)
   // 무인 세션의 끝 말(채널 평가 T10): 끝 말은 저장에 쓰이지 않고 일 줄 say 로만 남는다
   const END_SAY = '끝 말은 한 줄(넣은 문서 › 항목 · 수)만: 표 · 목록 요약을 쓰지 않는다'
+  // 저장 제안만 세운 응답(아무것도 넣지 않음)의 끝 말 · 넣은 문서가 없으니 세운 수만
+  const ASK_SAY = '끝 말은 한 줄(세운 저장 제안 수)만: 표 · 목록 요약을 쓰지 않는다'
   // 무인 저장 한 번 — 판정 오류 · 저장 문이 던진 입력 오류는 { errors }(아무것도 쓰지 않았다) · 그 밖(저장소 닫힘 · git · 속도)은 던진다
   async function unattendedPut(ctx, id, input, opt) {
     try {
@@ -2279,7 +2281,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         ;(it.pending ||= []).push({ inp, sopt, attached: first && !!it.attach, text: ra.ask.text, warnings: ra.ask.warnings || [] })
         it.saves = n
         if (run) hub.runLine(run, 'ok', `✓ 저장 제안을 세웠다: ${String(rec.title).slice(0, 80)}`)
-        return { id: null, put: 0, docs: [], warnings: [], note: `검사를 넘었다. 사람이 올린 것이라 바로 넣지 않고 저장 제안으로 세웠다: 올린 사람이 승인하면 들어간다. 같은 내용을 다시 save 하지 않는다. 남은 묶음이 없으면 여기서 끝낸다. ${END_SAY}` }
+        return { id: null, put: 0, docs: [], warnings: [], note: `검사를 넘었다. 사람이 올린 것이라 바로 넣지 않고 저장 제안으로 세웠다: 올린 사람이 승인하면 들어간다. 같은 내용을 다시 save 하지 않는다. 남은 묶음이 없으면 여기서 끝낸다. ${ASK_SAY}` }
       }
       if (ra.same) return ra
       if (ra.errors) {

@@ -51,8 +51,16 @@ test('팀 일꾼이 세션을 띄운다: 세션이 팀 서버의 MCP 로 찾고 
   const r0 = await s.hub.sourceAdd(ADMIN, 'dpms', { name: '통화', kind: 'docs', at: docsDir, rules: [{ rule: 'docs', into: { doc: '통화' } }] })
   assert.equal(r0.run[0].queued, 1, JSON.stringify(r0.run[0]).slice(0, 300))
   const logs = []
-  const a = await workOnce({ server: s.url, key: wk, log: (x) => logs.push(x) })
+  const said = path.join(tmp, 'agent-said.log')
+  process.env.FAKE_AGENT_LOG = said
+  let a
+  try { a = await workOnce({ server: s.url, key: wk, log: (x) => logs.push(x) }) } finally { delete process.env.FAKE_AGENT_LOG }
   assert.equal(a.job.session, true, '세션을 아는 일꾼에게는 세션 일감으로')
+  // 무인 save 응답의 note(채널 평가 T10): 들어간 것을 다시 읽지 않음 · 끝 말 한 줄 · 응답 글은 여러 줄이라 마지막 save 부터 끝까지
+  const told = fs.readFileSync(said, 'utf8')
+  const saveSaid = told.slice(told.lastIndexOf('\nsave {') + 1)
+  assert.match(saveSaid || '', /다시 읽어 확인하지 않는다/, saveSaid)
+  assert.match(saveSaid || '', /끝 말은 한 줄\(넣은 문서/, saveSaid)
   assert.deepEqual([a.summary.put, a.summary.rule], [1, undefined], logs.join('\n'))
   assert.equal(jobsOf('done').length, 1)
   const k = await fresh()

@@ -148,25 +148,36 @@ export const MCP_ATTACH_MAX = 8 << 20
 export function makeMcp(store) {
   // 승인한 제안의 입력(채널 평가 T10 · 권한 모델 7절): save 가 { knowledge, proposal } 만 실으면 propose 때의 입력을 꺼내 싣는다.
   //   save 가 propose 와 같은 입력 전체를 다시 내던 몫(저장 한 번에 17 ~ 35초 · 다시 낸 names 가 깨져 E_INPUT)을 없앤다.
-  //   열쇠는 사람 · 지식 · 지문(proposal) · 짧게만(30분 · 사람마다 20 · 하나 512KB) · 판정은 그대로다: 저장 줄 안에서 buildProposal 을 다시 돌려 해시를 대 본다.
+  //   열쇠는 사람 · 지식 · 지문(proposal) · 짧게만(30분 · 사람마다 20 · 하나 512KB(UTF-8 바이트) · 서버 전체 200 · 16MB) · 판정은 그대로다: 저장 줄 안에서 buildProposal 을 다시 돌려 해시를 대 본다.
+  //   옛 칸(items · docs · skip)도 든 그대로 꺼낸다(들 때와 다시 판정할 때의 입력이 같게)
   //   첨부(attach) · 판(kit)은 해시에 들지 않아 들고 있지 않는다(save 때 따로 받는다) · 서버를 다시 띄우면 비어 입력 전체를 받는 길로 돌아간다
   const kept = new Map()
   const KEEP_MS = 30 * 60_000
   const KEEP_PER = 20
   const KEEP_BYTES = 512 << 10
+  const KEEP_ALL = 200
+  const KEEP_ALL_BYTES = 16 << 20
   const keepKey = (ctx, kn, hash) => JSON.stringify([ctx?.user || '', kn, hash])
+  const keptBytes = () => [...kept.values()].reduce((a, v) => a + v.bytes, 0)
+  const dropStale = (now) => { for (const [k, v] of kept) if (now - v.at > KEEP_MS) kept.delete(k) }
   const keepProposed = (ctx, kn, hash, input) => {
     if (!ctx?.user || typeof hash !== 'string' || !hash) return
-    if (JSON.stringify(input).length > KEEP_BYTES) return
+    const bytes = Buffer.byteLength(JSON.stringify(input))
+    if (bytes > KEEP_BYTES) return
     const now = Date.now()
-    for (const [k, v] of kept) if (now - v.at > KEEP_MS) kept.delete(k)
+    dropStale(now)
+    const key = keepKey(ctx, kn, hash)
+    kept.delete(key)
     const mine = [...kept].filter(([, v]) => v.user === ctx.user)
     for (const [k] of mine.slice(0, Math.max(0, mine.length - KEEP_PER + 1))) kept.delete(k)
-    kept.set(keepKey(ctx, kn, hash), { at: now, user: ctx.user, input })
+    // 서버 전체 상한: 오래된 것(Map 은 넣은 차례)부터 뺀다
+    for (const [k] of kept) { if (kept.size < KEEP_ALL && keptBytes() + bytes <= KEEP_ALL_BYTES) break; kept.delete(k) }
+    kept.set(key, { at: now, user: ctx.user, input, bytes })
   }
   const keptInput = (ctx, kn, hash) => {
+    dropStale(Date.now())
     const v = ctx?.user && typeof hash === 'string' ? kept.get(keepKey(ctx, kn, hash)) : null
-    return v && Date.now() - v.at <= KEEP_MS ? structuredClone(v.input) : null
+    return v ? structuredClone(v.input) : null
   }
   // 대량 넣기 파서 꾸러미(K6-2) — 팀 서버 받기 자리의 가장 새 것 · 없거나 못 읽으면 null(brief 를 막지 않는다)
   const parserOf = async () => {
@@ -360,11 +371,13 @@ export function makeMcp(store) {
       }
       if (typeof record === 'string') try { record = JSON.parse(record) } catch { /* 모양 검사가 거절한다 */ }
       // 승인한 제안의 입력 꺼내기: 기록 · 고칠 항목 · 장부 칸을 하나도 싣지 않고 proposal 만 왔을 때
-      const bare = record == null && sections == null && names == null && forms == null && natures == null && kinds == null && distinct == null && excluded == null
+      let old = oldOf(args)
+      const bare = record == null && sections == null && names == null && forms == null && natures == null && kinds == null && distinct == null && excluded == null && !Object.keys(old).length
       if (bare && proposal != null) {
         const got = keptInput(ctx, knowledge, proposal)
         if (!got) throw new KmdError('E_INPUT', '이 proposal 의 제안 입력을 들고 있지 않다(30분이 지났거나 서버가 다시 떴다): propose 에 보낸 입력(record · sections · names …)을 proposal 과 같이 다시 싣는다(아무것도 쓰지 않았다)')
         ;({ record, sections, names, forms, natures, kinds, distinct, excluded } = got)
+        old = oldOf(got)
       }
       const k = await store.get(knowledge, ctx)
       // 이미 있는 항목을 갈아 끼우는 글에는 base 가 있어야 한다 — 없으면 그사이 남이 고친 글을 덮는다
@@ -378,7 +391,7 @@ export function makeMcp(store) {
       // 스킬 판(kit) — 측정 줄에만 싣는다(옛 판 · 판 없음 안내 reinstall · nokit 은 걷었다 · P11 · 혼자 쓰는 판)
       const have = typeof kit === 'number' || (typeof kit === 'string' && /^\s*\d{1,6}\s*$/.test(kit)) ? Number(kit) : null
       // 승인한 저장 제안(저장 승인 설계 P-D5 · P3 · PC1) — proposal 이 의무(없거나 어긋나면 E_APPROVE + 새 propose 결과)
-      const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}), ...(natures != null ? { natures } : {}), ...oldOf(args) }
+      const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}), ...(natures != null ? { natures } : {}), ...old }
       let r
       try {
         r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}), ...extra }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
@@ -386,7 +399,7 @@ export function makeMcp(store) {
         // 그사이 지식이 바뀌어 새 제안이 왔다(E_APPROVE): 같은 입력을 새 지문으로도 들어 둔다(다시 승인받은 뒤 proposal 만 보내게)
         const np = e?.code === 'E_APPROVE' ? e.details?.propose : null
         if (np?.proposal && !(np.errors || []).length) {
-          const input = { record, sections, names, forms, natures, kinds, distinct, excluded, ...oldOf(args) }
+          const input = { record, sections, names, forms, natures, kinds, distinct, excluded, ...old }
           for (const x of Object.keys(input)) if (input[x] === undefined || input[x] === null) delete input[x]
           keepProposed(ctx, knowledge, np.proposal, input)
         }
