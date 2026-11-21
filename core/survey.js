@@ -381,7 +381,7 @@ export function promptOf(P, kind, { from = 0, n = 10, doc = null } = {}) {
   }
   if (kind === 'plan') {
     return [
-      `너는 kmd 바탕 세우기의 구조안을 짓는다. 꾸러미: ${pack}. 카드(${path.join(pack, 'cards')})를 모두 읽고 구조안 하나를 ${path.join(pack, 'plan.json')} 에 쓴다.`,
+      `너는 kmd 바탕 세우기의 구조안을 짓는다. 꾸러미: ${pack}. 카드(${path.join(pack, 'cards')})를 모두 읽고 구조안 하나를 ${path.join(pack, 'plan.json')} 에 쓴다. 쓸 것은 plan.json 하나다(texts/ 는 아직 비었다 · 꾸러미 폴더를 둘러보거나 스킬 글 · 도움말을 읽지 않는다: 이 프롬프트가 전부다).`,
       '구조안 꼴(바탕 세우기 설계 3-3): { "v": 1, "kind": "seed", "forms": [{ "name", "kind", "folder", "aliases", "pattern?" }], "dirs": [], "docs": [{ "id": "폴더/문서", "was": null, "nature": "대상|서술|절차|시험|용어|사건|보고|대장|결정", "intro": { "ask": "…" } | { "text": "…" }, "items": [{ "h": "항목 머리", "src": ["m:<16자>"] }] }], "names": [{ "coord": "종류:값", "label", "gist": "뜻 한 줄", "doc", "h" }], "order": { "": ["폴더/"], "폴더": ["문서"] }, "skip": [{ "src": "m:<16자>", "why": "…" }] }',
       '- 문서마다 was: null · 항목마다 src(재료) · 넣음으로 고른 재료는 모두 src 이거나 skip. secret: true 카드의 재료는 쓰지 않고 skip(까닭 「비밀 의심」).',
       '- 문서마다 nature(으뜸 성격 · 생성 룰 R4-1: 그 문서를 찾으러 오는 사람의 물음 하나 · 못 고르면 서술) · 세우는 항목마다 names 에 짝(종류:값 · gist 뜻 한 줄 15 ~ 60자 · 생성 룰 R7-1 · 머리만 세우지 않는다).',

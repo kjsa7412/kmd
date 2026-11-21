@@ -24,7 +24,7 @@ function args(argv) {
     const a = argv[i]
     if (a.startsWith('--')) {
       const key = a.slice(2)
-      if (['json'].includes(key)) o[key] = true
+      if (['json', 'save'].includes(key)) o[key] = true
       else o[key] = argv[++i]
     } else pos.push(a)
   }
@@ -52,9 +52,18 @@ async function cmdText(pack, rel, file) {
   console.log(`넣음: ${row.path} → ${row.src}(스캔 글 · 고르기 ${row.pick}${row.secret ? ` · 비밀 의심: ${row.secret.map((s) => s.why).join(', ')}` : ''})`)
 }
 
+// --save(채널 평가 T10): 프롬프트를 꾸러미 prompts/<card-N | plan | text-문서>.md 에 쓰고 경로 한 줄만 찍는다.
+//   메인 세션이 수천 자 프롬프트를 하위 에이전트 입력으로 다시 생성하던 몫(real-2b 다섯 번 1.46만 자 · 약 150초)을 걷는다
 async function cmdPrompt(pack, kind, a, o) {
   const P = await openPack(pack)
-  console.log(promptOf(P, kind, { from: Number(o.from || 0), n: Number(o.n || 10), doc: a || null }))
+  const from = Number(o.from || 0)
+  const text = promptOf(P, kind, { from, n: Number(o.n || 10), doc: a || null })
+  if (!o.save) return console.log(text)
+  const name = kind === 'card' ? `card-${from}` : kind === 'plan' ? 'plan' : `text-${String(a).replace(/[\\/:*?"<>|]/g, '__')}`
+  const file = path.join(P.pack, 'prompts', `${name}.md`)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, `${text}\n`)
+  console.log(file)
 }
 
 async function cmdCheck(pack, o) {
@@ -99,7 +108,7 @@ export async function main(argv) {
   if (cmd === 'prompt' && a && b) return cmdPrompt(a, b, c, o)
   if (cmd === 'check' && a) return cmdCheck(a, o)
   if (cmd === 'status' && a) return cmdStatus(a, o)
-  console.error('쓰기: kmd-seed.mjs survey <원본 폴더> --out <꾸러미> | text <꾸러미> <원본 경로> <글 파일.md> | prompt <꾸러미> card|plan|text <문서 id> | check <꾸러미> [--kn <지식 폴더>] | status <꾸러미>')
+  console.error('쓰기: kmd-seed.mjs survey <원본 폴더> --out <꾸러미> | text <꾸러미> <원본 경로> <글 파일.md> | prompt <꾸러미> card|plan|text <문서 id> [--save] | check <꾸러미> [--kn <지식 폴더>] | status <꾸러미>')
   process.exitCode = 1
 }
 

@@ -120,6 +120,8 @@ function answer() {
   if (prompt.startsWith('이 물음에는 {"ok": true}')) return say({ structured_output: { ok: true } }) // checkClaude
   // 바탕 세우기 구조안(Z7 · core/shape.js seedPlanPromptOf) — 넣음 재료마다 항목 하나(머리 = 파일 이름) · 문서 「업무 안내」 하나 · 첫 재료에 장부 항목 하나
   //   FAKE_CLAUDE_MODE=badseed → 처음 답은 재료 하나를 빠뜨린다(덮임 걸림 → 고쳐 쓰기)
+  // FAKE_CLAUDE_EFFORT_LOG=<파일> → 스키마 답 한 번마다 「<프롬프트 앞 12자> <effort | ->」 한 줄(채널 평가 T4 · 구조안 생각 정도)
+  if (process.env.FAKE_CLAUDE_EFFORT_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_EFFORT_LOG, `${prompt.slice(0, 12)} ${args.includes('--effort') ? val('--effort') : '-'}\n`)
   if (prompt.startsWith('바탕 세우기 구조안을 짓는다')) {
     const fixing = prompt.includes('\n\n지난 초안이 kmd 검사에 걸렸다')
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, fixing ? 'seed-plan fix\n' : 'seed-plan\n')

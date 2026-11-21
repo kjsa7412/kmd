@@ -84,7 +84,7 @@ export const TOOLS = [
   {
     name: 'save',
     description: [
-      '승인한 저장 제안을 남긴다: 기록 + 항목 글 + 지문이 한 묶음으로 들어간다. 먼저 propose 로 같은 입력의 저장 제안을 받아 사람에게 보이고 승인받은 그 proposal 을 싣는다(저장 제안을 받는 지식: 없거나 그사이 입력 · 지식이 바뀌어 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 details.propose 에 새 제안이 온다 · 다시 보이고 다시 승인받는다). 승인이 제안서의 경고를 받아들이는 것이다. 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. 바뀐 것의 값은 고칠 항목 글에 들어가야 한다. 바뀐 값 없이 경위만 있는 기록은 항목 글 없이 touches 의 항목에 글 그대로 잇는다. touches 는 match 로 찾은 항목 장부의 항목만 받는다(장부에 없는 항목 · 폐기된 항목은 거절하고 가까운 항목을 알려 준다). 이을 항목이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(기록 모음 문서의 그 달 항목에 잇는다 · 둘 다 비면 거절). 정해지지 않은 것은 저장하지 않는다(메모는 없다 · 이슈를 받는 갈래가 있으면 이슈 항목으로 제기). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 항목 글을 고쳤으면 sections 에 바꿀 곳(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽고 다시 제안한다). E_RATE 면 details.retryAfter 초 뒤에 다시. kit 에 스킬 글이 준 판을 늘 싣는다. 새 항목(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 항목 장부 · 문서 장부에 같이 올린다: 새 항목마다 gist(뜻 한 줄: 무엇인가를 15 ~ 60자로 · 이름 되풀이 금지 · 생성 룰 R5-3 · R7-1)를 꼭 적는다. 한 번에 한 묶음으로 남는다.',
+      '승인한 저장 제안을 남긴다: 기록 + 항목 글 + 지문이 한 묶음으로 들어간다. 먼저 propose 로 같은 입력의 저장 제안을 받아 사람에게 보이고 승인받은 그 proposal 을 싣는다(저장 제안을 받는 지식: 없거나 그사이 입력 · 지식이 바뀌어 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 details.propose 에 새 제안이 온다 · 다시 보이고 다시 승인받는다). 승인이 제안서의 경고를 받아들이는 것이다. 승인한 제안의 입력을 그대로 넣을 때는 { knowledge, proposal, kit }(+ attach)만 보내도 된다: kmd 가 propose 때의 입력을 30분 들고 있다가 싣는다(입력을 다시 내지 않는다 · 들고 있지 않으면 E_INPUT 으로 입력 전체를 다시 싣는다). 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. 바뀐 것의 값은 고칠 항목 글에 들어가야 한다. 바뀐 값 없이 경위만 있는 기록은 항목 글 없이 touches 의 항목에 글 그대로 잇는다. touches 는 match 로 찾은 항목 장부의 항목만 받는다(장부에 없는 항목 · 폐기된 항목은 거절하고 가까운 항목을 알려 준다). 이을 항목이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(기록 모음 문서의 그 달 항목에 잇는다 · 둘 다 비면 거절). 정해지지 않은 것은 저장하지 않는다(메모는 없다 · 이슈를 받는 갈래가 있으면 이슈 항목으로 제기). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 항목 글을 고쳤으면 sections 에 바꿀 곳(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽고 다시 제안한다). E_RATE 면 details.retryAfter 초 뒤에 다시. kit 에 스킬 글이 준 판을 늘 싣는다. 새 항목(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 항목 장부 · 문서 장부에 같이 올린다: 새 항목마다 gist(뜻 한 줄: 무엇인가를 15 ~ 60자로 · 이름 되풀이 금지 · 생성 룰 R5-3 · R7-1)를 꼭 적는다. 한 번에 한 묶음으로 남는다.',
       '항목 글(sections.content)은 본문만: 대상 하나의 지금을 확정된 것만 「…한다 · …이다」 로. 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비) · 바깥 https://… 만.',
       '넣지 않는 것(E_FORMAT · 하나라도 걸리면 아무것도 쓰지 않는다): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄. 짜임은 수준 표시(1. · 1) · -)로 들여쓰지 않는다. 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
       '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다.」 나쁜 예: 「배포 창을 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md))」.',
@@ -95,7 +95,7 @@ export const TOOLS = [
       properties: {
         knowledge: str('지식 id'),
         kit: str('스킬 판(kmd-team-save · kmd-team-import · kmd-save 스킬 글이 준 값 그대로 · 예 "8")'),
-        proposal: str('승인한 저장 제안의 지문(propose 가 준 proposal 64자 그대로): 늘 싣는다(저장은 늘 승인이다). 없거나 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 새 제안(details.propose)을 돌려준다'),
+        proposal: str('승인한 저장 제안의 지문(propose 가 준 proposal 64자 그대로): 늘 싣는다(저장은 늘 승인이다). 없거나 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 새 제안(details.propose)을 돌려준다. 승인한 입력 그대로면 record · sections · names 를 빼고 proposal 만 실어도 된다(30분 안)'),
         distinct: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 distinct 그대로' },
         excluded: { type: 'array', items: { type: 'object', properties: { name: str('뺀 항목'), why: str('까닭 한 줄') }, required: ['name'] }, description: 'propose 에 보낸 excluded 그대로' },
         kinds: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 kinds 그대로' },
@@ -134,7 +134,8 @@ export const TOOLS = [
           items: { type: 'object', properties: { coord: str('종류:값: 예 table:tb_user · proc:배포승인 · 이슈:DPMS-ISS-20'), label: str('라벨: 예 사용자 테이블'), gist: str('뜻 한 줄(새 항목마다 꼭 · R5-3 · R7-1): 그 항목이 무엇인가를 15 ~ 60자 한 문장으로 · 이름 · 라벨을 되풀이하지 않는다. 예 "사용자 계정과 로그인 상태를 한 줄씩 두는 테이블" · 반례 "사용자 테이블"'), kindGist: str('새 종류를 세울 때만: 그 종류의 뜻 한 줄(R5-1 라 · 씨앗 종류는 적지 않는다)'), aliases: { type: 'array', items: { type: 'string' }, description: '별칭' }, doc: str('그 항목의 머리가 든 문서'), heading: str('그 항목 머리') }, required: ['coord', 'label'] },
         },
       },
-      required: ['knowledge', 'record'],
+      required: ['knowledge'],
+      // record 는 propose 때 들고 있는 입력으로 채울 수 있어 의무가 아니다(없고 들고 있는 것도 없으면 E_INPUT)
     },
   },
 ]
@@ -145,6 +146,28 @@ const norm = (s) => String(s || '').replace(/\s+/g, '').toLowerCase()
 export const MCP_ATTACH_MAX = 8 << 20
 
 export function makeMcp(store) {
+  // 승인한 제안의 입력(채널 평가 T10 · 권한 모델 7절): save 가 { knowledge, proposal } 만 실으면 propose 때의 입력을 꺼내 싣는다.
+  //   save 가 propose 와 같은 입력 전체를 다시 내던 몫(저장 한 번에 17 ~ 35초 · 다시 낸 names 가 깨져 E_INPUT)을 없앤다.
+  //   열쇠는 사람 · 지식 · 지문(proposal) · 짧게만(30분 · 사람마다 20 · 하나 512KB) · 판정은 그대로다: 저장 줄 안에서 buildProposal 을 다시 돌려 해시를 대 본다.
+  //   첨부(attach) · 판(kit)은 해시에 들지 않아 들고 있지 않는다(save 때 따로 받는다) · 서버를 다시 띄우면 비어 입력 전체를 받는 길로 돌아간다
+  const kept = new Map()
+  const KEEP_MS = 30 * 60_000
+  const KEEP_PER = 20
+  const KEEP_BYTES = 512 << 10
+  const keepKey = (ctx, kn, hash) => JSON.stringify([ctx?.user || '', kn, hash])
+  const keepProposed = (ctx, kn, hash, input) => {
+    if (!ctx?.user || typeof hash !== 'string' || !hash) return
+    if (JSON.stringify(input).length > KEEP_BYTES) return
+    const now = Date.now()
+    for (const [k, v] of kept) if (now - v.at > KEEP_MS) kept.delete(k)
+    const mine = [...kept].filter(([, v]) => v.user === ctx.user)
+    for (const [k] of mine.slice(0, Math.max(0, mine.length - KEEP_PER + 1))) kept.delete(k)
+    kept.set(keepKey(ctx, kn, hash), { at: now, user: ctx.user, input })
+  }
+  const keptInput = (ctx, kn, hash) => {
+    const v = ctx?.user && typeof hash === 'string' ? kept.get(keepKey(ctx, kn, hash)) : null
+    return v && Date.now() - v.at <= KEEP_MS ? structuredClone(v.input) : null
+  }
   // 대량 넣기 파서 꾸러미(K6-2) — 팀 서버 받기 자리의 가장 새 것 · 없거나 못 읽으면 null(brief 를 막지 않는다)
   const parserOf = async () => {
     try {
@@ -315,7 +338,9 @@ export function makeMcp(store) {
       if (typeof knowledge !== 'string' || !knowledge) throw new KmdError('E_INPUT', '지식 id(knowledge)가 없다')
       const input = { record, sections: listOf(sections), names: listOf(names), forms: listOf(forms), natures: listOf(natures), kinds: listOf(kinds), distinct: listOf(distinct), excluded: listOf(excluded), ...oldOf(args) }
       for (const x of Object.keys(input)) if (input[x] === undefined) delete input[x]
-      return store.propose(ctx, knowledge, input, { form: true, path: '이 세션의 작업' })
+      const p = await store.propose(ctx, knowledge, input, { form: true, path: '이 세션의 작업' })
+      if (p?.proposal && !(p.errors || []).length) keepProposed(ctx, knowledge, p.proposal, input)
+      return p
     },
 
     async save(args, ctx) {
@@ -334,6 +359,13 @@ export function makeMcp(store) {
         if (!attach.length) attach = null
       }
       if (typeof record === 'string') try { record = JSON.parse(record) } catch { /* 모양 검사가 거절한다 */ }
+      // 승인한 제안의 입력 꺼내기: 기록 · 고칠 항목 · 장부 칸을 하나도 싣지 않고 proposal 만 왔을 때
+      const bare = record == null && sections == null && names == null && forms == null && natures == null && kinds == null && distinct == null && excluded == null
+      if (bare && proposal != null) {
+        const got = keptInput(ctx, knowledge, proposal)
+        if (!got) throw new KmdError('E_INPUT', '이 proposal 의 제안 입력을 들고 있지 않다(30분이 지났거나 서버가 다시 떴다): propose 에 보낸 입력(record · sections · names …)을 proposal 과 같이 다시 싣는다(아무것도 쓰지 않았다)')
+        ;({ record, sections, names, forms, natures, kinds, distinct, excluded } = got)
+      }
       const k = await store.get(knowledge, ctx)
       // 이미 있는 항목을 갈아 끼우는 글에는 base 가 있어야 한다 — 없으면 그사이 남이 고친 글을 덮는다
       // (kmd 가 띄운 넣기 에이전트는 그 파일의 글을 들이는 일이라 뺀다 — 사람의 세션이 남의 고침을 덮지 않게 하는 것)
@@ -347,7 +379,19 @@ export function makeMcp(store) {
       const have = typeof kit === 'number' || (typeof kit === 'string' && /^\s*\d{1,6}\s*$/.test(kit)) ? Number(kit) : null
       // 승인한 저장 제안(저장 승인 설계 P-D5 · P3 · PC1) — proposal 이 의무(없거나 어긋나면 E_APPROVE + 새 propose 결과)
       const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}), ...(natures != null ? { natures } : {}), ...oldOf(args) }
-      const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}), ...extra }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
+      let r
+      try {
+        r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}), ...extra }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
+      } catch (e) {
+        // 그사이 지식이 바뀌어 새 제안이 왔다(E_APPROVE): 같은 입력을 새 지문으로도 들어 둔다(다시 승인받은 뒤 proposal 만 보내게)
+        const np = e?.code === 'E_APPROVE' ? e.details?.propose : null
+        if (np?.proposal && !(np.errors || []).length) {
+          const input = { record, sections, names, forms, natures, kinds, distinct, excluded, ...oldOf(args) }
+          for (const x of Object.keys(input)) if (input[x] === undefined || input[x] === null) delete input[x]
+          keepProposed(ctx, knowledge, np.proposal, input)
+        }
+        throw e
+      }
       if (r.same) return { saved: r.id, same: true, docs: [], note: r.note }
       // 넣을 것 없음(무인 세션이 뺀 것 excluded 만 보냈다): 아무것도 쓰지 않았다(지식 생성 하네스 H-O8)
       if (r.empty) return { saved: null, empty: true, docs: [], note: r.note }

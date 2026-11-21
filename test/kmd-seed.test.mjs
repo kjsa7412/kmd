@@ -200,3 +200,17 @@ test('프롬프트 — 카드 · 구조안 · 글에 작성기준(좋은 예 · 
   const r = await run('status', pack)
   assert.match(r.text, /구조안 문서 3/)
 })
+
+test('프롬프트 --save(채널 평가 T10): 꾸러미 prompts/ 에 쓰고 경로 한 줄만 · 글은 출력과 같다 · 꾸러미 검사는 prompts/ 를 보지 않는다', async () => {
+  const P = await openPack(pack)
+  const plan = await run('prompt', pack, 'plan', '--save')
+  assert.equal(plan.code, 0)
+  assert.equal(plan.text.trim(), path.join(P.pack, 'prompts', 'plan.md'))
+  assert.equal(fs.readFileSync(plan.text.trim(), 'utf8'), promptOf(P, 'plan') + '\n')
+  assert.match(promptOf(P, 'plan'), /쓸 것은 plan\.json 하나다/)
+  const text = await run('prompt', pack, 'text', '운영/배포', '--save')
+  assert.equal(text.text.trim(), path.join(P.pack, 'prompts', 'text-운영__배포.md'))
+  const card = await run('prompt', pack, 'card', '--from', '0', '--save')
+  assert.ok(fs.existsSync(path.join(P.pack, 'prompts', 'card-0.md')), card.text)
+  assert.ok(!(await openPack(pack)).problems.some((x) => /prompts/.test(x.where)))
+})

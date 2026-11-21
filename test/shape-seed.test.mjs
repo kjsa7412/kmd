@@ -429,6 +429,7 @@ test('팀 — 올리기 → 조사 → Claude 구조안 · 짓기(팀 일꾼 일
     // 새 일꾼(shape-seed 를 안다)이 물으면 Claude 구조안 일감을 세운다 · 덮임 걸림이면 고쳐 쓴다
     assert.equal(await t.work(), null, '일감이 없다')
     process.env.FAKE_CLAUDE_MODE = 'badseed'
+    process.env.FAKE_CLAUDE_EFFORT_LOG = path.join(t.tmp, 'effort.log')
     const pl = await t.s.hub.seedPlan(t.AD, id, { mode: 'claude' })
     assert.equal(pl.started, true)
     v = await t.s.hub.seedView(t.AD, id)
@@ -439,6 +440,9 @@ test('팀 — 올리기 → 조사 → Claude 구조안 · 짓기(팀 일꾼 일
     assert.equal(t.s.hub.workerNext({ worker: { id: 'old' } }, { types: ['shape-plan', 'shape-write'] }), null, '옛 일꾼은 기초 세우기 일감을 받지 않는다')
     const w1 = await t.work()
     delete process.env.FAKE_CLAUDE_MODE
+    delete process.env.FAKE_CLAUDE_EFFORT_LOG
+    // 채널 평가 T4: 구조안은 생각 정도 low(KMD_INGEST_EFFORT · KMD_SHAPE_PLAN_EFFORT 가 비면) · 고쳐 받기도 같다
+    assert.deepEqual(fs.readFileSync(path.join(t.tmp, 'effort.log'), 'utf8').trim().split('\n').filter((l) => l.startsWith('바탕 세우기 구조안')).map((l) => l.split(' ').pop()), ['low', 'low'])
     assert.equal(w1.job.type, 'shape-plan')
     v = await t.s.hub.seedView(t.AD, id)
     assert.equal(v.run.state, 'done', JSON.stringify(v.run))

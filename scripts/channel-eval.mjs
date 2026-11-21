@@ -1069,7 +1069,7 @@ async function runSession(E, C) {
           trace: path.join(t.root, `trace-session-${s.n}.jsonl`),
           skill: 'kmd-team-save',
           files: [{ name: '원천.md', data: s.md }],
-          extra: '- 정리 거리 고르기 · 승인 묻기는 사람이 미리 했다: propose 의 errors 가 0 이면 묻지 않고 그 proposal 을 그대로 실어 save 한다. errors 면 입력을 고쳐 다시 propose 한다(세 번까지).\n- 마지막 답에 제안서 text 를 붙인다.',
+          extra: '- 정리 거리 고르기 · 승인 묻기는 사람이 미리 했다: propose 의 errors 가 0 이면 묻지 않고 그 proposal 을 그대로 실어 save 한다(입력을 고치지 않았으면 스킬 글대로 { knowledge, proposal, kit } 만). errors 면 입력을 고쳐 다시 propose 한다(세 번까지).\n- 마지막 답은 한 줄(넣은 문서 › 항목)만: 제안서 text · 표를 붙이지 않는다(점수는 저장 줄로 매긴다 · T10).',
           prompt: `일 폴더의 「원천.md」 는 사람이 넣어 달라는 원문이다(knowledge id: ${t.kn}). 성격을 한 줄로 정하고 kmd-team-save 순서대로 남겨 줘. 저장 제안은 승인한 것으로 본다.`,
         })
         const saves = tools.filter((x) => x.startsWith('저장')).length
@@ -1416,7 +1416,7 @@ async function runSeedPack(E, C) {
       }
       const SEED = fwd(path.join(ROOT, 'scripts', 'kmd-seed.mjs'))
       const SKILL = fwd(path.join(ROOT, '.claude', 'skills', 'kmd-seed', 'SKILL.md'))
-      const prompt = `kmd-seed 스킬(${SKILL})을 먼저 Read 하고 따른다. 사람이 미리 정한 것: 원본 폴더는 ./src · 꾸러미는 ./pack(빈 폴더 · 이 cwd 안). 명령은 반드시 \`node ${SEED} <명령> …\` 꼴로만 부른다(다른 셸 명령 없음). ${CALL_RULE} 순서: survey ./src --out ./pack → 카드(prompt card 를 하위 에이전트로) → 구조안(prompt plan 을 하위 에이전트로 · plan.json) → check ./pack 걸림 0 까지(최대 3번) → 문서마다 글 초안(prompt text <문서 id> 를 하위 에이전트로 · texts/<문서>.json) → check. 쓰기는 ./pack 안에만. 화면 넘기기 안내는 하지 않는다. 끝에 요약 한 단락만.`
+      const prompt = `kmd-seed 스킬(${SKILL})을 먼저 Read 하고 따른다. 사람이 미리 정한 것: 원본 폴더는 ./src · 꾸러미는 ./pack(빈 폴더 · 이 cwd 안). 명령은 반드시 \`node ${SEED} <명령> …\` 꼴로만 부른다(다른 셸 명령 없음). ${CALL_RULE} 순서: survey ./src --out ./pack → 카드(prompt card --save 가 찍은 파일 경로를 하위 에이전트에 「<경로> 를 Read 하고 그대로 따른다」 한 줄로) → 구조안(prompt plan --save 를 같은 꼴로 · plan.json) → check ./pack 걸림 0 까지(최대 3번) → 문서마다 글 초안(prompt text <문서 id> --save 를 같은 꼴로 · 글 초안 하위 에이전트들은 한 답에 함께 낸다 · texts/<문서>.json) → check. 프롬프트 글을 하위 에이전트 입력으로 다시 옮겨 쓰지 않는다(T10). 쓰기는 ./pack 안에만. 화면 넘기기 안내는 하지 않는다. 끝에 요약 한 단락만.`
       const allowed = [...subAllow(SEED, ['rules', 'survey', 'prompt', 'check', 'text', 'status']), 'Read', 'Glob', 'Grep', 'Edit(./pack/**)', 'Write(./pack/**)', 'Agent']
       const r = await runNode([process.env.KMD_CLAUDE, ...sessionArgs({ tools: 'Bash,Read,Write,Edit,Glob,Grep,Agent', allowed, budget: 6, model: E.model || SESSION_MODEL })], { cwd: base, input: prompt, env: await safeEnv(), timeoutMs: 40 * 60_000 })
       // 세션 출력을 남긴다(H9 · 앞 판은 r.out 이 없어 거절 원인을 확정하지 못했다)
@@ -1503,7 +1503,7 @@ async function runMigrate(E, C) {
       //   사용자 MCP · 사용자 settings · 집 폴더 숨은 파일은 막고 환경은 ENV_ALLOW 만(sessionArgs · safeEnv)
       const MIGf = fwd(MIG)
       const SKILL = fwd(path.join(ROOT, '.claude', 'skills', 'kmd-migrate', 'SKILL.md'))
-      const prompt = `kmd-migrate 스킬(${SKILL})을 먼저 Read 하고 따른다. 지식 폴더 ${fwd(dir)} · 대상 ${DOC} › ${H} 하나. 사람 승인 자리는 이 프롬프트가 대신한다: 고르기는 이 항목으로 승인됨. 명령은 반드시 「node ${MIGf} <명령> …」 꼴로만 부른다(scan · trail · rec · check · rules · 다른 셸 명령 없음). ${CALL_RULE} 새 글은 ./hc.md · 입력은 ./input.json(지금 폴더)에 쓰고 「node ${MIGf} check ${fwd(dir)} ./input.json」 가 걸림 0 이 될 때까지 고친다(최대 3번). put 은 하지 않는다. 지식 폴더의 파일을 직접 고치지 않는다. 끝에 승인 표만 낸다.`
+      const prompt = `kmd-migrate 스킬(${SKILL})을 먼저 Read 하고 따른다. 지식 폴더 ${fwd(dir)} · 대상 ${DOC} › ${H} 하나. 사람 승인 자리는 이 프롬프트가 대신한다: 고르기는 이 항목으로 승인됨. 명령은 반드시 「node ${MIGf} <명령> …」 꼴로만 부른다(scan · trail · rec · check · rules · 다른 셸 명령 없음). ${CALL_RULE} 새 글은 ./hc.md · 입력은 ./input.json(지금 폴더)에 쓰고 「node ${MIGf} check ${fwd(dir)} ./input.json」 가 걸림 0 이 될 때까지 고친다(최대 3번). rules · trail 은 서로 기다리지 않으니 한 답에 도구 부름 둘을 나란히 낸다(셸 한 줄에 잇지 않는다 · 스킬의 「부르는 꼴」 · T10). put 은 하지 않는다. 지식 폴더의 파일을 직접 고치지 않는다. 끝에 승인 표만 낸다.`
       const allowed = subAllow(MIGf, ['scan', 'trail', 'rec', 'check', 'rules']).concat(['Read', 'Glob', 'Grep', 'Edit(./**)', 'Write(./**)'])
       const r = await runNode([process.env.KMD_CLAUDE, ...sessionArgs({ tools: 'Bash,Read,Write,Edit,Glob,Grep', allowed, budget: 3, model: E.model || SESSION_MODEL })], { cwd: work, input: prompt, env: await safeEnv() })
       const outFile = path.join(work, 'session.out.jsonl')

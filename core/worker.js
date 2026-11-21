@@ -46,6 +46,9 @@ const INTAKE_TIMEOUT = 5 * 60_000
 const timeoutOf = (prompt) => Math.min(15 * 60_000, INTAKE_TIMEOUT + Math.floor(String(prompt).length / 2000) * 60_000)
 // 생각 정도(KMD_INGEST_EFFORT · low · medium · high · max · 비면 그 PC 의 기본)
 const EFFORT = () => envOf('KMD_INGEST_EFFORT', 'KMD_TIDY_EFFORT') || ''
+// 구조안의 생각 정도(KMD_SHAPE_PLAN_EFFORT · 비면 KMD_INGEST_EFFORT · 그것도 비면 low) · 채널 평가 T4: 팀 구조안 한 번이 모델 기본 생각으로 321초(생성 309초 · 생각 약 1만 토큰)였다.
+//   개인 기초 세우기 구조안 세션(server/hub.js claudeSession)은 처음부터 low 로 F1 0.88 ~ 0.923 이다 · 팀 길을 같은 값으로 맞춘다
+const PLAN_EFFORT = () => process.env.KMD_SHAPE_PLAN_EFFORT || EFFORT() || 'low'
 // Claude 한 번의 예산 상한(KMD_INGEST_BUDGET · 달러 · 비면 1.0) — 들이기 한 번은 파일 하나 + 후보 다섯 × 1500자를 읽고 기록과 항목 글을 같이 쓴다
 //   (옛 정리 기본 0.5 는 긴 항목에서 생각 글만으로 넘겼다 · 188 「4. 구성 순서」 · 11-03)
 const BUDGET = () => (Number(envOf('KMD_INGEST_BUDGET', 'KMD_TIDY_BUDGET')) > 0 ? Number(envOf('KMD_INGEST_BUDGET', 'KMD_TIDY_BUDGET')) : 1.0)
@@ -146,7 +149,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
     let r
     const t0 = Date.now()
     try {
-      r = await runClaude({ ...(p0.mcp ? { mcp: { url: `${String(server).replace(/\/+$/, '')}/mcp`, token: p0.mcp } } : {}), prompt: `${prompt}${p0.mcp ? '\n\n(kmd MCP 의 match · section · brief 로 이 지식의 지금 글 · 항목 장부 · 과거 결정을 직접 찾아 읽을 수 있다. 재료에 없는 것은 읽어 확인하고 답한다. 저장은 하지 않는다: 답은 스키마 한 덩이다.)' : ''}\n\n아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):\n${genRulesBlock({ profile: sseed || spl || swr ? 'shape' : 'send' })}`, schema, budget, model, timeoutMs: timeoutOf(prompt), effort: EFFORT(), tickMs: TICK(), onTick: () => call(server, dkey, `${base}/progress`, { tick: true }).catch(gone) })
+      r = await runClaude({ ...(p0.mcp ? { mcp: { url: `${String(server).replace(/\/+$/, '')}/mcp`, token: p0.mcp } } : {}), prompt: `${prompt}${p0.mcp ? '\n\n(kmd MCP 의 match · section · brief 로 이 지식의 지금 글 · 항목 장부 · 과거 결정을 직접 찾아 읽을 수 있다. 재료에 없는 것은 읽어 확인하고 답한다. 저장은 하지 않는다: 답은 스키마 한 덩이다.)' : ''}\n\n아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):\n${genRulesBlock({ profile: sseed || spl || swr ? 'shape' : 'send' })}`, schema, budget, model, timeoutMs: timeoutOf(prompt), effort: spl ? PLAN_EFFORT() : EFFORT(), tickMs: TICK(), onTick: () => call(server, dkey, `${base}/progress`, { tick: true }).catch(gone) })
     } finally { gate.give() }
     log(`${name}: ${r.error ? `초안을 받지 못했다(${r.error}${r.message ? ' · ' + String(r.message).slice(0, 80) : ''})` : '초안'} · ${Math.round((Date.now() - t0) / 1000)}초 · 보낸 글 ${prompt.length}자${r.model ? ` · ${r.model}` : ''}`)
     await call(server, dkey, `${base}/progress`, { end: true, ok: !r.error, why: r.error ? String(r.message || r.error).slice(0, 200) : null }).catch(gone)

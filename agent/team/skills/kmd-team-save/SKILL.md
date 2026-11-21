@@ -58,9 +58,9 @@ description: 일하며 정한 것 · 바뀐 값 · 제기한 물음을 팀 지�
            배포절차 › 헬스체크   - 주기는 60초이다.
          경고 w1 없어짐 · 오류 없음 · 승인하시면 남깁니다.
    사람: 좋아, 넣어
-   세션: save { …, proposal: <마지막으로 보인 제안서의 proposal> } → 들어감
+   세션: save { knowledge, proposal: <마지막으로 보인 제안서의 proposal>, kit } → 들어감
    ```
-9. **save**: 승인되면 마지막으로 보인 제안서와 **같은 입력**에 `proposal` 과 `kit` 을 실어 `save` 한다. `proposal` 없이 부르지 않는다.
+9. **save**: 승인되면 마지막으로 보인 제안서와 **같은 입력**에 `proposal` 과 `kit` 을 실어 `save` 한다. `proposal` 없이 부르지 않는다. 입력을 고치지 않았으면 `save { knowledge, proposal, kit }` 만 보낸다(kmd 가 propose 때의 입력을 30분 들고 있다 · 입력을 다시 내지 않는다). `E_INPUT`(제안 입력을 들고 있지 않다)이면 그때만 입력 전체를 다시 싣는다.
    - `E_APPROVE`: 승인한 제안과 지금 제안이 다르다(입력이 바뀌었거나 그사이 지식이 바뀜). 아무것도 쓰지 않았다. `details.propose.text` 의 바뀐 줄을 보이고 7로 돌아가 다시 승인받는다.
    - `E_CONFLICT`: 읽은 뒤 누가 고쳤다. 아무것도 쓰지 않았다. `details.stale` 항목을 `section` 으로 다시 읽고 다시 propose 해서 바뀐 부분만 보이고, 다시 승인받아 꼭 다시 보낸다(다시 보내지 않으면 이 일은 지식에 닿지 않는다).
    - `E_INPUT` · `E_FORMAT`: 까닭대로 입력을 고쳐 다시 propose 한다(아무것도 쓰지 않았다).

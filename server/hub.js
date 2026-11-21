@@ -2076,6 +2076,8 @@ ${genRulesBlock({ profile: 'shape' })}`
   //   지문 어긋남은 같은 바꿀 곳 다시 대기(unattendedPlan) → 다시 대기(새 재료로 한 번 더 짓기). 일을 건 사람이 자리를 잃었으면 아무것도 쓰지 않는다(Q5).
   const costOf = (j) => (j.calls ? { usd: Math.round((j.cost || 0) * 1e4) / 1e4, calls: j.calls } : null)
   const errWhy = (e) => `${e?.at && !['기록', '저장'].includes(e.at) ? `${e.at}: ` : ''}${e?.why || '검사에 걸렸다'}`.replace(/\s+/g, ' ').slice(0, 300)
+  // 무인 세션의 끝 말(채널 평가 T10): 끝 말은 저장에 쓰이지 않고 일 줄 say 로만 남는다
+  const END_SAY = '끝 말은 한 줄(넣은 문서 › 항목 · 수)만: 표 · 목록 요약을 쓰지 않는다'
   // 무인 저장 한 번 — 판정 오류 · 저장 문이 던진 입력 오류는 { errors }(아무것도 쓰지 않았다) · 그 밖(저장소 닫힘 · git · 속도)은 던진다
   async function unattendedPut(ctx, id, input, opt) {
     try {
@@ -2277,7 +2279,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         ;(it.pending ||= []).push({ inp, sopt, attached: first && !!it.attach, text: ra.ask.text, warnings: ra.ask.warnings || [] })
         it.saves = n
         if (run) hub.runLine(run, 'ok', `✓ 저장 제안을 세웠다: ${String(rec.title).slice(0, 80)}`)
-        return { id: null, put: 0, docs: [], warnings: [], note: '검사를 넘었다. 사람이 올린 것이라 바로 넣지 않고 저장 제안으로 세웠다: 올린 사람이 승인하면 들어간다. 같은 내용을 다시 save 하지 않는다. 남은 묶음이 없으면 여기서 끝낸다' }
+        return { id: null, put: 0, docs: [], warnings: [], note: `검사를 넘었다. 사람이 올린 것이라 바로 넣지 않고 저장 제안으로 세웠다: 올린 사람이 승인하면 들어간다. 같은 내용을 다시 save 하지 않는다. 남은 묶음이 없으면 여기서 끝낸다. ${END_SAY}` }
       }
       if (ra.same) return ra
       if (ra.errors) {
@@ -2308,7 +2310,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       for (const d of r.docs || []) { const x = d.replace(/^docs\/|\.md$/g, ''); if (!run.docs.includes(x)) run.docs.push(x) }
       run.names += r.names || 0
     }
-    return r
+    // 들어감 note(채널 평가 T10): 무인 세션은 들어간 것을 다시 읽어 확인하고 표 · 목록 요약을 끝 말로 써 차례마다 10 ~ 30초를 더 썼다
+    return r.same ? r : { ...r, note: `들어갔다(기록 1 · 문서 ${(r.docs || []).length}). 들어간 것을 section · match 로 다시 읽어 확인하지 않는다(남은 묶음이 있으면 이어 보낸다 · 뒤 묶음 앞의 match 는 그대로). ${END_SAY}` }
   }
   // 개인 들이기 하나 — { rec, put, same, docs, attached? } | { why }(아무것도 쓰지 않았다)
   //   type file(src { rel, sha, title, file }) · commit(src { src, commit, title, touches }) · by — 저장한 사람(파일 넣기는 그 사람 · 가져올 곳은 kmd)

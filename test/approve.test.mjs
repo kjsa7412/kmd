@@ -327,3 +327,33 @@ test('채널 평가 P18: 승인 어긋남의 바뀐 쪽 — 이은 항목(잇기
   assert.equal(fake.error, 'E_APPROVE')
   assert.equal(savelogOf('apv').at(-1).approve.side, 'unknown')
 })
+
+test('채널 평가 T10: 승인한 제안 그대로면 save 는 { knowledge, proposal, kit } 만(입력을 다시 내지 않음) · 다른 사람 · 모르는 지문 = E_INPUT(아무것도 쓰지 않음) · E_APPROVE 뒤 새 지문으로도', async () => {
+  const sec = await canary()
+  const cur = /요청의 (\d+)% 만/.exec(sec.content)[1]
+  const to = cur === '30' ? '40' : '30'
+  const inp = input(sec.base, { record: { title: `카나리: 첫 30분 비율 ${to}%`, changes: [`첫 30분 비율: ${cur}% → ${to}%`], why: ['테스트: 비율을 바꿈'], touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base: sec.base, edits: [{ find: `요청의 ${cur}% 만`, replace: `요청의 ${to}% 만` }] }] })
+  const p = await mcp('propose', inp)
+  assert.deepEqual(p.errors, [])
+  const n0 = snap(kdir('apv'))
+  const unknown = await mcp('save', { knowledge: 'apv', proposal: 'e'.repeat(64), kit: KIT })
+  assert.equal(unknown.error, 'E_INPUT', JSON.stringify(unknown))
+  const other = await mcp('save', { knowledge: 'apv', proposal: p.proposal, kit: KIT }, P.boss)
+  assert.equal(other.error, 'E_INPUT', '다른 사람의 제안 입력은 꺼내지 않는다')
+  assert.equal(snap(kdir('apv')), n0, '아무것도 쓰지 않는다')
+  const r = await mcp('save', { knowledge: 'apv', proposal: p.proposal, kit: KIT })
+  assert.ok(r.saved, JSON.stringify(r))
+  assert.equal(r.put, 1)
+  assert.match(fs.readFileSync(path.join(kdir('apv'), 'docs', '배포절차.md'), 'utf8'), new RegExp(`요청의 ${to}% 만`))
+  assert.match(recText('apv', r.saved), new RegExp(`첫 30분 비율: ${cur}% → ${to}%`))
+  // 그사이 지식이 바뀜 → E_APPROVE · 같은 입력을 새 지문으로 들어 둔다
+  const sec2 = await canary()
+  const back = cur
+  const inp2 = input(sec2.base, { record: { title: `카나리: 첫 30분 비율 ${back}%`, changes: [`첫 30분 비율: ${to}% → ${back}%`], why: ['테스트: 되돌림'], touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base: sec2.base, edits: [{ find: `요청의 ${to}% 만`, replace: `요청의 ${back}% 만` }] }] })
+  const p2 = await mcp('propose', inp2)
+  assert.deepEqual(p2.errors, [])
+  const miss = await mcp('save', { ...inp2, proposal: 'd'.repeat(64), kit: KIT })
+  assert.equal(miss.error, 'E_APPROVE')
+  const again = await mcp('save', { knowledge: 'apv', proposal: miss.details.propose.proposal, kit: KIT })
+  assert.ok(again.saved, JSON.stringify(again))
+})

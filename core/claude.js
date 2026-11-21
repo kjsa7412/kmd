@@ -13,7 +13,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { modelArgs } from './models.js'
 
-export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'TEMP', 'TMP', 'LANG', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'FAKE_CLAUDE_MODE', 'FAKE_CLAUDE_LOG', 'FAKE_CLAUDE_MCP_LOG', 'FAKE_CLAUDE_READ', 'FAKE_CLAUDE_SPANS', 'FAKE_CLAUDE_STREAM_MS', 'FAKE_CLAUDE_LIMIT_FILE', 'FAKE_AGENT_MODE', 'FAKE_AGENT_WAIT_MS', 'FAKE_AGENT_SCRIPT', 'FAKE_AGENT_LOG', 'FAKE_AGENT_SYS']
+export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'TEMP', 'TMP', 'LANG', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'FAKE_CLAUDE_MODE', 'FAKE_CLAUDE_LOG', 'FAKE_CLAUDE_EFFORT_LOG', 'FAKE_CLAUDE_MCP_LOG', 'FAKE_CLAUDE_READ', 'FAKE_CLAUDE_SPANS', 'FAKE_CLAUDE_STREAM_MS', 'FAKE_CLAUDE_LIMIT_FILE', 'FAKE_AGENT_MODE', 'FAKE_AGENT_WAIT_MS', 'FAKE_AGENT_SCRIPT', 'FAKE_AGENT_LOG', 'FAKE_AGENT_SYS']
 
 // model — 별칭(haiku · sonnet · opus) · 비면 그 PC 의 기본 모델(core/models.js)
 // onTick({ out, think, ms }) — 흘려 받기(stream-json): 쓴 글(답 · 스키마 답) · 생각 글자 수와 지난 시간을 tickMs 마다 한 번(끝날 때만 답하던 json 은 몇 분씩 소식이 없었다)

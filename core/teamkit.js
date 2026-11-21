@@ -28,7 +28,7 @@ const GUIDE_SKILLS = ['kmd-team-save', 'kmd-team-import']
 // 스킬 판(S-D15) — 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면 하나 올린다(test/teamkit.test.mjs 의 판 표가 잊으면 실패한다).
 //   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
 //   저장 측정 줄(savelog)에 싣는다(옛 판 안내 reinstall · nokit 은 P11 에서 걷었다)
-export const TEAM_KIT_REV = 19
+export const TEAM_KIT_REV = 20
 const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(TEAM_KIT_REV)).replace(/\{\{GEN_RULES\}\}/g, () => genRulesBlock({ profile: 'session' }))
 
 export async function teamKitParts() {
