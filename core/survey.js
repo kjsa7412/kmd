@@ -15,6 +15,7 @@
 //   지문 — 재료 id 는 들이기 md/<sha16> 와 같은 sha256(글.trim()) 앞 16자(importer.js planImport · hub.seedUpload)
 
 import fs from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { fileToMd, cleanPath } from './importer.js'
@@ -208,8 +209,8 @@ export async function survey(root, { out, now = new Date(), log = () => {} } = {
   }
   const all = classify(rows)
   await writeManifest(o, { root: r, made: now.toISOString(), rows: all })
-  // 카드 · 글 초안 자리를 미리 만든다(세션 · 하위 에이전트가 mkdir 을 부르지 않고 Write 만으로 쓴다 · 허락 거절을 줄인다)
-  for (const d of ['cards', 'texts']) await fs.mkdir(path.join(o, d), { recursive: true })
+  // 카드 · 글 초안 · 프롬프트 자리를 미리 만든다(세션 · 하위 에이전트가 ls · mkdir 을 부르지 않고 Write 만으로 쓴다 · 허락 거절을 줄인다)
+  for (const d of ['cards', 'texts', 'prompts']) await fs.mkdir(path.join(o, d), { recursive: true })
   await pruneMd(o, all)
   return { pack: o, root: r, rows: all, counts: countsOf(all) }
 }
@@ -360,6 +361,12 @@ export async function packCheck(dir, { k = null, files = null } = {}) {
 // ── 판단 기준(바탕 설계 6-1) — core/shape.js 한 벌(구조안 프롬프트 · 스킬 · planCheck 공통 · Z6 에서 옮김) ──
 export { SEED_RULES }
 
+// 하위 에이전트가 부르는 꼴(채널 평가 T10 ⑦ · real-4 · 4b 의 거절은 「cd <저장소> && node scripts/… check」 · 「ls … || mkdir …」 였다):
+//   스크립트는 절대 경로(앞으로 빗금 · 시험 허락 subAllow 와 같은 꼴) 한 줄 · cd · && · || · ls · mkdir 없음 · 폴더는 survey 가 만들어 두었다
+export const SEED_SCRIPT = fileURLToPath(new URL('../scripts/kmd-seed.mjs', import.meta.url)).split(path.sep).join('/')
+const checkCmd = (pack) => `node ${SEED_SCRIPT} check "${pack}"`
+const CALL_LINE = '- 명령은 위 한 줄 그대로 부른다: cd · && · || · 파이프 · 2>&1 · ls · mkdir 을 쓰지 않는다. cards/ · texts/ · prompts/ 폴더는 이미 있다(파일은 Write 로 바로 쓴다).'
+
 const CARD_FORM = '{ "src": "m:<16자>", "path": "<원본 경로>", "topic": "<대상 이름>", "form": "대상|사건|대장|서술", "date": "YYYY-MM-DD|null", "names": ["종류:값"], "facts": ["확정 사실 한 줄(값 글자 그대로)"], "secret": false, "note": "애매한 것 한 줄" }'
 
 // 하위 에이전트 프롬프트(Claude Code 세션이 Agent 에 그대로 넘긴다) — 작성기준 3 ~ 5절(WRITE_RULES · 좋은 예 · 나쁜 예) · 6-1 판단 기준을 싣는다
@@ -372,6 +379,7 @@ export function promptOf(P, kind, { from = 0, n = 10, doc = null } = {}) {
       `너는 kmd 바탕 세우기의 재료 카드를 짓는다. 꾸러미: ${pack}`,
       `아래 재료마다 digest 를 먼저 보고, 애매할 때만 md/<16자>.md 원문을 읽는다. 재료마다 카드 하나를 ${path.join(pack, 'cards', '<16자>.json')} 에 쓴다(JSON 하나 · 다른 파일은 쓰지 않는다).`,
       `카드 꼴: ${CARD_FORM}`,
+      '- 셸 명령을 부르지 않는다(Read 와 Write 만). cards/ 폴더는 이미 있다: ls · mkdir 없이 Write 로 바로 쓴다.',
       '- facts 는 원문에 있는 확정 사실만(값 · 날짜 · 이름 · `코드` 는 글자 그대로). 지어내지 않는다. 경위 · 논의 · 질문은 옮기지 않는다.',
       '- 비밀(비밀번호 · 열쇠 · 개인정보)이 보이면 secret: true 로 두고 facts 에 그 값을 옮기지 않는다.',
       SEED_RULES,
@@ -387,7 +395,8 @@ export function promptOf(P, kind, { from = 0, n = 10, doc = null } = {}) {
       '- 문서마다 nature(으뜸 성격 · 생성 룰 R4-1: 그 문서를 찾으러 오는 사람의 물음 하나 · 못 고르면 서술) · 세우는 항목마다 names 에 짝(종류:값 · gist 뜻 한 줄 15 ~ 60자 · 생성 룰 R7-1 · 머리만 세우지 않는다).',
       '- 항목 머리는 대상 이름(사건 갈래만 「YYYY-MM-DD 주제」 · 대장은 「값: 설명」). 머리끼리 같거나 앞부분이 겹치지 않게.',
       SEED_RULES,
-      `다 쓰면 node scripts/kmd-seed.mjs check "${pack}" 로 검사하고 걸림이 0 이 될 때까지 고친다.`,
+      `다 쓰면 ${checkCmd(pack)} 로 검사하고 걸림이 0 이 될 때까지 고친다.`,
+      CALL_LINE,
     ].join('\n')
   }
   if (kind === 'text') {
@@ -402,7 +411,8 @@ export function promptOf(P, kind, { from = 0, n = 10, doc = null } = {}) {
       WRITE_RULES,
       '항목:',
       ...d.items.map((it) => JSON.stringify({ h: it.h, src: it.src || [] })),
-      `다 쓰면 node scripts/kmd-seed.mjs check "${pack}" 로 꼴을 검사한다.`,
+      `다 쓰면 ${checkCmd(pack)} 로 꼴을 검사한다.`,
+      CALL_LINE,
     ].join('\n')
   }
   throw new KmdError('E_INPUT', 'prompt 는 card · plan · text')

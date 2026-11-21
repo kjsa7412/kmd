@@ -370,3 +370,28 @@ test('사용자 훅 끄기: noHooksArgs 는 설정 폴더에 disableAllHooks 파
     assert.equal(NO_HOOKS.disableAllHooks, true)
   } finally { fs.rmSync(d, { recursive: true, force: true }) }
 })
+
+// 채널 평가 이어서: 판 읽기는 비동기 · 느려 시간이 넘으면 빈 글을 캐시하지 않고 다음에 다시 읽는다(그사이 끊지 않음 · 이벤트 줄을 막지 않음)
+test('pending 끊기: 느린 판 읽기는 막지 않고 · 시간 넘음은 캐시하지 않고 다시 읽는다', async () => {
+  const { warmClaudeVersion, resetClaudeVersion, claudeVersionKnown, pendingCut } = await import('../core/agent.js')
+  resetClaudeVersion()
+  const warn = console.warn
+  const warned = []
+  console.warn = (...a) => warned.push(a.join(' '))
+  try {
+    const slow = ['-e', 'setTimeout(() => console.log("2.1.92 (Claude Code)"), 5000)']
+    const t0 = Date.now()
+    const p = warmClaudeVersion({ cmd: process.execPath, args: slow, timeoutMs: 300 })
+    assert.ok(Date.now() - t0 < 200, '부르는 쪽을 막지 않는다')
+    assert.equal(pendingCut({}), false, '읽는 동안은 끊지 않는다')
+    assert.equal(await p, '', '시간이 넘으면 판을 모른다')
+    assert.equal(claudeVersionKnown(), '', '빈 글을 캐시하지 않는다')
+    assert.ok(warned.some((w) => /판을 읽지 못했다/.test(w)), 'log 를 남긴다')
+    const fast = ['-e', 'console.log("2.1.92 (Claude Code)")']
+    assert.match(await warmClaudeVersion({ cmd: process.execPath, args: fast, timeoutMs: 10_000 }), /2\.1\.92/, '다시 시도하면 읽는다')
+    assert.equal(pendingCut({}), true, '읽은 뒤에는 판대로 끊는다')
+  } finally {
+    console.warn = warn
+    resetClaudeVersion()
+  }
+})

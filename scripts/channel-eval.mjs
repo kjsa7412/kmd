@@ -185,6 +185,10 @@ const PIDS = ${JSON.stringify(pids)}
 const RUN = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 const t0 = Date.now()
 const wrapMs = Math.max(0, Math.round(t0 - performance.timeOrigin))
+// preMs(T13 · 시험 도구 몫 웃값): 일꾼이 spawn 을 부른 때(KMD_SPAWN_AT · core/agent.js · claude.js 가 가짜에만 싣는다) → 감싸개가 안쪽을 띄운 때
+//   제품은 이 자리에 cmd → claude.cmd 띄움을 내므로 다 시험 도구 몫은 아니다(웃값) · 없으면 null
+const spawnAt = Number(process.env.KMD_SPAWN_AT) || 0
+const preMs = spawnAt ? Math.max(0, t0 - spawnAt) : null
 const T = { firstOut: null, init: null, firstAsst: null }
 const p = spawn(process.execPath, [INNER, ...process.argv.slice(2)], { stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true })
 const pidLine = (k) => { try { fs.appendFileSync(PIDS, JSON.stringify({ k, run: RUN, wrap: process.pid, inner: p.pid, at: Date.now() }) + '\\n') } catch {} }
@@ -199,7 +203,9 @@ p.stdin.on('error', () => {})
 p.stdout.setEncoding('utf8')
 let buf = ''
 // 진단(T3 · T9): 띄움 → init(kmd 연결 상태) · 뒤늦은 연결 · 첫 차례 캐시 · 첫 도구 · API 다시 시도 · 마지막 도구 결과 뒤 꼬리
-const D = { initMs: null, kmd: null, kmdAt: null, kmdUsed: false, firstTool: null, first: null, retries: 0, tools: 0 }
+const D = { initMs: null, kmd: null, kmdAt: null, kmdUsed: false, firstTool: null, first: null, retries: 0, tools: 0, toolMs: {}, toolN: {} }
+// 도구 시간(T13 · 도구 몫 가르기): tool_use id → 부른 때 · tool_result 가 오면 그 차를 도구 이름별로 더한다(Read · Glob 처리와 kmd MCP 서버 처리를 가른다)
+const openTools = new Map()
 let lastRes = null
 let gotResult = false
 const eat = (l) => {
@@ -213,21 +219,24 @@ const eat = (l) => {
     if (T.firstAsst == null) T.firstAsst = Date.now() - t0
     const u0 = j.message?.usage
     if (!D.first && u0) D.first = { cacheRead: u0.cache_read_input_tokens || 0, cacheWrite: u0.cache_creation_input_tokens || 0, input: u0.input_tokens || 0 }
-    for (const c of j.message?.content || []) if (c.type === 'tool_use') { D.tools++; D.firstTool ||= String(c.name || ''); if (String(c.name || '').startsWith('mcp__kmd')) D.kmdUsed = true }
+    for (const c of j.message?.content || []) if (c.type === 'tool_use') { D.tools++; D.firstTool ||= String(c.name || ''); if (String(c.name || '').startsWith('mcp__kmd')) D.kmdUsed = true; if (c.id) openTools.set(c.id, { name: String(c.name || '?').slice(0, 40), at: Date.now() }) }
   }
-  if (j.type === 'user' && Array.isArray(j.message?.content) && j.message.content.some((c) => c.type === 'tool_result')) lastRes = Date.now()
+  if (j.type === 'user' && Array.isArray(j.message?.content) && j.message.content.some((c) => c.type === 'tool_result')) {
+    lastRes = Date.now()
+    for (const c of j.message.content) { const o = c.type === 'tool_result' && openTools.get(c.tool_use_id); if (!o) continue; openTools.delete(c.tool_use_id); D.toolMs[o.name] = (D.toolMs[o.name] || 0) + (lastRes - o.at); D.toolN[o.name] = (D.toolN[o.name] || 0) + 1 }
+  }
   if (j.type !== 'result') return
   gotResult = true
   const u = j.usage || null
   // modelUsage — 모델별 토큰 · 비용(보조 모델 · API 다시 시도로 다시 생성한 몫까지 · usage 는 마지막 응답 몫만 담을 때가 있다 · real-2b kmd-migrate 출력 1680 대 4673)
   const mu = j.modelUsage && typeof j.modelUsage === 'object' ? Object.fromEntries(Object.entries(j.modelUsage).map(([m, x]) => [m, { input: x.inputTokens || 0, output: x.outputTokens || 0, cacheRead: x.cacheReadInputTokens || 0, cacheWrite: x.cacheCreationInputTokens || 0, cost: x.costUSD ?? null }])) : null
-  const diag = { ...D, tailMs: lastRes ? Date.now() - lastRes : null, wrapMs, t: { ...T } }
+  const diag = { ...D, tailMs: lastRes ? Date.now() - lastRes : null, wrapMs, preMs, t: { ...T } }
   fs.appendFileSync(LOG, JSON.stringify({ kind: KIND, run: RUN, at: Date.now(), ms: Date.now() - t0, cost: j.total_cost_usd ?? null, turns: j.num_turns ?? null, dur: j.duration_ms ?? null, api: j.duration_api_ms ?? null, err: !!j.is_error, model: j.model || (j.modelUsage ? Object.keys(j.modelUsage).join(',') : null), tokens: u ? { input: u.input_tokens || 0, output: u.output_tokens || 0, cacheRead: u.cache_read_input_tokens || 0, cacheWrite: u.cache_creation_input_tokens || 0 } : null, ...(mu ? { modelUsage: mu } : {}), diag }) + '\\n')
 }
 p.stdout.on('data', (c) => { if (T.firstOut == null) { T.firstOut = Date.now() - t0; watch() } process.stdout.write(c); buf += c; let i; while ((i = buf.indexOf('\\n')) >= 0) { eat(buf.slice(0, i).trim()); buf = buf.slice(i + 1) } })
 p.on('error', (e) => { process.stderr.write(String(e.message)); process.exit(1) })
 // result 없이 끝난 프로세스(init 에서 끊김 · pending 끊기 T9) — 진단만 한 줄(돈 0 · 차례 0)
-p.on('close', (code) => { if (buf.trim()) eat(buf.trim()); if (!gotResult && D.initMs != null) try { fs.appendFileSync(LOG, JSON.stringify({ kind: KIND, run: RUN, at: Date.now(), ms: Date.now() - t0, cost: 0, turns: 0, err: false, noResult: true, model: null, tokens: null, diag: { ...D, tailMs: null, wrapMs, t: { ...T, close: Date.now() - t0 } } }) + '\\n') } catch {} clearTimeout(watchLate); pidLine('end'); process.exitCode = code ?? 1 })
+p.on('close', (code) => { if (buf.trim()) eat(buf.trim()); if (!gotResult && D.initMs != null) try { fs.appendFileSync(LOG, JSON.stringify({ kind: KIND, run: RUN, at: Date.now(), ms: Date.now() - t0, cost: 0, turns: 0, err: false, noResult: true, model: null, tokens: null, diag: { ...D, tailMs: null, wrapMs, preMs, t: { ...T, close: Date.now() - t0 } } }) + '\\n') } catch {} clearTimeout(watchLate); pidLine('end'); process.exitCode = code ?? 1 })
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGBREAK']) process.on(sig, () => { killTree(); process.exit(1) })
 `
 // end 줄이 없는 안쪽(끊긴 감싸개의 고아)을 나무째 끈다 — 채널마다 끝에(finally)
@@ -490,6 +499,12 @@ export function meterRowOf(row = {}, ml = [], { selfCost = false } = {}) {
     // 진단(T3 · T9 · 감싸개가 프로세스마다 마지막 result 줄에 싣는다) — kmd 를 붙였으나 한 번도 쓰지 않은 프로세스(kmdUnused · 세션 들이기에서는 다시 띄움의 까닭 · 스키마 부름은 안 쓸 수 있다) · API 다시 시도 · init 까지 · 뒤늦은 kmd 연결 · 첫 차례 캐시(C1) · 첫 도구 · 마지막 도구 결과 뒤 꼬리
     const dg = lasts.map((l) => l.diag).filter(Boolean)
     if (dg.length) meter.diag = { cut: lasts.filter((l) => l.noResult).length, kmdUnused: lasts.filter((l) => !l.noResult && l.diag && l.diag.kmd != null && !l.diag.kmdUsed).length, retries: sum(dg.map((d) => d.retries)), initMs: dg.map((d) => d.initMs), kmd: dg.map((d) => d.kmd), kmdAt: dg.map((d) => d.kmdAt), firstTool: dg.map((d) => d.firstTool), firstCacheRead: dg.map((d) => d.first?.cacheRead ?? null), tailMs: dg.map((d) => d.tailMs), wrapMs: dg.map((d) => d.wrapMs ?? null), firstOutMs: dg.map((d) => d.t?.firstOut ?? null), firstAsstMs: dg.map((d) => d.t?.firstAsst ?? null) }
+    // 감싸개 안 시간 합(procMs) · 시험 도구 몫(preMs · 웃값) · 도구 이름별 시간(toolMs: 도구를 부른 때 → 결과 · Read · Glob 와 kmd MCP 를 가른다)
+    meter.procMs = sum(lasts.map((l) => l.ms))
+    meter.preMs = dg.some((d) => typeof d.preMs === 'number') ? sum(dg.map((d) => d.preMs || 0)) : null
+    const tm = {}
+    for (const d of dg) for (const [k, v] of Object.entries(d.toolMs || {})) { const b = (tm[k] ||= { ms: 0, n: 0 }); b.ms += v || 0; b.n += d.toolN?.[k] || 0 }
+    if (Object.keys(tm).length) meter.toolMs = tm
     if (multi.length) meter.multiSample = multi.slice(0, 2).map((ls) => ls.map((l) => ({ cost: l.cost, turns: l.turns, tokens: l.tokens })))
     Object.assign(out, { meter, cost: meter.cost, calls: meter.procs, turns: meter.turns, tokens: meter.tokens, models: meter.models })
     if (out.serverCost != null && Math.abs(meter.cost - out.serverCost) > 0.001) out.costGap = r4(meter.cost - out.serverCost)
@@ -518,6 +533,10 @@ export function meterStatsOf(lines = []) {
     launchPer: r1(sum(res.map((l) => l.ms - l.dur)) / n), durApiPer: r1(sum(res.map((l) => l.dur - l.api)) / n),
     nonApiSec: Math.round(sum(ls.map((l) => (l.noResult ? l.ms : typeof l.api === 'number' ? l.ms - l.api : 0))) / 1000), apiSec: Math.round(sum(res.map((l) => l.api)) / 1000),
     initMed: med(ls.map((l) => l.diag?.initMs)), wrapMed: med(ls.map((l) => l.diag?.wrapMs)),
+    // 감싸개 안 합(모든 프로세스 ms) · 시험 도구 몫 합(preMs · 웃값 · 없으면 감싸개 몫 wrapMs 합 · 둘 다 없으면 null)
+    procSec: Math.round(sum(ls.map((l) => l.ms || 0)) / 1000),
+    toolSec: ls.some((l) => typeof l.diag?.preMs === 'number') ? Math.round(sum(ls.map((l) => l.diag?.preMs || 0)) / 1000) : ls.some((l) => typeof l.diag?.wrapMs === 'number') ? Math.round(sum(ls.map((l) => l.diag?.wrapMs || 0)) / 1000) : null,
+    toolBy: ls.some((l) => typeof l.diag?.preMs === 'number') ? 'preMs' : ls.some((l) => typeof l.diag?.wrapMs === 'number') ? 'wrapMs' : null,
   }
 }
 // 부하 탐침(T13): 행 시간 밖에서(채널 시작 · 끝) 잰다: node 빈 띄움 중앙값(세 번) · git --version · CPU 바쁨(1초 동안 os.cpus 차) · 떠 있는 node · claude 수 · 남은 메모리.
@@ -547,6 +566,8 @@ export function totalsOf(rs = []) {
   return {
     rows: rs.filter((r) => !r.aux).length, auxRows: rs.filter((r) => r.aux).length, ms: sum(rs.map((r) => r.ms)), cost: r4(sum(rs.map((r) => r.cost))), serverCost: rs.some((r) => r.serverCost != null) ? r4(sum(rs.map((r) => r.serverCost))) : null, selfCostRows: rs.filter((r) => r.costSource === 'self').length, costGapRows: rs.filter((r) => r.costGap != null).length,
     // API 시간 · 행 시간 가운데 API 밖(T13): 같은 채널 집합으로만 견준다 · 부하 표시 행(load)
+    // 감싸개 안(procMs) · 시험 도구 몫(preMs · 웃값 · 제품 시간 줄임이 아니다) · kmd MCP 서버 처리(mcpMs · mcplog)
+    procMs: sum(rs.map((r) => r.meter?.procMs)), preMs: rs.some((r) => r.meter?.preMs != null) ? sum(rs.map((r) => r.meter?.preMs)) : null, mcpMs: rs.some((r) => r.mcp) ? sum(rs.map((r) => r.mcp?.ms)) : null,
     apiMs: sum(rs.map((r) => r.meter?.apiMs)), outMs: sum(rs.filter((r) => r.meter).map((r) => Math.max(0, (r.ms || 0) - (r.meter.apiMs || 0)))), launchMs: sum(rs.map((r) => r.meter?.launchMs)), loadRows: rs.filter((r) => r.load).length,
     calls: sum(rs.map((r) => r.calls)), turns: sum(rs.map((r) => r.turns)), fix: sum(rs.map((r) => r.fix)), fixTries: sum(rs.map((r) => r.fixTries)), fails: sum(rs.map((r) => r.fails)), failCalls: sum(rs.map((r) => r.failCalls)),
     put: rs.filter((r) => r.put).length, empty: rs.filter((r) => r.empty).length, recovered: [...new Set(rs.flatMap((r) => r.recoveredCodes || []))], nolog: rs.filter((r) => r.nolog).length, needHuman: rs.filter((r) => r.needHuman).length,
@@ -560,6 +581,9 @@ export function totalsOf(rs = []) {
 async function measure(E, t, meta, fn) {
   const slFile = t?.savelogFile ? t.savelogFile() : null
   const sl0 = slFile ? readJsonl(slFile).length : 0
+  // MCP 부름 측정 줄(T13 · server/hub.js mcpLog): savelog 옆 <data>/mcplog/calls.jsonl · 도구 이름 · ms 만
+  const mlFile = slFile ? path.join(path.dirname(path.dirname(slFile)), 'mcplog', 'calls.jsonl') : null
+  const ml0 = mlFile ? readJsonl(mlFile).length : 0
   const m0 = readJsonl(E.meterFile).length
   const dir = meta.dir || t?.dir
   const kid = meta.kid || t?.kn || KN
@@ -593,6 +617,12 @@ async function measure(E, t, meta, fn) {
     err: saves.map((l) => l.err).filter(Boolean), warned: [...new Set(saves.flatMap((l) => l.warned || []))], accepted: sum(saves.map((l) => (Array.isArray(l.accepted) ? l.accepted.length : l.accepted))),
     rounds: Math.max(0, ...saves.map((l) => Number(l.rounds) || 0)), fail: saves.map((l) => l.fail).filter(Boolean), dup: saves.filter((l) => l.dup).length,
     ms: sum(saves.map((l) => l.ms)), cost: r4(sum([...saves, ...costLines].map((l) => l.cost?.usd))), kit: [...new Set(saves.map((l) => l.kit).filter((x) => x != null))],
+  }
+  const mls = mlFile ? readJsonl(mlFile).slice(ml0) : []
+  if (mls.length) {
+    const by = {}
+    for (const l of mls) { const b = (by[l.tool] ||= { n: 0, ms: 0 }); b.n++; b.ms += Number(l.ms) || 0 }
+    row.mcp = { calls: mls.length, ms: sum(mls.map((l) => Number(l.ms) || 0)), errs: mls.filter((l) => l.err).length, by }
   }
   row.warned = row.savelog.warned.length
   row.accepted = row.savelog.accepted
@@ -1857,7 +1887,28 @@ export function compareOf(A, B) {
   if (ms[0] || ms[1]) {
     const v = (x, k) => (x && x[k] != null ? x[k] : '-')
     md.push('| 계측 통째(모든 프로세스) | 앞 | 뒤 |', '|---|---|---|')
-    for (const [k, label] of [['procs', '프로세스'], ['cut', '끊긴 프로세스(result 없음)'], ['launchPer', '프로세스당 띄움 ms - dur(초)'], ['durApiPer', '프로세스당 dur - api(초)'], ['nonApiSec', '비 API 합 ms - api(초)'], ['apiSec', 'API 합(초)'], ['initMed', 'init 중앙값(ms)'], ['wrapMed', '감싸개 몫 중앙값(ms · 시험 도구)']]) md.push(`| ${label} | ${v(ms[0], k)} | ${v(ms[1], k)} |`)
+    for (const [k, label] of [['procs', '프로세스'], ['cut', '끊긴 프로세스(result 없음)'], ['launchPer', '프로세스당 띄움 ms - dur(초)'], ['durApiPer', '프로세스당 dur - api(초)'], ['nonApiSec', '비 API 합 ms - api(초)'], ['apiSec', 'API 합(초)'], ['initMed', 'init 중앙값(ms)'], ['wrapMed', '감싸개 몫 중앙값(ms · 시험 도구)'], ['rowSec', '모든 행 ms 합(바탕 포함 · 초)'], ['procSec', '감싸개 안 합(모든 프로세스 ms · 초)'], ['outSec', '감싸개 밖(행 합 - 감싸개 안 · 초 · 회계 몫)'], ['toolSec', '시험 도구 몫 합(초 · preMs 웃값 · 없으면 wrapMs)']]) md.push(`| ${label} | ${v(ms[0], k)}${k === 'toolSec' && ms[0]?.toolBy ? ` (${ms[0].toolBy})` : ''} | ${v(ms[1], k)}${k === 'toolSec' && ms[1]?.toolBy ? ` (${ms[1].toolBy})` : ''} |`)
+    md.push('')
+  }
+  // 감싸개 밖 시간 · 시험 도구 몫 · MCP 서버 몫(T13): 같은 규칙으로 양쪽을 센다(행 ms - 감싸개 안 ms · 옛 결과는 apiMs + nonApiMs 로 감싸개 안을 다시 센다).
+  //   회계 몫이다: 채널 몫 합(목표 판정)에서 빼지 않는다 · 제품 시간 줄임이 아니다
+  const wrapOut = (c) => {
+    const rs = (c?.rows || []).filter((r) => !r.base && r.ran !== false && r.meter)
+    const proc = rs.map((r) => (r.meter.procMs != null ? r.meter.procMs : r.meter.nonApiMs != null ? (r.meter.apiMs || 0) + r.meter.nonApiMs : null))
+    const tools = {}
+    for (const r of rs) for (const [k, x] of Object.entries(r.meter.toolMs || {})) { const b = (tools[k] ||= { ms: 0, n: 0 }); b.ms += x.ms || 0; b.n += x.n || 0 }
+    return { row: sum(rs.map((r) => r.ms || 0)) / 1000, out: proc.every((x) => x != null) && rs.length ? sum(rs.map((r, i) => Math.max(0, (r.ms || 0) - proc[i]))) / 1000 : null, pre: rs.some((r) => r.meter.preMs != null) ? sum(rs.map((r) => r.meter.preMs || 0)) / 1000 : null, mcp: rs.some((r) => r.mcp) ? sum(rs.map((r) => r.mcp?.ms || 0)) / 1000 : null, tools }
+  }
+  const wo = both.map((r) => ({ name: r.name, a: wrapOut(A.channels[r.name]), b: wrapOut(B.channels[r.name]) }))
+  const woSum = (k, i) => { const v = wo.map((x) => x[i][k]).filter((x) => x != null); return v.length ? Math.round(sum(v)) : null }
+  total.wrapOut = Object.fromEntries(['row', 'out', 'pre', 'mcp'].map((k) => [k, [woSum(k, 'a'), woSum(k, 'b')]]))
+  const ar = (p) => `${p[0] ?? '-'} → ${p[1] ?? '-'}`
+  md.push('### 감싸개 밖 · 시험 도구 몫 · MCP 서버 몫(T13 · 같은 규칙으로 양쪽)', '', `채널 몫(계측 줄이 있는 행) ${ar(total.wrapOut.row)}초 · 감싸개 밖(행 ms - 감싸개 안 ms: 서버 저장 · 일 줄 · 시험 도구) ${ar(total.wrapOut.out)}초 · 시험 도구 몫(preMs 웃값) ${ar(total.wrapOut.pre)}초 · kmd MCP 서버 처리 ${ar(total.wrapOut.mcp)}초 · 모두 회계 몫이다: 채널 몫 합(목표 판정)에서 빼지 않는다 · 제품 시간 줄임이 아니다(- 는 옛 계측에 없다)`, '')
+  const tb = {}
+  for (const x of wo) for (const [k, v] of Object.entries(x.b.tools)) { const b = (tb[k] ||= { ms: 0, n: 0 }); b.ms += v.ms; b.n += v.n }
+  if (Object.keys(tb).length) {
+    md.push('| 도구(뒤 · 부른 때 → 결과) | 부름 | 초 | 부름당 ms |', '|---|---|---|---|')
+    for (const [k, v] of Object.entries(tb).sort((a, b) => b[1].ms - a[1].ms)) md.push(`| ${k} | ${v.n} | ${Math.round(v.ms / 1000)} | ${v.n ? Math.round(v.ms / v.n) : '-'} |`)
     md.push('')
   }
   const lh = [A.load?.head, B.load?.head]
@@ -1882,6 +1933,8 @@ async function report() {
     for (const J of [A, B]) {
       const ms = [...new Set([...(J.meters || []), ...(J.meter ? [J.meter] : [])])].map((m) => path.resolve(ROOT, m)).filter((m) => fss.existsSync(m))
       if (ms.length) J.meterStats = meterStatsOf(ms.flatMap((m) => readJsonl(m)))
+      // 판 통째 감싸개 밖(T13 · 옛 결과에도 같은 규칙): 모든 행(바탕 포함) ms 합 - 감싸개 안 합 · 서버 저장 · 일 줄 · 시험 도구 · 행 사이 걸음이 든다
+      if (J.meterStats) { const rowSec = Math.round(sum(Object.values(J.channels || {}).flatMap((c) => c.rows || []).map((r) => r.ms || 0)) / 1000); Object.assign(J.meterStats, { rowSec, outSec: rowSec - J.meterStats.procSec }) }
     }
     console.log(compareOf(A, B).md.join('\n'))
     return

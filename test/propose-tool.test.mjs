@@ -235,3 +235,22 @@ test('과거 결정 카드(지식 생성 하네스 H3): match 가 카드 · 앞�
   assert.ok(b.kindCards.seed.some((x) => x.kind === '회의' && x.nature === '사건' && x.gist))
   assert.ok(Array.isArray(b.natures) && Array.isArray(b.rules) && Array.isArray(b.kinds) && Array.isArray(b.forms))
 })
+
+// 채널 평가 T13 · 도구 몫 가르기: MCP 부름마다 측정 줄(<data>/mcplog/calls.jsonl) · 도구 이름 · 처리 ms · 오류 코드만(인자 · 지식 id · 글 없음)
+test('MCP 측정 줄: 도구 이름 · ms · 오류만 · 지식 id · 인자를 싣지 않는다', async () => {
+  const f = path.join(s.hub.dataDir, 'mcplog', 'calls.jsonl')
+  await new Promise((r) => setTimeout(r, 300)) // 앞 시험의 부름 줄이 다 쓰이게(측정 줄은 기다리지 않고 쓴다)
+  const n0 = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim().split('\n').filter(Boolean).length : 0
+  await canary()
+  await mcp('section', { knowledge: 'dpms', coord: 'proc:없는것-테스트' })
+  let ls = []
+  for (let i = 0; i < 50 && ls.length < 2; i++) { await new Promise((r) => setTimeout(r, 20)); ls = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim().split('\n').filter(Boolean).slice(n0).map((l) => JSON.parse(l)) : [] }
+  assert.equal(ls.length, 2)
+  for (const l of ls) {
+    assert.deepEqual(Object.keys(l).sort(), ['at', 'err', 'ms', 'tool'])
+    assert.equal(l.tool, 'section')
+    assert.ok(Number.isInteger(l.ms) && l.ms >= 0)
+  }
+  assert.ok(ls.some((l) => l.err), '오류 부름은 코드만')
+  assert.ok(!/dpms|카나리|없는것/.test(fs.readFileSync(f, 'utf8')), '지식 id · 인자가 없다')
+})

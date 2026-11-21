@@ -30,6 +30,7 @@ import { KEY_EXE_CS, KEY_EXE_VER } from '../core/keyexe.js'
 import * as sendLib from '../core/send.js'
 import { pcLogin, makeTeamLogin } from '../core/claudelogin.js'
 import { checkClaude } from '../core/claude.js'
+import { warmClaudeVersion } from '../core/agent.js'
 import { getSecret, delSecret } from '../core/secrets.js'
 import { safeOrigin } from '../core/claudecfg.js'
 import { pcRootKind, noneRoot, isNoneRoot, carryPcData } from '../core/pcops.js'
@@ -1517,6 +1518,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   // 에이전트가 이 kmd 의 MCP 에 닿는 주소(같은 PC 안)
   hub.selfUrl = `http://127.0.0.1:${server.address().port}`
   await hub.start()
+  // Claude Code 판을 미리 읽어 둔다(pending 끊기 · core/agent.js) · 막지 않는다 · 못 읽으면 다음 일이 다시 읽는다
+  warmClaudeVersion().catch((e) => console.warn('[kmd] Claude Code 판 읽기:', e.message))
   const a = server.address()
   const shown = host === '0.0.0.0' || host === '::' ? 'localhost' : host
   const origin = `http://${shown.includes(':') ? `[${shown}]` : shown}:${a.port}`

@@ -7,7 +7,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { readStructure } from '../core/restructure.js'
 import { loadKnowledge } from '../core/knowledge.js'
-import { cleanPlan, shapeFp, readShape, diffPlan, planCheck, stepsOf, SEED_PLAN_SCHEMA, seedPlanPromptOf, seedBatchPromptOf, SEED_RULES, seedCover, seedPriorOf, seedWriteMaterial, seedWriteSessionPromptOf, shapeWritePromptOf, seedPlanOfDraft } from '../core/shape.js'
+import { cleanPlan, shapeFp, readShape, diffPlan, planCheck, stepsOf, SEED_PLAN_SCHEMA, seedPlanPromptOf, seedBatchPromptOf, SEED_RULES, seedCover, seedPriorOf, seedWriteMaterial, seedWriteSessionPromptOf, shapeWritePromptOf, seedPlanOfDraft, SEED_WRITE_SCHEMA, SHAPE_WRITE_SCHEMA } from '../core/shape.js'
 
 const git = (dir, ...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: dir, encoding: 'utf8' })
 function make(files) {
@@ -375,4 +375,12 @@ test('글 짓기 세션: 작은 재료는 첫 말에 싣고 크면 md/ 를 읽�
     assert.doesNotMatch(p, /<<< md\//)
   }
   assert.equal(seedInlineOk([{ file: 'b.md', text: '값은 a >>> b 처럼 줄 가운데면 괜찮다' }]), true, '줄 머리만 본다')
+})
+
+// 채널 평가 이어서: 바탕 글 짓기 세션만 summary 를 꼭 낸다(빼먹으면 no-summary 로 고쳐 받았다) · 팀 합치기 · 나누기 스키마는 그대로
+test('SEED_WRITE_SCHEMA: 글 짓기 세션은 summary 필수 · 공유 SHAPE_WRITE_SCHEMA 는 그대로', () => {
+  assert.deepEqual(SEED_WRITE_SCHEMA.required, ['items', 'why', 'summary'])
+  assert.deepEqual(SHAPE_WRITE_SCHEMA.required, ['items', 'why'], '공유 스키마는 바뀌지 않는다')
+  assert.deepEqual(SEED_WRITE_SCHEMA.properties, SHAPE_WRITE_SCHEMA.properties)
+  assert.match(fs.readFileSync(new URL('../server/hub.js', import.meta.url), 'utf8'), /claudeSession\(\{ cwd: dir, schema: SEED_WRITE_SCHEMA/)
 })

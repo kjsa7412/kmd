@@ -55,7 +55,7 @@ after(() => fs.rmSync(tmp, { recursive: true, force: true }))
 
 test('조사 — 판 묶음(늦은 판이 정본) · 사건은 날짜가 다르면 다른 사건 · 같은 글 · 비밀 의심 보류 · 스캔 보류 · 숨은 것 뺌 · 재료 글은 md/<sha16>', async () => {
   const r = await survey(src, { out: pack })
-  for (const d of ['cards', 'texts']) assert.ok(fs.statSync(path.join(pack, d)).isDirectory(), `조사가 ${d}/ 자리를 만든다(세션이 mkdir 을 부르지 않는다)`)
+  for (const d of ['cards', 'texts', 'prompts']) assert.ok(fs.statSync(path.join(pack, d)).isDirectory(), `조사가 ${d}/ 자리를 만든다(세션이 mkdir 을 부르지 않는다)`)
   const by = Object.fromEntries(r.rows.map((x) => [x.path, x]))
   assert.deepEqual(Object.keys(by).sort(), ['스캔/서약서.pdf', '보관/배포절차.md', '운영/배포절차_v1.md', '운영/배포절차_v2_최종.md', '운영/접속.txt', '회의/2026-11-01 회의록.md', '회의/2026-11-08 회의록.md'].sort())
   assert.equal(by['운영/배포절차_v1.md'].role, '옛 판')
@@ -197,6 +197,15 @@ test('프롬프트 — 카드 · 구조안 · 글에 작성기준(좋은 예 · 
   assert.match(text, /나쁜 예/)
   assert.match(text, /배포 창/)
   assert.throws(() => promptOf(P, 'text', { doc: '없음' }), /구조안에 없는 문서/)
+  // 부르는 꼴(채널 평가 T10 ⑦): check 는 스크립트 절대 경로 한 줄 · cd · ls · mkdir 없음 · 폴더는 이미 있다
+  const { SEED_SCRIPT } = await import('../core/survey.js')
+  assert.ok(path.isAbsolute(SEED_SCRIPT) && !SEED_SCRIPT.includes('\\'), '앞으로 빗금 절대 경로(시험 허락 subAllow 와 같은 꼴)')
+  for (const p of [promptOf(P, 'plan'), text]) {
+    assert.ok(p.includes(`node ${SEED_SCRIPT} check "`), 'check 는 절대 경로 한 줄')
+    assert.ok(!/node scripts\/kmd-seed\.mjs/.test(p), '저장소 상대 경로(cd 를 부르게 하는 꼴)가 없다')
+    assert.match(p, /cd · && · \|\| · 파이프 · 2>&1 · ls · mkdir 을 쓰지 않는다/)
+  }
+  assert.match(card, /ls · mkdir 없이 Write 로 바로 쓴다/)
   const r = await run('status', pack)
   assert.match(r.text, /구조안 문서 3/)
 })

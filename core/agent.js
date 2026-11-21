@@ -12,7 +12,7 @@
 // 환경변수는 허용 목록만(claude.js 와 같다). 시험은 KMD_CLAUDE_AGENT 에 가짜(node 스크립트)를 준다 —
 // KMD_CLAUDE(한 번 부르기 가짜)만 있으면 에이전트는 없는 것으로 본다(시험이 세션 길을 막을 때).
 
-import { spawn, spawnSync } from 'node:child_process'
+import { spawn, execFile } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -52,19 +52,42 @@ export function pendingCutOf(ver) {
   for (let i = 0; i < 3; i++) if (v[i] !== PENDING_CUT_BELOW[i]) return v[i] < PENDING_CUT_BELOW[i]
   return false
 }
-let ccVer
-function claudeVersion() {
-  if (ccVer !== undefined) return ccVer
+// 판 읽기: 비동기(execFile · 60초)로 한 번 · 서버를 띄울 때 미리 시작해 둔다(warmClaudeVersion).
+//   동기 spawnSync 였을 때는 바쁜 PC 에서 claude --version 이 20초를 넘으면 이벤트 줄이 그만큼 막히고, 빈 글을 캐시해
+//   그 서버 프로세스 내내 끊기가 말없이 꺼졌다. 이제 실패 · 시간 넘음은 캐시하지 않고 log 를 남기며, 다음 runAgent 가 다시 비동기로 시도한다.
+//   판을 모르는 동안은 끊지 않는 쪽(지금까지와 같다) · 시험은 opt.cmd · opt.args 로 느린 판 읽기를 흉내 낸다
+let ccVer = '' // 읽은 판(빈 글 = 아직 모름)
+let ccVerP = null // 도는 판 읽기
+export function claudeVersionKnown() { return ccVer }
+export function resetClaudeVersion() { ccVer = ''; ccVerP = null }
+export function warmClaudeVersion({ cmd = '', args = ['--version'], timeoutMs = 60_000, env = process.env } = {}) {
+  if (ccVer) return Promise.resolve(ccVer)
+  if (ccVerP) return ccVerP
+  if (!cmd && (env.KMD_CLAUDE_AGENT || env.KMD_CLAUDE || env.KMD_MCP_PENDING_CUT === '1' || env.KMD_MCP_PENDING_CUT === '0')) return Promise.resolve('') // 가짜 · 덮음이면 읽지 않는다
   const win = process.platform === 'win32'
-  try { ccVer = String(spawnSync(win ? 'claude.cmd' : 'claude', ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true, shell: win }).stdout || '') } catch { ccVer = '' }
-  return ccVer
+  const c = cmd || (win ? 'claude.cmd' : 'claude')
+  const t0 = Date.now()
+  ccVerP = new Promise((resolve) => {
+    try {
+      execFile(c, args, { encoding: 'utf8', timeout: timeoutMs, windowsHide: true, shell: !cmd && win }, (err, out) => {
+        const v = String(out || '').trim()
+        if (/\d+\.\d+\.\d+/.test(v)) ccVer = v
+        else console.warn(`[kmd] Claude Code 판을 읽지 못했다(${Math.round((Date.now() - t0) / 1000)}초${err ? ' · ' + (err.killed ? '시간 넘음' : err.code || err.message) : ''}): 다음 일에서 다시 읽는다 · 그사이 pending 끊기는 쓰지 않는다`)
+        ccVerP = null
+        resolve(ccVer)
+      })
+    } catch (e) { console.warn('[kmd] Claude Code 판 읽기를 띄우지 못했다:', e.message); ccVerP = null; resolve('') }
+  })
+  return ccVerP
 }
+// 끊을지: 막지 않는다. 판을 아직 모르면 읽기를 (다시) 걸어 두고 이번에는 끊지 않는다
 export function pendingCut(env = process.env) {
   const v = env.KMD_MCP_PENDING_CUT
   if (v === '1') return true
   if (v === '0') return false
   if (env.KMD_CLAUDE_AGENT) return false
-  return pendingCutOf(claudeVersion())
+  if (!ccVer) { warmClaudeVersion({ env }); return false }
+  return pendingCutOf(ccVer)
 }
 
 export function agentAvailable() {
@@ -146,6 +169,7 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       await new Promise((ok) => setTimeout(ok, 3000 * attempt))
     }
     function once() { return new Promise((resolve) => {
+      if (fake) env.KMD_SPAWN_AT = String(Date.now()) // 띄운 때(채널 평가 T13 · 시험 도구 몫 · 가짜(감싸개)에만)
       const p = spawn(cmd, quoted, { cwd: dir, env, windowsHide: true, ...opt })
       // 끊기 — Windows 는 cmd 를 거쳐 띄우므로 p.kill() 은 cmd 만 죽고 Claude Code 는 남는다 · 나무째(taskkill /T)
       const stop = () => { if (win && !fake && p.pid) spawn('taskkill', ['/pid', String(p.pid), '/T', '/F'], { windowsHide: true }).on('error', () => p.kill()); else p.kill() }

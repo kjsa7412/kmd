@@ -49,7 +49,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
-import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, seedPriorOf, pickOf } from '../core/shape.js'
+import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, SEED_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, seedPriorOf, pickOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -729,6 +729,20 @@ ${genRulesBlock({ profile: 'shape' })}`
       await fs.appendFile(f, JSON.stringify(line) + '\n')
     })
   }
+  // MCP 부름 측정 줄(채널 평가 T13 · 도구 몫 가르기): <data>/mcplog/calls.jsonl 에 도구 이름 · 처리 ms · 오류 여부만(인자 · 지식 글 · 지식 id 를 싣지 않는다).
+  //   savelog 와 따로 둔다(저장 줄 셈 · 지표가 섞지 않게) · 5MB 넘으면 .1 로 · 던지지 않는다
+  async function mcpLog(line) {
+    try {
+      const dir = path.join(dataDir, 'mcplog')
+      const f = path.join(dir, 'calls.jsonl')
+      await serial('mcplog:' + f, async () => {
+        await fs.mkdir(dir, { recursive: true })
+        const st = await fs.stat(f).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+        if (st && st.size > SAVELOG_MAX) await fs.rename(f, f + '.1')
+        await fs.appendFile(f, JSON.stringify({ at: new Date().toISOString(), tool: String(line.tool || '').slice(0, 40), ms: Math.max(0, Math.round(Number(line.ms) || 0)), err: line.err ? String(line.err).slice(0, 40) : null }) + '\n')
+      })
+    } catch (e) { log(`MCP 측정 줄을 쓰지 못했다: ${e.message}`) }
+  }
   // 저장 줄의 대상(채널 평가 harness 검토) — 고칠 항목마다 coord 또는 「문서#머리」 · 걸린 저장과 뒤에 넣은 저장이 같은 항목인지 대 보는 열쇠(앞 50)
   const saveTargets = (input) => (Array.isArray(input?.sections) ? input.sections : []).slice(0, 50).map((x) => (x?.coord != null ? String(x.coord).trim().normalize('NFC') : x?.doc ? `${String(x.doc).trim().normalize('NFC')}#${String(x.heading ?? '').replace(/^#+\s*/, '').trim().normalize('NFC')}` : null)).filter(Boolean)
   // 비용 줄(채널 평가 P12) — Claude 를 부른 일의 돈 · 부름 수 · 차례. 세션 · 부름이 끝나야 알므로 저장 줄과 따로 한 줄(stage cost).
@@ -1152,7 +1166,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         await fs.writeFile(path.join(dir, 'md', `${p.src.slice(2)}.md`), p.body)
         prior.push({ file: `${p.src.slice(2)}.md`, path: p.path, date: p.date, text: p.body })
       }
-      s = steadySession(id, run, async () => claudeSession({ cwd: dir, schema: SHAPE_WRITE_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
+      s = steadySession(id, run, async () => claudeSession({ cwd: dir, schema: SEED_WRITE_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
       run.sessions?.add(s)
       feedPush(id, { k: 'kmd', text: `글 짓기: ${doc} · 항목 ${g.targets.length} · 재료 ${files.length}${prior.length ? ` · 앞선 값 재료 ${prior.length}` : ''}` }, tag)
       const meta = await hub.meta(id, ctx)
@@ -2451,6 +2465,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     mode,
     config,
     log,
+    mcpLog,
     // 루트 아래 지식 + 이 PC 에서 이은 폴더(`<data>/links.json` — 그 자리에서 따라간다)
     async list() {
       if (!list) {

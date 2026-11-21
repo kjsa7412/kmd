@@ -548,6 +548,10 @@ export const SHAPE_WRITE_SCHEMA = {
   required: ['items', 'why'],
   properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['doc', 'h', 'text'], properties: { doc: STR, h: STR, text: STR } } }, summary: STR, why: STR },
 }
+// 바탕 글 짓기 세션(hub seedWrite · claudeSession)만: summary 를 꼭 낸다(채널 평가 T10 · shape-pc 에서 summary 를 빼먹어 no-summary 로 고쳐 받았다).
+//   짓기 세션은 문서 글을 「# 제목 · summary · 항목」 으로 늘 새로 맞추므로(있는 요약을 물려 쓰는 길이 없다) 빈 요약은 늘 no-summary 다.
+//   팀 합치기 · 나누기(worker · hub runClaude)는 SHAPE_WRITE_SCHEMA 그대로(요약 없이 항목만 고치는 일이 있다)
+export const SEED_WRITE_SCHEMA = { ...SHAPE_WRITE_SCHEMA, required: [...SHAPE_WRITE_SCHEMA.required, 'summary'] }
 export const SHAPE_CLAUDE_TYPES = ['shape-plan', 'shape-write']
 
 const firstLine = (body) => String(body || '').split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('<!--'))?.slice(0, 100) || ''

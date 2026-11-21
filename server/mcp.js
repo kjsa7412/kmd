@@ -435,10 +435,15 @@ export function makeMcp(store) {
       // 물려받은 이름(constructor · toString · __proto__)은 도구가 아니다
       const f = typeof params?.name === 'string' && Object.hasOwn(tools, params.name) ? tools[params.name] : null
       if (!f) return err(-32602, `그런 도구는 없다: ${params?.name}`)
+      // 측정 줄(채널 평가 T13): 도구 이름 · 처리 ms · 오류 코드만 · 인자 · 지식 id 는 싣지 않는다 · 던지지 않는다(store.mcpLog 가 log)
+      const t0 = Date.now()
+      const meter = (e) => { try { store.mcpLog?.({ tool: params.name, ms: Date.now() - t0, err: e ? e.code || 'E_INTERNAL' : null }) } catch (x) { console.error('[kmd] MCP 측정 줄', x.message) } }
       try {
         const out = await f(params.arguments || {}, ctx)
+        meter(null)
         return ok({ content: [{ type: 'text', text: JSON.stringify(out, null, 1) }], structuredContent: out })
       } catch (e) {
+        meter(e)
         if (!(e instanceof KmdError)) console.error('[kmd] 도구 오류', params?.name, e)
         const out = { error: e.code || 'E_INTERNAL', message: e instanceof KmdError ? e.message : '서버 안에서 넘어졌다. 서버 창의 글을 본다', ...(e instanceof KmdError && e.details ? { details: e.details } : {}) }
         return ok({ content: [{ type: 'text', text: JSON.stringify(out) }], structuredContent: out, isError: true })

@@ -57,6 +57,8 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
   const quoted = opt.shell ? argv.map((a) => (a === '' ? '""' : /[\s"{}]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : argv
   try {
     const out = await new Promise((resolve) => {
+      // 띄운 때(채널 평가 T13 · 시험 도구 몫): 가짜(감싸개)에만 · 감싸개가 안쪽을 띄운 때와의 차를 적는다
+      if (fake) env.KMD_SPAWN_AT = String(Date.now())
       const p = spawn(cmd, quoted, { cwd: dir, env, windowsHide: true, ...opt })
       // 줄마다 읽는다 — 답은 끝 줄(result) 하나만 두고, 사이 줄은 글자 수만 센다(긴 글을 통째로 쌓지 않는다)
       let so = ''
@@ -182,6 +184,7 @@ export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], b
     }
   }
   const start = () => {
+    if (fake) env.KMD_SPAWN_AT = String(Date.now()) // 띄운 때(채널 평가 T13 · 시험 도구 몫 · 가짜에만)
     p = spawn(cmd, quoted, { cwd, env, windowsHide: true, ...opt })
     all = setTimeout(() => stop(`${Math.round(maxMs / 60_000)}분이 넘었다: 끊었다`), maxMs)
     poke()
