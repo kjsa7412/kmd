@@ -186,6 +186,26 @@ test('judgeSection: 줄 머리 수준 표시는 값이 아니다 · 「3회 → 
   assert.ok(w3.warnings.some((w) => w.code === 'invented'))
 })
 
+// 채널 평가 T14 검토: 줄 머리 날짜 · 판 번호 · 굵은 글 수는 값이다(수준 표시만 뗀다 · noLevels)
+test('judgeSection: 줄 머리 날짜 · 판 번호 · 굵은 수는 값(invented · lost · missing)', () => {
+  const cases = [
+    ['2026.11.21. 1차 배포', '2026.11.21. 1차 배포'.replace('2026.11.21', '2026.11.25')],
+    ['1.2.3) 판 올림', '9.9.9) 판 올림'],
+    ['**3 개소** 에 붙인다.', '**7 개소** 에 붙인다.'],
+  ]
+  for (const [old, now] of cases) {
+    const kk = kOf([['일정', old]])
+    const r = judgeSection(kk, { doc: 'docs/배포절차.md', heading: '일정', base: sha16(old), content: now, record: { title: '다듬기', body: '문체를 정돈했다' } })
+    assert.ok(r.warnings.some((w) => w.code === 'invented'), `${now}: ${JSON.stringify(r.warnings)}`)
+    assert.ok(r.warnings.some((w) => w.code === 'lost'), `${now}: ${JSON.stringify(r.warnings)}`)
+  }
+  // 기록 바뀐 것의 날짜가 줄 머리에 있으면 빠진 값이 아니다
+  const old = '2026.11.21. 1차 배포'
+  const kk = kOf([['일정', old]])
+  const r = judgeSection(kk, { doc: 'docs/배포절차.md', heading: '일정', base: sha16(old), content: `${old}\n2026.11.30. 2차 배포`, record: { title: '2차 배포 일정', body: '## 바뀐 것\n- 2차 배포: 2026.11.30' } })
+  assert.ok(!r.warnings.some((w) => w.code === 'missing'), JSON.stringify(r.warnings))
+})
+
 test('samePolished: 백틱 안 한국어 문장을 풀어도 같다 · 글자가 바뀌면 잃은 값', () => {
   assert.equal(samePolished('`지우고 이름을 남긴다`', '지우고 이름을 남긴다').same, true)
   assert.equal(samePolished('지우고 이름을 남긴다', '`지우고 이름을 남긴다`').same, true)

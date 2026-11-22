@@ -151,6 +151,22 @@ test('문서 다듬기(S13 · K10-4 · S-D37): 같은 문서 두 번 → 일감 
   try { await assert.rejects(s.hub.polish(ADMIN, 'dpms', { doc }), { code: 'E_FORBIDDEN' }) } finally { await s.hub.setOwner(SHELL, 'dpms', { noClaude: false }) }
 })
 
+// 채널 평가 T14 검토: 바꿀 곳을 못 댄 항목이 하나라도 있으면(다른 항목이 들어가도) 고쳐 받는다 · 그 항목을 조용히 빼지 않는다
+test('문서 다듬기: 한 항목만 바꿀 곳(edits)을 못 대도 고쳐 받아 모든 항목이 들어간다', env('FAKE_CLAUDE_MODE', 'polishedits', async () => {
+  for (let i = 0; i < 6 && queued().length; i++) await work()
+  const k0 = await fresh()
+  const d = k0.docs.find((x) => x.id !== '백업절차' && x.sections.filter((y) => y.h).length >= 2)
+  assert.ok(d, '항목 둘 이상인 다른 문서')
+  const n = d.sections.filter((x) => x.h).length
+  const a = await s.hub.polish(ADMIN, 'dpms', { doc: d.id })
+  for (let i = 0; i < 4 && s.hub.job(a.job).state !== 'done'; i++) await work()
+  const j = s.hub.job(a.job)
+  assert.equal(j.state, 'done', j.why)
+  assert.equal(j.result.put, n, '못 댄 항목도 고쳐 받아 들어간다')
+  const now = (await fresh()).docs.find((x) => x.id === d.id).sections.filter((x) => x.h)
+  assert.ok(now.every((x) => /\(다듬음\)/.test(x.body)), '모든 항목이 다듬겼다')
+}))
+
 test('일꾼이 머리를 「## 머리」 꼴로 보내도 그 항목에 댄다(notfound 가 아니다) · 새 문서 항목 머리도 # 없이', async () => {
   const { draftToSave } = await import('../core/ingest.js')
   const body = '- 일정: 12-10 ~ 12-16\n'

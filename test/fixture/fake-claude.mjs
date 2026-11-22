@@ -189,8 +189,15 @@ function answer() {
   // 문서 다듬기(S13 · core/ingest.js polishPromptOf) — 항목마다 끝에 「(다듬음)」 한 줄 · 첫 항목만 값을 바꾼다(서버가 그 항목을 빼는지 본다) · 까닭(why)에도 그 값을 적는다(기록 글에 실리면 값 검사가 다듬기 전체를 막는다)
   if (prompt.startsWith('문서 「') && prompt.includes('의 항목 글을 다듬는다')) {
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'polish\n')
-    const part = prompt.split('항목(base 는 그대로 돌려준다):\n')[1] || ''
+    const FIXP = '\n\n지난 초안이 kmd 검사에 걸렸다'
+    const fixingP = prompt.includes(FIXP)
+    const part = (fixingP ? prompt.slice(0, prompt.indexOf(FIXP)) : prompt).split('항목(base 는 그대로 돌려준다):\n')[1] || ''
     const secs = [...part.matchAll(/^## (.+)\n\(base ([0-9a-f]{16})\)\n([\s\S]*?)(?=\n\n## |(?![\s\S]))/gm)].map((m) => ({ h: m[1].trim(), base: m[2], body: m[3] }))
+    // FAKE_CLAUDE_MODE=polishedits → 처음 답은 첫 항목을 못 대는 바꿀 곳(edits)으로 · 나머지는 다듬음(고쳐 받으면 모두 다듬음 · 값은 그대로)
+    if (process.env.FAKE_CLAUDE_MODE === 'polishedits') {
+      if (fixingP && process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'fix\n')
+      return say({ structured_output: { updates: secs.map((s, i) => (i === 0 && !fixingP ? { heading: s.h, base: s.base, edits: [{ find: '받은 글에 없는 줄', replace: '바꾼 줄' }] } : { heading: s.h, base: s.base, content: `${s.body.trim()}\n\n(다듬음)` })), why: '문장을 짧게' } })
+    }
     return say({ structured_output: { updates: secs.map((s, i) => ({ heading: s.h, base: s.base, content: `${s.body.trim()}${i === 0 ? ' 999초' : ''}\n\n(다듬음)` })), why: '문장을 짧게 · 첫 항목은 999초로 고쳤다' } })
   }
   // 들이기(S7 · core/ingest.js intakePromptOf) — 기록 + 항목 글 초안 하나

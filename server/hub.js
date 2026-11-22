@@ -2078,8 +2078,9 @@ ${genRulesBlock({ profile: 'shape' })}`
       return close(`${INTAKE_FIX + 1}번 지어도 검사를 넘지 못했다: ${p.why}`)
     }
     for (const x of p.dropped) intakeLine(j, 'sys', `뺀 항목: ${x.heading} · ${x.why}`)
-    // 바꿀 곳을 못 대 넣을 것이 없으면 고쳐 받기(찾을 글을 받은 글 그대로 · 또는 content) · 고쳐 받기 한도(INTAKE_FIX) 안에서만
-    if (!p.input.sections.length && !last && p.dropped.some((x) => x.edits)) { const why = `바꿀 곳을 댈 수 없다: ${p.dropped.filter((x) => x.edits).slice(0, 3).map((x) => `${x.heading}(${x.why})`).join(' · ')}. find 를 받은 글 그대로 다시 잡거나 content 로 새 글 전체를 보낸다`; intakeLine(j, 'err', `✗ ${why} · 고쳐 쓴다`); saveJobs(); return { fix: why } }
+    // 바꿀 곳을 못 댄 항목이 하나라도 있으면 고쳐 받기(찾을 글을 받은 글 그대로 · 또는 content · 다른 항목은 지난 초안 그대로 함께) · 고쳐 받기 한도(INTAKE_FIX) 안에서만
+    //   (다른 항목이 들어간다고 그 항목을 조용히 빼면 content 꼴보다 다듬긴 항목이 준다 · 채널 평가 T14 검토) · 마지막이면 댄 항목만 넣고 못 댄 항목은 뺀 항목으로
+    if (!last && p.dropped.some((x) => x.edits)) { const why = `바꿀 곳을 댈 수 없다: ${p.dropped.filter((x) => x.edits).slice(0, 3).map((x) => `${x.heading}(${x.why})`).join(' · ')}. find 를 받은 글 그대로 다시 잡거나 content 로 새 글 전체를 보낸다. 다른 항목은 지난 초안 그대로 함께 보낸다`; intakeLine(j, 'err', `✗ ${why} · 고쳐 쓴다`); saveJobs(); return { fix: why } }
     if (!p.input.sections.length) return close(p.dropped.length ? `넣을 항목이 없다: ${p.dropped.slice(0, 3).map((x) => `${x.heading}(${x.why})`).join(' · ')}` : '고칠 것이 없다')
     const cost = { usd: Math.round((j.cost || 0) * 1e4) / 1e4, calls: j.calls }
     // 저장 문이 입력 오류로 막으면(꼴 · 값 검사 · 지문) 일감을 도는 채로 두지 않는다 — 마지막이 아니면 고쳐 쓰기 · 마지막이면 까닭과 함께 닫는다(채널 평가 harness 검토)

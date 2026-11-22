@@ -43,8 +43,11 @@ export function isoDates(s) {
   }).join('\n')
 }
 //   옛 머리 줄의 장 번호(「### 4.1 설치」)도 같은 짜임이다(머리 줄에서만 점 없는 번호를 뗀다 · 일반 줄의 「3 개소」 는 값)
-//   값 대조(core/gate.js judgeSection)도 같은 규칙으로 읽는다(「가.」 → 「1.」 다듬기가 지어낸 값 「1 · 2」 로 잡히지 않게 · 채널 평가 T14)
+//   값 대조(core/gate.js judgeSection)는 더 좁은 noLevels 로 읽는다(아래)
 export const noMarks = (s) => String(s || '').replace(/^(#{1,6}[ \t]+|\*\*)(\d+(?:\.\d+){0,3})\.?[ \t]+(?=\S)/gm, '$1').replace(/^([ \t]*)(\d+(?:\.\d+){0,3})[.)][ \t]+(?=\S)/gm, '$1')
+// 값 대조(core/gate.js judgeSection)는 줄 머리 수준 표시만 뗀다(noMarks 보다 좁다): 칸마다 1 ~ 2자리이고 「.」 로 끝나는 번호(1. · 1.1. · 10.2.) · 「)」 는 한 칸(1))만.
+//   줄 머리 날짜(2026.11.21.) · 판 번호(1.2.3)) · 굵은 글 수(**3 개소**) · 머리 줄 장 번호는 값이다(「**N 」 · 머리 줄 갈래는 sameValues 의 noMarks 에만 · 채널 평가 T14 검토)
+export const noLevels = (s) => String(s || '').replace(/^([ \t]*)(?:\d{1,2}(?:\.\d{1,2}){0,3}\.|\d{1,2}\))[ \t]+(?=\S)/gm, '$1')
 export function sameValues(oldText, newText) {
   const a = valuesOf(noMarks(isoDates(oldText)))
   const b = valuesOf(noMarks(isoDates(newText)))

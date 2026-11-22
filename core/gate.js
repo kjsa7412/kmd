@@ -11,7 +11,7 @@
 import { sha16 } from './text.js'
 import { guardNewDoc } from './guard.js'
 import { formatProblems, lintSection } from './docformat.js'
-import { valuesOf, mustValues, oldValues, namesIn, groundedIn, judgeId, noMarks } from './values.js'
+import { valuesOf, mustValues, oldValues, namesIn, groundedIn, judgeId, noLevels } from './values.js'
 
 // 초안 짜임 알림 — 머리 단계 건너뜀 · 5단계 머리(거절하지 않는다 · 결과에 lint 로 싣는다)
 export function draftLint(outs) {
@@ -51,9 +51,9 @@ export function judgeSection(k, { doc, heading, base, content, record, spread = 
   if (!content.trim() && cur.trim()) err('format', '글을 비웠다. 항목을 지우는 일은 지식관리자가 화면에서 한다')
   const body = String(record?.body || '')
   const title = String(record?.title || '')
-  // 줄 머리 수준 표시(1. · 1.1. · 1))는 짜임이지 값이 아니다(sameValues 와 같은 규칙 · 「가.」 → 「1.」 이 지어낸 값 「1 · 2」 로 잡히지 않게 · 채널 평가 T14)
-  const now = valuesOf(noMarks(content))
-  const oldV = valuesOf(noMarks(cur))
+  // 줄 머리 수준 표시(1. · 1.1. · 1))는 짜임이지 값이 아니다(noLevels · 줄 머리 날짜 · 판 번호 · 굵은 수는 값 · 「가.」 → 「1.」 이 지어낸 값 「1 · 2」 로 잡히지 않게 · 채널 평가 T14)
+  const now = valuesOf(noLevels(content))
+  const oldV = valuesOf(noLevels(cur))
   const recV = valuesOf(body + ' ' + title)
   // 빠진 값 — 기록이 「바뀐 것」 에 적은 새 값이 글에 있어야 한다(항목 머리에 있는 값은 다시 쓰지 않아도 된다)
   if (!spread) {
