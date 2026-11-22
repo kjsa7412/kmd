@@ -219,6 +219,19 @@ test('judgeSection: 묶은 글 값을 맨글로 풀면 lost 아님 · 글자가 
   assert.ok(num.warnings.some((w) => w.code === 'lost'), JSON.stringify(num.warnings))
 })
 
+// 채널 평가 T14 검토: 한글 값이 다른 낱말의 일부로만 남은 것은 푼 것이 아니다
+test('judgeSection: `사용` → `미사용` · `사용` 을 지우고 다른 줄에 미사용이 남으면 lost', () => {
+  const old = '기본 상태는 `사용` 이다. 끄면 미사용으로 둔다.'
+  const kk = kOf([['상태', old]])
+  const at = { doc: 'docs/배포절차.md', heading: '상태', base: sha16(old), record: { title: '상태 정돈', body: '문체를 정돈했다' } }
+  const swap = judgeSection(kk, { ...at, content: old.replace('`사용`', '`미사용`') })
+  assert.ok(swap.warnings.some((w) => w.code === 'lost' && w.values.includes('사용')), JSON.stringify(swap.warnings))
+  const gone = judgeSection(kk, { ...at, content: '기본 상태는 정하지 않았다. 끄면 미사용으로 둔다.' })
+  assert.ok(gone.warnings.some((w) => w.code === 'lost' && w.values.includes('사용')), JSON.stringify(gone.warnings))
+  const open = judgeSection(kk, { ...at, content: '기본 상태는 사용 이다. 끄면 미사용으로 둔다.' })
+  assert.ok(!open.warnings.some((w) => w.code === 'lost'), JSON.stringify(open.warnings))
+})
+
 test('samePolished: 백틱 안 한국어 문장을 풀어도 같다 · 글자가 바뀌면 잃은 값', () => {
   assert.equal(samePolished('`지우고 이름을 남긴다`', '지우고 이름을 남긴다').same, true)
   assert.equal(samePolished('지우고 이름을 남긴다', '`지우고 이름을 남긴다`').same, true)

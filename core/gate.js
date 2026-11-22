@@ -70,7 +70,8 @@ export function judgeSection(k, { doc, heading, base, content, record, spread = 
   const gone = [...oldV].filter((v) => !now.has(v))
   const came = [...now].filter((v) => !oldV.has(v))
   const told = new Set(oldValues(body).map((v) => v.replace(/\s+/g, '')))
-  // 묶은 글 값(「`지우고 이름을 남긴다`」 · 「…」)을 맨글로 푼 것은 값이 빠진 것이 아니다 — 글자가 새 글에 그대로 있으면(plainHas · 다듬기 samePolished 와 같은 읽기) 빼지 않는다.
+  // 묶은 글 값(「`지우고 이름을 남긴다`」 · 「…」)을 맨글로 푼 것은 값이 빠진 것이 아니다: 글자가 새 글에 맨글로 그대로 있으면(plainHas · 다듬기 samePolished 와 같은 읽기) 빼지 않는다.
+  //   한글이 든 값은 앞뒤가 한글 · 영문 · 수가 아닌 자리에서만 본다(「`사용`」 이 「미사용」 의 일부로만 남은 것은 빠진 값이다 · 채널 평가 T14 검토).
   //   글자(한글 · 영문)가 든 값만: 맨 수(「10」)는 날짜 「-10」 같은 다른 자리에 숨지 않게 그대로 본다(채널 평가 real-6 · 6b polish 다시 부름)
   const lost = gone.filter((v) => !told.has(v.replace(/\s+/g, '')) && !(/[A-Za-z가-힣]/.test(v) && v.length >= 2 && plainHas(content, v)))
   if (lost.length) warn('lost', lost, `옛 글의 값이 빠졌다: ${lost.slice(0, 3).join(' · ')}. 바꾼 값이면 기록의 바뀐 것에 「옛 값 → 새 값」 으로 적는다`)

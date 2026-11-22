@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadKnowledge } from '../core/knowledge.js'
 import { scoreKnowledge, gateOf, itemsOf, factText, natureOf } from '../scripts/harness-eval.mjs'
-import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf, launchOf, meterStatsOf, probeLoad, LOAD_NODE_MS, refitMeterRows, mcpSliceOf, seedCheckFix, refixSeed, CHANNELS } from '../scripts/channel-eval.mjs'
+import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf, launchOf, meterStatsOf, probeLoad, LOAD_NODE_MS, refitMeterRows, mcpSliceOf, seedCheckFix, refixSeed, CHANNELS, repolishRun, POLISH_RULE } from '../scripts/channel-eval.mjs'
 
 const FIX = path.resolve('test/fixture/harness/빈지식')
 const gold = JSON.parse(fs.readFileSync(path.join(FIX, 'gold.json'), 'utf8'))
@@ -500,4 +500,37 @@ test('채널 평가 T12: bulk 는 제품 경로(kmd-parse --upload · { path, re
   assert.match(body, /'--upload'/)
   assert.match(body, /attachVia: 'stage'/)
   assert.match(src, /attach: x\.atts && x\.atts\.length \? x\.atts\.map\(\(a\) => \(\{ path: a\.path, ref: a\.ref \}\)\)/, '가짜 세션도 atts 그대로')
+})
+
+// 채널 평가 T14 검토: 옛 잣대로 센 polish 를 지식 폴더의 문서로 다시 센다 · 잣대가 같거나 폴더가 없으면 그대로 · 견주기 md 의 다듬기 검출 줄
+test('T14 repolishRun · 다듬기 검출 줄: 옛 셈 5/6 → 6/6 · polishWas · 같은 잣대 · 폴더 없음 · 채널 칸 잣대가 먼저', async () => {
+  const fix = path.resolve('test/fixture/harness/다듬기')
+  const spec = JSON.parse(fs.readFileSync(path.join(fix, '결함.json'), 'utf8'))
+  const raw = fs.readFileSync(path.join(fix, spec.file), 'utf8')
+  const good = raw.replace(/^가\. /m, '1. ').replace(/^나\. /m, '2. ').replace(' — ', '. ').replace('log_dir', '`log_dir`').replace('콜럼', '컬럼').replace(/^① /m, '1. ').replace(/^② /m, '2. ').replace(/^③ /m, '3. ').replace('`지우고 이름을 남긴다`', '지우고 이름을 남긴다')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-repolish-'))
+  try {
+    fs.mkdirSync(path.join(dir, 'docs'))
+    fs.writeFileSync(path.join(dir, 'docs', spec.file), good)
+    const old = { defects: 6, fixed: 5, rate: 0.8333, missed: ['백틱: 백틱 안 한국어 문장'], lost: [] }
+    const ch = (kn, extra = {}) => ({ total: { cost: 0.5, ms: 60000, turns: 5, put: 1, rows: 1, tokens: { input: 1, output: 10, cacheRead: 100, cacheWrite: 50 } }, base: { cost: 0 }, score: null, dirs: { kn }, own: { polish: old }, rows: [{ models: ['claude-sonnet-4-6'], polishScore: old }, { models: ['claude-sonnet-4-6'] }], ...extra })
+    const J = (kn, extra = {}, head = {}) => ({ tag: 'real-6c', day: '2026-11-22', head: '9e4684e', channels: { polish: ch(kn, extra) }, ...head })
+    const r = await repolishRun(J(dir))
+    assert.equal(r.repolished, true)
+    assert.equal(r.channels.polish.own.polish.fixed, 6)
+    assert.equal(r.channels.polish.own.polishWas.fixed, 5)
+    assert.equal(r.channels.polish.rows[0].polishScore.fixed, 6)
+    assert.equal(r.channels.polish.rows[0].polishWas.fixed, 5)
+    assert.equal(r.channels.polish.rows[1].polishWas, undefined, 'polishScore 없는 행은 그대로')
+    assert.equal(r.channels.polish.polishRule, POLISH_RULE)
+    const same = J(dir, { polishRule: POLISH_RULE })
+    assert.equal(await repolishRun(same), same, '채널 칸 잣대가 같으면 그대로')
+    const headSame = J(dir, {}, { polishRule: POLISH_RULE })
+    assert.equal(await repolishRun(headSame), headSame, '채널 칸이 없으면 판 머리 잣대를 본다')
+    assert.equal((await repolishRun(J(dir, { polishRule: 'old' }, { polishRule: POLISH_RULE }))).repolished, true, '판 머리가 새 잣대라도 채널 칸이 옛 잣대면 다시 센다')
+    const none = J(path.join(dir, '없는 폴더'))
+    assert.equal(await repolishRun(none), none, '지식 폴더가 없으면 그대로')
+    const md = compareOf(r, { ...J(dir, { polishRule: POLISH_RULE }), tag: 'real-7', head: 'abc1234' }).md.join('\n')
+    assert.ok(md.includes('다듬기 검출: 6/6(옛 잣대 5/6) → 5/6 · 못 고침 앞 없음 · 뒤 백틱: 백틱 안 한국어 문장'), md)
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
 })

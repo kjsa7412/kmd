@@ -881,10 +881,11 @@ export function polishScoreOf(text, spec) {
   return { defects: rows.length, fixed: rows.filter((x) => x.fixed).length, rate: rows.length ? r4(rows.filter((x) => x.fixed).length / rows.length) : null, missed: rows.filter((x) => !x.fixed).map((x) => `${x.kind}: ${x.id}`), lost }
 }
 // 다듬기 잣대가 바뀐 옛 결과(T14): 지식 폴더가 남아 있으면 결함 심은 문서를 디스크에서 다시 읽어 지금 잣대로 다시 센다(polishWas 에 옛 셈)
+//   잣대 표지는 채널 칸(channels.polish.polishRule)이 먼저다: 같은 날 같은 --tag 로 다른 채널만 덧붙여 돌려도 옛 셈의 polish 를 새 잣대로 잘못 보지 않는다(판 머리 polishRule 은 채널 칸이 없는 옛 결과만 본다 · T14 검토)
 export const POLISH_RULE = 'span-in-backtick (T14)'
 export async function repolishRun(J) {
   const c = J?.channels?.polish
-  if (!c || J.polishRule === POLISH_RULE) return J
+  if (!c || (c.polishRule ?? J.polishRule) === POLISH_RULE) return J
   const dir = c?.dirs?.kn ? path.resolve(ROOT, c.dirs.kn) : null
   const spec = JSON.parse(await fs.readFile(path.join(POLISH_FIX, '결함.json'), 'utf8'))
   const file = dir && path.join(dir, 'docs', spec.file)
@@ -894,7 +895,7 @@ export async function repolishRun(J) {
   const ps = polishScoreOf(d.sections.filter((x) => x.h).map((x) => `## ${x.h}\n${factText(x.body)}`).join('\n\n'), spec)
   const was = c.own?.polish || null
   const rows = (c.rows || []).map((r) => (r.polishScore ? { ...r, polishScore: ps, polishWas: r.polishScore } : r))
-  return { ...J, channels: { ...J.channels, polish: { ...c, rows, own: { ...(c.own || {}), polish: ps, polishWas: was } } }, polishRule: POLISH_RULE, repolished: true }
+  return { ...J, channels: { ...J.channels, polish: { ...c, rows, own: { ...(c.own || {}), polish: ps, polishWas: was }, polishRule: POLISH_RULE } }, repolished: true }
 }
 async function runPolish(E, C) {
   const spec = JSON.parse(await fs.readFile(path.join(POLISH_FIX, '결함.json'), 'utf8'))
@@ -1826,7 +1827,9 @@ async function run() {
     models: { asked: { workers: E.models || '기본 배분(core/models.js DEFAULT_MODELS)', sessions: model || SESSION_MODEL }, seen: { ...(prev?.models?.seen || {}) } },
     head, meter: path.relative(ROOT, E.meterFile), meters: [...new Set([...(prev?.meters || []), path.relative(ROOT, E.meterFile)])], maxUsd: fake ? null : maxUsd, loops: E.loops,
     // 셈 규칙(RULES · 견주기가 양쪽을 대 본다) — 토큰 · 차례(H17) · 건 수(H10 · H4) · 들어감 판정(H1) · 채점(H11 ~ H13 · gold.json 판)
-    tokensRule: RULES.tokens, rowRule: RULES.rows, putRule: RULES.put, scoreRule: scoreRuleOf(await goldRev()), polishRule: POLISH_RULE,
+    tokensRule: RULES.tokens, rowRule: RULES.rows, putRule: RULES.put, scoreRule: scoreRuleOf(await goldRev()),
+    // 다듬기 잣대: 이번 판에 polish 를 돌렸을 때만 새로 단다(덧붙여 돌린 판은 앞 표지를 남긴다 · 채널 칸 channels.polish.polishRule 이 먼저 · T14 검토)
+    polishRule: names.includes('polish') || !prev ? POLISH_RULE : (prev.polishRule ?? null),
     // pending 끊기(T9 · core/agent.js pendingCut) — 1 이면 init 에 kmd 가 pending 인 프로세스를 곧바로 끊고 다시 띄운 판
     pendingCut: process.env.KMD_MCP_PENDING_CUT === '1',
     // 부하 탐침(T13): 판 머리 한 번(채널마다는 channels.<채널>.load) · 기준 LOAD_NODE_MS
@@ -1864,7 +1867,7 @@ async function run() {
       ...(main.some((r) => r.proxy) ? { proxy: main.find((r) => r.proxy).proxy } : {}),
       ...(out.note ? { note2: out.note } : {}), ...(out.scoreNote ? { scoreNote: out.scoreNote } : {}), dirs: Object.fromEntries(Object.entries(out.dirs || {}).map(([k, v]) => [k, path.relative(ROOT, v)])),
       scoreBefore: out.scoreBefore || null, delta: out.delta || null, score: out.score || null, ...(out.own ? { own: out.own } : {}),
-      models: [...new Set(rows.flatMap((r) => r.models || []))], rows,
+      models: [...new Set(rows.flatMap((r) => r.models || []))], rows, ...(name === 'polish' ? { polishRule: POLISH_RULE } : {}),
     }
     const c = result.channels[name]
     result.models.seen[name] = c.models

@@ -58,16 +58,20 @@ export function sameValues(oldText, newText) {
 // 다듬기(core/ingest.js polishToSave)의 값 견주기 — sameValues(수준 표시 · 날짜 표기는 짜임) 위에, 백틱으로 감싼 것은 값이 바뀐 것이 아니다:
 //   새 글에만 있는 `코드` 값이 옛 글에 맨글로 이미 있으면(앞뒤가 영문 · 수 · _ 가 아닌 같은 글자) 같은 값으로 친다 · 거꾸로 옛 `코드` 를 맨글로 푼 것도 같다
 //   (다듬기 정돈 거리: 맨글 식별자를 백틱으로 감싼다 · 「가.」 · 「①」 를 1. 2. 로 바꾼다 · 값 글자가 바뀐 것은 그대로 잡힌다)
-//   값 장부는 빈칸을 뺀 값이다(「`지우고 이름을 남긴다`」 → 지우고이름을남긴다): 원문 자리에서 먼저 찾고, 없으면 빈칸을 뺀 글에서 같은 경계로 한 번 더 본다(글자가 바뀐 값은 그대로 잡힌다 · 채널 평가 T14)
-const hasAt = (t, v) => {
-  for (let i = t.indexOf(v); i >= 0; i = t.indexOf(v, i + 1)) {
-    if (!/[A-Za-z0-9_]/.test(t[i - 1] || '') && !/[A-Za-z0-9_]/.test(t[i + v.length] || '')) return true
-  }
-  return false
-}
+//   값 장부는 빈칸을 뺀 값이다(「`지우고 이름을 남긴다`」 → 지우고이름을남긴다): 글자 사이 빈칸은 얼마든 되는 꼴로 원문에서 찾는다(글자가 바뀐 값은 그대로 잡힌다 · 채널 평가 T14)
+//   경계: 한글이 든 값은 앞뒤가 한글 · 영문 · 수 · _ 가 아니어야 한다(`사용` 이 「미사용」 의 일부로만 남은 것은 푼 것이 아니다 · 조사가 붙은 「사용이다」 도 푼 자리로 보지 않는다) ·
+//   한글이 없는 값(식별자)은 앞뒤가 영문 · 수 · _ 가 아니면 된다(「kmd를」 처럼 조사가 붙는다 · 채널 평가 T14 검토)
+const escRe = (c) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 export const plainHas = (text, v) => {
   const t = String(text || '')
-  return hasAt(t, v) || (/\s/.test(t) && hasAt(t.replace(/\s+/g, ''), v))
+  const w = String(v || '').replace(/\s+/g, '')
+  if (!w) return false
+  const edge = /[가-힣]/.test(w) ? /[A-Za-z0-9_가-힣]/ : /[A-Za-z0-9_]/
+  const re = new RegExp([...w].map(escRe).join('\\s*'), 'g')
+  for (const m of t.matchAll(re)) {
+    if (!edge.test(t[m.index - 1] || '') && !edge.test(t[m.index + m[0].length] || '')) return true
+  }
+  return false
 }
 export function samePolished(oldText, newText) {
   const r = sameValues(oldText, newText)
