@@ -1293,7 +1293,7 @@ async function runBulk(E, C) {
           trace: path.join(t.root, 'trace-bulk.jsonl'),
           skill: 'kmd-team-import',
           files,
-          extra: '- 파서(kmd-parse --upload)는 이 시험이 미리 돌렸다: 일 폴더의 index.json 이 파서 출력이다(rel · mdFile 글 · sha · tags · atts). 원본은 팀 서버에 이미 올렸다.\n- 규칙 표 승인은 사람이 미리 했다: propose errors 가 0 이면 묻지 않고 파일마다 save 한다. save 의 record.tags 는 index.json 의 tags 그대로 · attach 는 그 줄의 atts 를 [{ path, ref }] 로 그대로. base64 를 짓거나 원본 파일을 찾지 않는다.\n- 빈 지식이어도 기초 세우기를 기다리지 않고 이어 간다.',
+          extra: '- 파서(kmd-parse --upload)는 이 시험이 미리 돌렸다: 일 폴더의 index.json 이 파서 출력이다(rel · mdFile 글 · sha · tags · atts · source). 원본은 팀 서버에 이미 올렸다.\n- 규칙 표 승인은 사람이 미리 했다: propose errors 가 0 이면 묻지 않고 파일마다 save 한다. record.tags 는 index.json 의 tags 그대로 · 원본은 propose 와 save 에 같이 싣는다: atts 가 있으면 attach 에 [{ path, ref }] 그대로 · source 가 있으면 source 에 { path, ref } 그대로. base64 를 짓거나 원본 파일을 찾지 않는다.\n- 빈 지식이어도 기초 세우기를 기다리지 않고 이어 간다.',
           prompt: `일 폴더의 파일들을 팀 지식(knowledge id: ${t.kn})에 대량으로 넣어 줘. index.json 을 먼저 읽는다. 규칙 표는 승인한 것으로 본다.`,
         })
         const v = viaOf()

@@ -91,8 +91,14 @@ test('올리기 판정: 쓰기 기기 열쇠 200 { ref, bytes } · 멱등 · sha
     for (const d of [homeOf('wr'), path.dirname(homeOf('wr')), stageRoot()]) assert.equal(fs.statSync(d).mode & 0o777, 0o700, `폴더 700: ${d}`)
   }
   assert.ok(f.startsWith(stageRoot()) && !f.startsWith(path.join(tmp, 'kn')), '<살림>/stage 아래 · 지식 폴더 밖(백업 · 보내기 · 지식 폴더 다시 읽기에 들지 않는다)')
+  // 모드를 좁히기 전에 올린 것(644 · 755)도 같은 원본을 다시 올리면(same) 좁힌다
+  if (process.platform !== 'win32') { fs.chmodSync(f, 0o644); fs.chmodSync(homeOf('wr'), 0o755) }
   const again = await put(P.wr, buf)
   assert.equal(again.status, 200)
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(f).mode & 0o777, 0o600, '다시 올린 same 도 파일 600')
+    assert.equal(fs.statSync(homeOf('wr')).mode & 0o777, 0o700, '다시 올린 same 도 폴더 700')
+  }
   assert.equal(again.j.same, true)
   assert.equal((await put(P.wr, buf, { sha: 'a'.repeat(64) })).j.error, 'E_INPUT', 'sha 어긋남')
   assert.equal((await put(P.wr, buf, { sha: 'XYZ' })).j.error, 'E_INPUT', 'sha 꼴')
@@ -299,6 +305,35 @@ test('글 원천 거절: 지문 틀림 · tags 만 흉내 · 경로 다름 · �
   const bad = await mcp('save', { knowledge: KN, proposal: good.proposal, kit: KIT, source: { path: name, ref: oup.j.ref } })
   assert.equal(bad.error, 'E_INPUT', JSON.stringify(bad))
   assert.equal(snap(kdir()), n0, '아무것도 쓰지 않는다')
+})
+
+// 검토 지적(5c496b2 뒤): 첨부도 ingest/ 경로와 대 본다 · 원본이 없으면 다시 설치 안내 · NFC · 대량 넣기가 아닌 제안의 attach 는 떼어 버린다
+test('증명 경계: 첨부 경로 다름 E_INPUT · 원본 없음은 팀 키트 다시 설치 안내 · NFD 경로도 받음 · 대량 넣기 밖 제안의 attach 는 버리고 판정', async () => {
+  const dname = '테스트 올림 6.docx'
+  const dbuf = docx('배포 창', '배포는 화요일 6시에 한다.')
+  const dF = await fileOf(dname, dbuf)
+  const dup = await put(P.wr, dbuf)
+  // 첨부의 docs/assets/<경로> 가 ingest/ 와 다르다(지문은 맞아도)
+  const wrongPath = await mcp('propose', { ...bulkInput(6, dF.tags), attach: [{ path: 'docs/assets/다른 파일.docx', ref: dup.j.ref }] })
+  assert.equal(wrongPath.error, 'E_INPUT', JSON.stringify(wrongPath))
+  assert.match(wrongPath.message, /docs\/assets/)
+  await proposeOk({ ...bulkInput(6, dF.tags), attach: [{ path: `docs/assets/${dname}`, ref: dup.j.ref }] })
+  // 표지만 있고 원본이 없다: 옛 판 스킬 세션이 고칠 길(다시 설치)을 알린다
+  const none = await mcp('propose', bulkInput(6, dF.tags))
+  assert.equal(none.error, 'E_INPUT')
+  assert.match(none.message, /다시 설치/)
+  // 경로를 NFD 로 옮겨도(macOS 파일 이름) 같은 경로로 본다
+  const name = '테스트 한글 메모.md'
+  const buf = Buffer.from('# 테스트 한글 메모\n\n메모는 한 줄이다.\n')
+  const tags = ingestTags(name, ingestFp((await fileToMd(name, buf)).md, buf))
+  const up = await put(P.wr, buf)
+  await proposeOk({ ...bulkInput(7, tags), source: { path: name.normalize('NFD'), ref: up.j.ref } })
+  // 대량 넣기가 아닌 제안: attach(빈 목록 · 사람이 「원본도 첨부」 한 b64)는 떼고 판정한다 · source 는 거절
+  const http = await req(`/api/k/${KN}/propose`, P.wr, { ...bulkInput(8, []), attach: [] })
+  assert.equal(http.status, 200, JSON.stringify(http.j))
+  await proposeOk({ ...bulkInput(8, []), attach: [{ path: 'docs/assets/테스트 첨부.txt', b64: Buffer.from('첨부').toString('base64') }] })
+  const src = await mcp('propose', { ...bulkInput(8, []), source: { path: name, ref: up.j.ref } })
+  assert.equal(src.error, 'E_INPUT', JSON.stringify(src))
 })
 
 test('24시간 지난 올린 원본은 걷기 전이라도 풀지 않는다(E_INPUT) · 지식을 지우면 stage/<지식> 도 같이 지운다', async () => {

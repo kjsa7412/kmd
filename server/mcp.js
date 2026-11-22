@@ -77,7 +77,7 @@ export const TOOLS = [
         kinds: { type: 'array', items: { type: 'string' }, description: '새 종류(항목의 종류: 영문 소문자 또는 한글)' },
         distinct: { type: 'array', items: { type: 'string' }, description: '있는 것과 이름이 같거나 비슷하지만 다른 것으로 세울 항목 · 문서 · 머리 · 갈래 · 종류' },
         excluded: { type: 'array', items: { type: 'object', properties: { name: str('뺀 항목'), why: str('까닭 한 줄') }, required: ['name'] }, description: '제안서 「뺀다」 줄(기록에는 남지 않는다)' },
-        attach: { type: 'array', items: { type: 'object', properties: { path: str('docs/assets/<경로>'), ref: str('kmd-parse --upload 가 준 sha256:<64자> 그대로') } }, description: '대량 넣기(ingest/ 표지)만: 첨부 원천(오피스 · pdf · hwp · 그림) 파일 줄의 atts 를 { path, ref } 로 그대로. 팀 서버가 원본을 글로 바꿔 md/<지문> 과 대 본다(제안 해시에는 들지 않는다 · save 에도 같이 싣는다)' },
+        attach: { type: 'array', items: { type: 'object', properties: { path: str('docs/assets/<경로>'), ref: str('kmd-parse --upload 가 준 sha256:<64자> 그대로') }, required: ['path'] }, description: '대량 넣기(ingest/ 표지)만(그 밖의 제안에 실은 attach 는 버린다 · save 에 싣는다): 첨부 원천(오피스 · pdf · hwp · 그림) 파일 줄의 atts 를 { path, ref } 로 그대로. 팀 서버가 원본을 글로 바꿔 md/<지문> 과 대 본다(제안 해시에는 들지 않는다 · save 에도 같이 싣는다)' },
         source: { type: 'object', properties: { path: str('파서 줄의 source.path 그대로'), ref: str('파서 줄의 source.ref 그대로(sha256:<64자>)') }, description: '대량 넣기(ingest/ 표지)만: 글 원천(md · txt · csv …) 파일 줄의 source 를 그대로. 첨부는 짓지 않고 팀 서버가 올린 원본을 글로 바꿔 md/<지문> 과 대 본다(제안 해시에는 들지 않는다 · save 에도 같이 싣는다)' },
       },
       required: ['knowledge', 'record'],

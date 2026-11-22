@@ -195,29 +195,35 @@ export const ingestTags = (rel, fp) => [`ingest/${rel}`.slice(0, 60), `md/${fp}`
 //   tags 에 ingest/ · md/<지문> 이 다 있어야 하고, 서버가 본 원본을 글로 바꾼 지문이 md/ 와 같아야 한다:
 //   첨부 원천(오피스 · pdf · hwp · 그림): attach 의 { path, b64 } 가운데 하나(원본이 docs/assets 에 남는다)
 //   글 원천(md · txt · csv …): 첨부를 짓지 않는다 · source { path, b64 }(올린 원본 · 저장 문 · 제안이 내 올린 자리에서 푼 것) · ingest/ 가 그 경로여야 한다
-//   tags 만 흉내 내고 원본이 없거나 지문이 다르면 받지 않는다
+//   경로: ingest/ 표지는 첨부의 docs/assets/<경로> · source.path 와 같은 경로여야 한다(두 쪽을 NFC 로 맞춰 견준다 · 표지는 60자에서 자른 것)
+//   tags 만 흉내 내고 원본이 없거나 지문이 다르면 받지 않는다. 증명은 「표지와 실은 원본이 서로 맞나」 다(원본 바이트의 출처를 서버가 보증하지는 않는다)
 export async function ingestProofWhy(tags, { attach = null, source = null } = {}) {
-  const ts = (Array.isArray(tags) ? tags : []).map((t) => String(t).trim())
+  const ts = (Array.isArray(tags) ? tags : []).map((t) => nfc(String(t).trim()))
   const md = ts.find((t) => /^md\/[0-9a-f]{16}$/.test(t))
   const ing = ts.find((t) => t.startsWith('ingest/'))
+  const tagOf = (p) => ingestTags(nfc(p), '')[0]
   const why = '대량 넣기(ingest/ 표지)는 파서가 준 표지(ingest/ · md/<지문>) 그대로와 원본(첨부 원천은 attach · 글 원천은 source: 파서 줄의 것 그대로)을 같이 실을 때만 받는다. 넣은 파일이 아니면 ingest/ 표지를 떼고 저장한다'
   if (!md || !ing) return why
   const atts = (Array.isArray(attach) ? attach : []).filter((a) => a && typeof a.path === 'string' && typeof a.b64 === 'string')
   if (atts.length && source) return `${why}(글 원천 source 와 첨부 attach 를 같이 싣지 않는다)`
   if (atts.length) {
-    for (const a of atts) {
+    const same = atts.filter((a) => tagOf(a.path.replace(/^docs\/assets\//, '')) === ing)
+    if (!same.length) return `${why}(첨부의 docs/assets/<경로> 가 ${ing} 와 다르다)`
+    for (const a of same) {
       const buf = Buffer.from(a.b64, 'base64')
       const fm = await fileToMd(path.posix.basename(a.path), buf, { convert: true })
       if (!fm.failed && ingestFp(fm.md, buf) === md.slice(3)) return null
     }
     return `${why}(첨부 원본의 글 지문이 ${md} 와 다르다)`
   }
-  if (!source || typeof source.path !== 'string' || typeof source.b64 !== 'string') return why
+  // 원본이 하나도 없다: 판 21 이하 스킬은 propose 에 원본을 싣지 않는다
+  if (source == null) return `${why}(원본 attach · source 가 없다: 스킬 판 22 앞의 팀 키트면 팀 키트를 다시 설치한다)`
+  if (typeof source.path !== 'string' || typeof source.b64 !== 'string') return why
   const buf = Buffer.from(source.b64, 'base64')
   const fm = await fileToMd(source.path, buf, { convert: true })
   if (fm.attach) return `${why}(${fm.ext} 는 첨부 원천이다: source 가 아니라 attach 로 싣는다)`
   if (fm.md == null || fm.failed) return `${why}(글 원천을 글로 바꾸지 못했다)`
-  if (ingestTags(source.path, '')[0] !== ing) return `${why}(글 원천의 경로가 ${ing} 와 다르다)`
+  if (tagOf(source.path) !== ing) return `${why}(글 원천의 경로가 ${ing} 와 다르다)`
   if (ingestFp(fm.md, buf) !== md.slice(3)) return `${why}(글 원천의 글 지문이 ${md} 와 다르다)`
   return null
 }

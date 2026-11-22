@@ -2928,7 +2928,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       }
       // 글 원천(source · T18): 내 올린 자리에서만 풀린 것으로 바꾼다(손님이 보낸 { path, b64 } 는 resolveSource 가 거절 · 증명은 approveSave 의 bulkProof)
       if (input?.source != null) {
-        if (asIntake || !hub.canSave(ctx, id)) throw new KmdError('E_INPUT', '글 원천(source)은 대량 넣기 세션의 저장만 싣는다(아무것도 쓰지 않았다)')
+        if (!hub.canSave(ctx, id)) throw new KmdError('E_FORBIDDEN', '글 원천은 쓰기 자리부터 싣는다')
+        if (asIntake) throw new KmdError('E_INPUT', '글 원천(source)은 대량 넣기 세션의 저장만 싣는다(아무것도 쓰지 않았다)')
         const rs = await resolveSource(ctx, meta, input.source, channel)
         input = { ...input, source: rs.source }
         stageUsed = [...stageUsed, ...rs.used]
@@ -3002,7 +3003,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       const ingest = (Array.isArray(rec.tags) ? rec.tags : []).some((t) => String(t).trim().startsWith('ingest/'))
       if (ingest) {
         if (opt.channel !== 'bulk') throw new KmdError('E_INPUT', 'ingest/ 표지는 대량 넣기(세션의 kmd-team-import)만 단다')
-      } else if (proofIn && (proofIn.attach != null || proofIn.source != null)) throw new KmdError('E_INPUT', '원본(attach) · 글 원천(source)은 대량 넣기(ingest/ 표지)의 제안만 싣는다')
+      } else if (proofIn?.source != null) throw new KmdError('E_INPUT', '글 원천(source)은 대량 넣기(ingest/ 표지)의 제안만 싣는다')
+      //   대량 넣기가 아닌 제안의 attach(사람이 「원본도 첨부」 한 것 · 빈 목록)는 떼어 버린다: 제안 해시에 들지 않고 save 가 따로 받는다
       // save 가 거절할 기록 · 항목 글(제목 한 줄 · 길이 · kmd 칸 머리 · touches 모양 …)은 제안서를 내지 않고 같은 E_INPUT(줄 밖에서 먼저)
       checkInput({ record: rec, sections: (input.sections || []).filter((s) => typeof s.content === 'string').map(({ coord, doc, heading, base, content }) => ({ coord, doc, heading, base, content })) })
       // 제안 속도 — 저장과 다른 통(대화 조절로 여러 번 부르므로 저장의 두 배) · 줄 잠금을 오래 잡지 않게
@@ -6093,6 +6095,11 @@ ${genRulesBlock({ profile: 'shape' })}`
     // 원본 올리기(P-D47 · PUT /api/k/:id/stage/:sha · 팀 서버만): read() 는 판정을 넘은 뒤에만 몸을 읽는다(32MB 안 · http 가 E_TOO_BIG).
     //   같은 sha 는 멱등 · 사람 · 지식마다 config.stageMax(200MB) · 서버 합 config.stageTotal(2GB)을 넘으면 E_RATE → { ref: 'sha256:<64자>', bytes }
     async stagePut(ctx, id, sha, read) {
+      // 올린 원본은 그 사람 것(넣기 전 원본 · T20): 폴더 700 · 파일 600(Windows 는 모드를 쓰지 않는다 · 이미 있는 것도 좁힌다 · 실패는 log)
+      const stageModes = async (home, file = null) => {
+        if (process.platform === 'win32') return
+        for (const [p, m] of [[STAGE_DIR, 0o700], [path.dirname(home), 0o700], [home, 0o700], ...(file ? [[file, 0o600]] : [])]) await fs.chmod(p, m).catch((e) => log(`올린 원본 자리 모드를 좁히지 못했다 ${p}: ${e.message}`))
+      }
       const meta = await stageGate(ctx, id, sha)
       const buf = await read()
       if (!Buffer.isBuffer(buf) || !buf.length) throw new KmdError('E_INPUT', '올릴 원본 바이트가 없다')
@@ -6106,6 +6113,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (have && have.equals(buf)) {
         const now = new Date()
         await fs.utimes(want, now, now).catch((e) => log(`올린 원본 때를 고치지 못했다 ${id}: ${e.message}`))
+        // 모드 좁히기 전에 올린 것(644 · 755)도 다시 올리면 좁힌다(T20)
+        await stageModes(home, want)
         return { ref: `sha256:${sha}`, bytes: buf.length, same: true }
       }
       // 한 번 걸어 24시간 지난 것을 걷고 · 내 자리 합(mine)과 서버 합(all)을 같이 센다
@@ -6116,9 +6125,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (mine + buf.length > cap) throw new KmdError('E_RATE', `이 지식에 올려 둔 원본 합(${Math.round(cap / 1048576)}MB)을 넘는다. 넣은 뒤(저장이 올린 원본을 지운다) 또는 24시간 뒤 다시 올린다`, { details: { retryAfter: 3600 } })
       const capAll = config.stageTotal ?? 2 * 1024 ** 3
       if (all + buf.length > capAll) throw new KmdError('E_RATE', `팀 서버에 올려 둔 원본 합(${Math.round(capAll / 1048576)}MB)을 넘는다. 잠시 뒤 다시 올린다`, { details: { retryAfter: 3600 } })
-      // 올린 원본은 그 사람 것(넣기 전 원본 · T20): 폴더 700 · 파일 600(Windows 는 모드를 쓰지 않는다 · 이미 있는 폴더도 좁힌다 · 실패는 log)
       await fs.mkdir(home, { recursive: true, mode: 0o700 })
-      if (process.platform !== 'win32') for (const d of [STAGE_DIR, path.dirname(home), home]) await fs.chmod(d, 0o700).catch((e) => log(`올린 원본 자리 모드를 좁히지 못했다 ${d}: ${e.message}`))
+      await stageModes(home)
       await writeFileAtomic(want, buf, { encoding: null, mode: 0o600 })
       return { ref: `sha256:${sha}`, bytes: buf.length }
       })
