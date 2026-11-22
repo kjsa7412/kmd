@@ -439,6 +439,10 @@ test('글 초안 검사: 재료 소제목 · 끊긴 앵커는 걸림 · 울타�
   assert.deepEqual(p.map((x) => x.line), [2, 4, 5], JSON.stringify(p))
   assert.match(p[0].what, /소제목\(### 되돌리기\)/)
   assert.match(p[2].what, /끊긴 앵커\(#되돌리기\)/)
+  // 앞 빈칸 1~3 의 ###(CommonMark 머리)도 소제목 · 빈칸 넷(코드 덩이)은 아니다
+  const sp = seedTextProblems('앞\n   ### 되돌리기\n  #### 확인\n    ### 코드 덩이', { heads })
+  assert.deepEqual(sp.map((x) => x.line), [2, 3], JSON.stringify(sp))
+  assert.match(sp[0].what, /소제목\(### 되돌리기\)/)
   assert.deepEqual(seedTextProblems('```\n### 코드 안\n[x](#없음)\n```\n`[y](#없음)` · [바깥](https://a.b/#없음) · [문서](운영.md#없음) · [화면](#/kn/a)', { heads }), [], '울타리 · 코드 · 다른 문서 · 바깥 · 화면 주소는 보지 않는다')
 })
 

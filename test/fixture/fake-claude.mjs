@@ -24,6 +24,9 @@ const say = (o) => process.stdout.write(JSON.stringify({ type: 'result', subtype
 //   뼈대(「바탕 세우기 뼈대를 짓는다(세션)」): 넣음 재료를 모두 문서 「업무 안내」 하나로 · 묶음(「…한 묶음을 짓는다(세션)」): 재료마다 항목 하나 ·
 //   글(「바탕 세우기 항목 글을 짓는다(세션)」): 목표마다 제 몫 재료 글(md/ · 머리 줄은 걷는다). 흐름 줄(생각 · Grep · 결과 · 쓰는 중 · StructuredOutput)을 낸다.
 //   FAKE_CLAUDE_MODE=badseed → 뼈대 첫 턴은 재료 하나를 빠뜨린다(같은 세션에 고쳐 받기) · lie → 글에 지어낸 값 · logout → 로그인 끝 · hang → 답하지 않는다
+//   seedsub → 글 첫 턴의 첫 항목에 재료 소제목(### 되돌리기 · 고쳐 받기) · seedsuball → 고쳐 받아도(마지막 차례는 알림만 남기고 받는다 · 채널 평가 4차 shape)
+const SUBHEAD = '\n\n### 되돌리기\n\n1. 앞 판으로 돌린다.'
+const subOn = (fixing) => (process.env.FAKE_CLAUDE_MODE === 'seedsub' && !fixing) || process.env.FAKE_CLAUDE_MODE === 'seedsuball'
 const SESSION = args.includes('--input-format') && val('--input-format') === 'stream-json'
 const out = (o) => process.stdout.write(JSON.stringify(o) + '\n')
 function session() {
@@ -82,6 +85,7 @@ function session() {
       const fileOf = new Map([...src.matchAll(/^- md\/(\S+) · (.+?)(?: · [\d,]+ 자)?$/gm)].map((x) => [x[2], x[1]]))
       const body = (p) => { const f = fileOf.get(p); return f ? fs.readFileSync(`md/${f}`, 'utf8').split('\n').filter((l) => !/^#{1,6}\s/.test(l)).join('\n').trim() : '' }
       const items = [...src.matchAll(/^\[target (.+?) › (.+?)\](?: 몫: 재료 (.*))?$/gm)].map((x) => ({ doc: x[1], h: x[2], text: ((x[3] || '').split(' · ').map(body).filter(Boolean).join('\n\n') || '글') + (process.env.FAKE_CLAUDE_MODE === 'lie' ? '\n그리고 999초 기다린다.' : '') }))
+      if (items.length && subOn(fixing)) items[0].text += SUBHEAD
       o = { items, summary: `${(src.match(/문서 「([^」]+)」/) || [])[1] || '문서'} 의 항목을 재료 글로 적는다.`, why: '재료 글로 지었다' }
     } else return say({ is_error: true, subtype: 'error', result: '가짜 claude 세션: 모르는 말' })
     const wait = Number(process.env.FAKE_CLAUDE_STREAM_MS) || 0
@@ -176,6 +180,7 @@ function answer() {
       const mat = new Map([...srcs.matchAll(/^\[source 재료 › (.+)\]\n([\s\S]*?)(?=^\[source |(?![\s\S]))/gm)].map((m) => [m[1], m[2].split('\n').filter((l) => !/^#{1,6}\s/.test(l)).join('\n').trim()]))
       const part = new Map([...p.matchAll(/^\[target (.+?) › (.+?)\] 몫: 재료 (.*)$/gm)].map((m) => [m[2], m[3].split(' · ')]))
       const items = targets.map((t) => ({ doc: t.doc, h: t.h, text: ((part.get(t.h) || []).map((x) => mat.get(x)).filter(Boolean).join('\n\n') || '글') + (mode === 'lie' ? '\n그리고 999초 기다린다.' : '') }))
+      if (items.length && subOn(fixing)) items[0].text += SUBHEAD // 재료 소제목(채널 평가 4차 shape)
       return say({ structured_output: { items, why: '재료 글로 지었다' } })
     }
     const items = targets.map((t, i) => {

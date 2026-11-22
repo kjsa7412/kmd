@@ -22,7 +22,7 @@ import { nameProblem, stepFp, brokenLinks } from './restructure.js'
 import { coordsOfSection } from './knowledge.js'
 import { judgeId } from './values.js'
 import { WRITE_RULES } from './writerules.js'
-import { lintLevels } from './levels.js'
+import { lintLevels, eachLive } from './levels.js'
 import { hrefsIn, slugOf } from './docformat.js'
 
 export { stepFp }
@@ -953,13 +953,18 @@ const SEED_PRIOR_RULE = [
 //   재료 글에 구분자를 흉내 내는 줄(`<<<` · `>>>` · `[target `)이 있으면 싣지 않고 지금 길(Read 도구 결과로 갈린다 · 재료 밖 지시처럼 보이지 않게)
 export const SEED_WRITE_HEAD = '바탕 세우기 항목 글을 짓는다(세션).'
 // 바탕 세우기 글 초안의 재료 소제목(채널 평가 4차 shape · real-6b · 6s2 「### 되돌리기」 가 항목 안 머리로 옮겨졌다 · 바탕에는 「지금 글」 이 없다)
-//   세션 꾸러미(core/survey.js promptOf text)와 화면 길(seedWriteSessionPromptOf) 두 곳이 같이 싣는다 · 다른 채널(WRITE_RULES)은 그대로
+//   세 곳이 같이 싣는다: 세션 꾸러미(core/survey.js promptOf text) · 화면 길(seedWriteSessionPromptOf) · 팀 일꾼 길(shapeWritePromptOf kind seed) · 다른 채널(WRITE_RULES)은 그대로
 export const SEED_TEXT_LINE = '- 재료의 # · ## · ### 머리는 원본 파일의 짜임이다. 지금 글이 아니다. 항목 하나에 든 재료 소제목은 머리 줄로 옮기지 않고 그 항목 안 「1.」 덩이나 문장으로 녹인다. 같은 문서 링크 [x](#x)는 이 문서의 항목 머리에만 단다.'
 // 바탕 세우기 글 초안 검사(작성기준 5-1 · 마른 검사 · 고쳐 받기 몫 · 넣기 재확인 putErrors · 저장 검사에는 넣지 않는다) — [{ line, what }]
-//   소제목(###~) · 같은 문서 앵커(#x)가 그 문서의 항목 머리(heads)에 닿지 않음
+//   소제목(###~ · 앞 빈칸 1~3 도 CommonMark 머리라 같이 본다) · 같은 문서 앵커(#x)가 그 문서의 항목 머리(heads)에 닿지 않음
+//   앞 빈칸 머리는 여기서만 본다(lintLevels · eachLive 는 모든 채널의 알림이라 그대로 둔다)
 export function seedTextProblems(text, { heads = [] } = {}) {
   const lines = String(text ?? '').replace(/\r\n/g, '\n').split('\n')
   const out = lintLevels(lines).filter((p) => p.code === 'sub-head').map((p) => ({ line: p.line, what: p.msg }))
+  eachLive(lines, (ln, i, head) => {
+    const m = !head && ln.match(/^ {1,3}(#{3,6})\s+(\S.*)$/)
+    if (m) out.push({ line: i + 1, what: `소제목(${m[1]} ${m[2].slice(0, 20)}): 항목 안의 짜임은 수준 표시(1. · 1.1.)로` })
+  })
   const slugs = new Set([...heads].map((h) => slugOf(h)))
   let fence = null
   lines.forEach((ln, i) => {

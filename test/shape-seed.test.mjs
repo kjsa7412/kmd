@@ -532,6 +532,77 @@ test('팀 — 폴더 그대로는 짜임 걸음(I1 · 채널 shape · 넣지 못
   } finally { await t.done() }
 })
 
+// 채널 평가 4차 shape: 글 초안 검사(seedDraftProblems) · 재료 소제목이면 고쳐 받고(두 번째 말에 걸림 줄) · 마지막 차례면 알림을 남기고 받는다
+const subIn = async (hub, ctx, id) => { const items = (await hub.seedView(ctx, id, { doc: '업무 안내' })).work.text?.items; assert.ok(items?.length, '지은 글이 있다'); return items.some((x) => /^### 되돌리기$/m.test(x.content)) }
+test('글 초안 소제목: 화면 길(seedWriteOne): 고쳐 받기 말에 걸림 줄 · 마지막 차례는 알림만 남기고 받는다', LONG, async () => {
+  const s = await setup()
+  try {
+    const id = await s.make('테스트-소제목')
+    await s.hub.seedSurvey(s.ctx, id, { dir: s.src })
+    await settle(s.hub, s.ctx, id)
+    await s.hub.seedPlan(s.ctx, id, { mode: 'claude' })
+    assert.equal((await settle(s.hub, s.ctx, id)).run.state, 'done')
+    process.env.FAKE_CLAUDE_MODE = 'seedsub'
+    await s.hub.seedWrite(s.ctx, id, { doc: '업무 안내' })
+    let v = await settle(s.hub, s.ctx, id)
+    assert.equal(v.work.docs[0].state, 'ok', JSON.stringify(v.work.docs[0]))
+    assert.ok(!await subIn(s.hub, s.ctx, id), '고쳐 받은 글에는 소제목이 없다')
+    let fd = await s.hub.seedFeed(s.ctx, id)
+    const me = fd.rows.filter((r) => r.k === 'me')
+    assert.equal(me.length, 2, '처음 말 + 고쳐 받기 말')
+    assert.match(me[1].text, /소제목\(### 되돌리기\)/, '두 번째 말에 걸림 줄: ' + me[1].text)
+    assert.ok(!fd.rows.some((r) => /글 초안 알림/.test(r.text || '')))
+    process.env.FAKE_CLAUDE_MODE = 'seedsuball'
+    await s.hub.seedWrite(s.ctx, id, { doc: '업무 안내' })
+    v = await settle(s.hub, s.ctx, id)
+    assert.equal(v.work.docs[0].state, 'ok', '마지막 차례는 받는다: ' + JSON.stringify(v.work.docs[0]))
+    assert.ok(await subIn(s.hub, s.ctx, id), '받은 글 그대로(저장 검사 · 넣기 재확인은 알림)')
+    fd = await s.hub.seedFeed(s.ctx, id)
+    assert.ok(fd.rows.some((r) => r.k === 'kmd' && r.tone === 'warn' && /글 초안 알림 1\(받았다\)/.test(r.text)), JSON.stringify(fd.rows.slice(-4)))
+  } finally {
+    delete process.env.FAKE_CLAUDE_MODE
+    s.done()
+  }
+})
+
+test('글 초안 소제목: 팀 일꾼 일감 길(seedJobDone): 마지막 차례 전에는 고쳐 쓰게({ fix }) · 마지막 차례는 받고 알림(동작 내역 · 일감 why)', LONG, async () => {
+  const t = await teamSetup()
+  try {
+    const id = await t.make('테스트-팀소제목')
+    const up = await t.http(`/api/k/${encodeURIComponent(id)}/seed/upload`, t.P.ad, { group: { total: 5, last: true }, files: t.files(SRC) })
+    assert.equal((await t.http('/api/shape/survey', t.P.ad, { kn: id, group: up.j.group })).status, 200)
+    assert.equal(await t.work(), null, '일감이 없다(새 일꾼이 물었다)')
+    await t.s.hub.seedPlan(t.AD, id, { mode: 'claude' })
+    assert.equal((await t.work()).job.type, 'shape-plan')
+    const calls = () => fs.readFileSync(path.join(t.tmp, 'calls.log'), 'utf8').split('\n').filter((l) => l.startsWith('shape-write'))
+    process.env.FAKE_CLAUDE_MODE = 'seedsub'
+    await t.s.hub.seedWrite(t.AD, id, { doc: '업무 안내' })
+    assert.equal((await t.work()).job.type, 'shape-write')
+    let v = await t.s.hub.seedView(t.AD, id)
+    assert.equal(v.work.docs[0].state, 'ok', JSON.stringify(v.work.docs[0]))
+    assert.ok(!await subIn(t.s.hub, t.AD, id), '고쳐 받은 글에는 소제목이 없다')
+    assert.deepEqual(calls(), ['shape-write', 'shape-write fix'], '소제목 → 한 번 고쳐 썼다')
+    process.env.FAKE_CLAUDE_MODE = 'seedsuball'
+    await t.s.hub.seedWrite(t.AD, id, { doc: '업무 안내' })
+    const w = await t.work()
+    v = await t.s.hub.seedView(t.AD, id)
+    assert.equal(v.work.docs[0].state, 'ok', '마지막 차례는 받는다: ' + JSON.stringify(v.work.docs[0]))
+    assert.ok(await subIn(t.s.hub, t.AD, id), '받은 글 그대로')
+    assert.deepEqual(calls().slice(2), ['shape-write', 'shape-write fix', 'shape-write fix'], '처음 + 고쳐 쓰기 두 번')
+    const fd = await t.s.hub.seedFeed(t.AD, id)
+    assert.ok(fd.rows.some((r) => r.k === 'kmd' && r.tone === 'warn' && /글 초안 알림 1\(받았다\)/.test(r.text)), JSON.stringify(fd.rows.slice(-4)))
+    let why = null
+    for (let i = 0; i < 50 && !why; i++) {
+      why = JSON.parse(fs.readFileSync(path.join(t.root, '.kmd', 'jobs.json'), 'utf8')).find((j) => j.id === w.job.id)?.why || null
+      if (!why) await new Promise((ok) => setTimeout(ok, 100))
+    }
+    assert.match(String(why), /글 초안 알림 1\(받았다\)/, '일감 why 에도')
+  } finally {
+    delete process.env.FAKE_CLAUDE_MODE
+    await t.done()
+  }
+})
+
 // 채널 평가 T13: claudeSession 의 설정 폴더(kmd-session-cfg-* · 사용자 훅 끄기)는 띄우지 않고 끝냄 · 끊음 · 답 뒤 끝냄 · 답 기다리다 끊음 모두에서 지운다
 test('Claude 세션 설정 폴더: end · kill(띄우기 전 · 뒤) · close 에서 남지 않는다', LONG, async () => {
   const { claudeSession } = await import('../core/claude.js')

@@ -1419,10 +1419,15 @@ ${genRulesBlock({ profile: 'shape' })}`
       const x = writeOfDraft(sg.g, body?.draft)
       if (x.error && !last) { saveJobs(); return { fix: x.error } }
       const d = sg.w.plan.docs.find((y) => y.id === doc)
-      // 글 초안 검사(작성기준 5-1 · 세션 길 seedWriteOne 과 같은 함수) — 고쳐 쓰게 · 마지막이면 받는다(저장은 그대로 알림)
-      if (!x.error && !last) {
+      // 글 초안 검사(작성기준 5-1 · 세션 길 seedWriteOne 과 같은 함수): 고쳐 쓰게 · 마지막이면 알림(동작 내역 · 일감 why)만 남기고 받는다(저장은 그대로 알림)
+      let note = null
+      if (!x.error) {
         const sp = seedDraftProblems(x.texts, d.items.map((it) => it.h))
-        if (sp.length) { saveJobs(); return { fix: sp.slice(0, 3).join(' · ') } }
+        if (sp.length && !last) { saveJobs(); return { fix: sp.slice(0, 3).join(' · ') } }
+        if (sp.length) {
+          note = `글 초안 알림 ${sp.length}(받았다): ${sp.slice(0, 3).join(' · ')}`
+          feedPush(id, { k: 'kmd', text: note, tone: 'warn' }, doc.split('/').pop().slice(0, 24))
+        }
       }
       let row
       if (x.error) row = { state: 'fail', why: x.error }
@@ -1437,7 +1442,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         if (!old || old.state !== 'run' || old.rid !== j.id) return undefined
         return seedPatch(w0, doc, { sig: old.sig, ...row, chars: (row.items || []).reduce((a, y) => a + y.content.length, 0), by: 'claude' })
       })
-      return end(row.state === 'ok' ? { state: 'done' } : { state: 'fail', why: row.why, ...(row.stepFail ? { stepFail: row.stepFail } : {}) })
+      return end(row.state === 'ok' ? { state: 'done', ...(note ? { why: note } : {}) } : { state: 'fail', why: row.why, ...(row.stepFail ? { stepFail: row.stepFail } : {}) })
     } catch (e) {
       if (!(e instanceof KmdError)) throw e
       log('기초 세우기 일감', j.id, e.message)
