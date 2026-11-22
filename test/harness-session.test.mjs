@@ -161,6 +161,9 @@ test('다듬기 프롬프트: 정돈 거리(오기 · 백틱 · 수준 표시 ·
   const p = polishPromptOf({ doc: 'docs/게이트웨이 설계.md', title: '게이트웨이 설계', sections: [{ h: 'gw_log', base: 'b1', body: '| 콜럼 | 형 |\n|---|---|\n| log_id | bigint |' }] })
   for (const re of [/정돈 거리/, /오기 · 맞춤법/, /「콜럼」 → 「컬럼」/, /백틱/, /수준 표시/, /줄표/, /반례\(다듬기가 아니다\)/]) assert.match(p, re)
   assert.match(p, /## gw_log\n\(base b1\)/)
+  // T14: 백틱 안 한국어 문장은 백틱만 걷고 글자는 그대로 · 코드 · 파일 · 설정 키는 백틱을 둔다
+  assert.match(p, /백틱만 걷고 글자는 그대로 둔다/)
+  assert.match(p, /코드 · 파일 · 설정 키는 백틱을 둔다/)
 })
 
 // 검토 지적(prompts) — 프롬프트가 시키는 정돈(맨글 식별자에 백틱 · 「가.」 → 1. 2.)은 다듬기의 값 검사를 넘는다 · 값 글자를 바꾸면 그 항목만 빠진다

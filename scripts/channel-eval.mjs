@@ -869,12 +869,32 @@ async function runIntakeSrc(E, C) {
 
 // 다듬기 검출률(채널 평가 H14) — 심은 결함(test/fixture/harness/다듬기/결함.json)마다 다듬은 글에서 bad 가 사라졌나(good 이 있으면 good 도) · keep 값이 남았나
 const POLISH_FIX = path.join(ROOT, 'test/fixture/harness/다듬기')
+//   span 표지가 있는 결함은 글 전체가 아니라 백틱 짝 안 글만 본다(왼쪽부터 짝을 먹는다 · 「`/var/log/gateway` 이고 설정 키는 `log_dir`」 의 짝 사이 맨글을 백틱 안으로 잘못 보지 않게 · T14 real-6c)
+export const backtickSpans = (T) => [...String(T || '').matchAll(/`([^`\n]*)`/g)].map((x) => x[1])
 export function polishScoreOf(text, spec) {
   const T = String(text || '')
   const m = (re) => new RegExp(re, 'm').test(T)
-  const rows = spec.defects.map((d) => ({ id: d.id, kind: d.kind, fixed: !m(d.bad) && (!d.good || m(d.good)) }))
+  const spans = backtickSpans(T)
+  const bad = (d) => (d.span ? spans.some((x) => new RegExp(d.span).test(x)) : m(d.bad))
+  const rows = spec.defects.map((d) => ({ id: d.id, kind: d.kind, fixed: !bad(d) && (!d.good || m(d.good)) }))
   const lost = spec.keep.filter((re) => !m(re))
   return { defects: rows.length, fixed: rows.filter((x) => x.fixed).length, rate: rows.length ? r4(rows.filter((x) => x.fixed).length / rows.length) : null, missed: rows.filter((x) => !x.fixed).map((x) => `${x.kind}: ${x.id}`), lost }
+}
+// 다듬기 잣대가 바뀐 옛 결과(T14): 지식 폴더가 남아 있으면 결함 심은 문서를 디스크에서 다시 읽어 지금 잣대로 다시 센다(polishWas 에 옛 셈)
+export const POLISH_RULE = 'span-in-backtick (T14)'
+export async function repolishRun(J) {
+  const c = J?.channels?.polish
+  if (!c || J.polishRule === POLISH_RULE) return J
+  const dir = c?.dirs?.kn ? path.resolve(ROOT, c.dirs.kn) : null
+  const spec = JSON.parse(await fs.readFile(path.join(POLISH_FIX, '결함.json'), 'utf8'))
+  const file = dir && path.join(dir, 'docs', spec.file)
+  if (!file || !fss.existsSync(file)) return J
+  const { parseDoc } = await import('../core/sections.js')
+  const d = parseDoc(await fs.readFile(file, 'utf8'), spec.doc)
+  const ps = polishScoreOf(d.sections.filter((x) => x.h).map((x) => `## ${x.h}\n${factText(x.body)}`).join('\n\n'), spec)
+  const was = c.own?.polish || null
+  const rows = (c.rows || []).map((r) => (r.polishScore ? { ...r, polishScore: ps, polishWas: r.polishScore } : r))
+  return { ...J, channels: { ...J.channels, polish: { ...c, rows, own: { ...(c.own || {}), polish: ps, polishWas: was } } }, polishRule: POLISH_RULE, repolished: true }
 }
 async function runPolish(E, C) {
   const spec = JSON.parse(await fs.readFile(path.join(POLISH_FIX, '결함.json'), 'utf8'))
@@ -1806,7 +1826,7 @@ async function run() {
     models: { asked: { workers: E.models || '기본 배분(core/models.js DEFAULT_MODELS)', sessions: model || SESSION_MODEL }, seen: { ...(prev?.models?.seen || {}) } },
     head, meter: path.relative(ROOT, E.meterFile), meters: [...new Set([...(prev?.meters || []), path.relative(ROOT, E.meterFile)])], maxUsd: fake ? null : maxUsd, loops: E.loops,
     // 셈 규칙(RULES · 견주기가 양쪽을 대 본다) — 토큰 · 차례(H17) · 건 수(H10 · H4) · 들어감 판정(H1) · 채점(H11 ~ H13 · gold.json 판)
-    tokensRule: RULES.tokens, rowRule: RULES.rows, putRule: RULES.put, scoreRule: scoreRuleOf(await goldRev()),
+    tokensRule: RULES.tokens, rowRule: RULES.rows, putRule: RULES.put, scoreRule: scoreRuleOf(await goldRev()), polishRule: POLISH_RULE,
     // pending 끊기(T9 · core/agent.js pendingCut) — 1 이면 init 에 kmd 가 pending 인 프로세스를 곧바로 끊고 다시 띄운 판
     pendingCut: process.env.KMD_MCP_PENDING_CUT === '1',
     // 부하 탐침(T13): 판 머리 한 번(채널마다는 channels.<채널>.load) · 기준 LOAD_NODE_MS
@@ -1986,6 +2006,10 @@ export function compareOf(A, B) {
   md.push(`## 견주기: ${head(A)} → ${head(B)}`, '')
   const fix = [A.rowRule?.endsWith('(recounted)') ? '앞 결과의 건 수는 지금 규칙으로 다시 셌다' : '', A.rescored ? `앞 결과의 채점은 지금 채점으로 다시 매겼다(채널 ${A.rescored})` : '', A.refixed || B.refixed ? 'kmd-seed 고쳐 받기는 fix 셈 바뀜(걸려 돌아온 check 수 · 세션 출력이 남은 옛 결과는 다시 셌다)' : ''].filter(Boolean)
   if (fix.length) md.push(`맞춤: ${fix.join(' · ')}`, '')
+  // 다듬기 검출(H14 · T14): 양쪽 polishScore · 옛 잣대로 센 결과는 지금 잣대로 다시 셌다(repolishRun)
+  const pol = (J) => J.channels?.polish?.own?.polish
+  const polTxt = (J) => { const p = pol(J); if (!p) return '-'; const w = J.channels.polish.own.polishWas; return `${p.fixed}/${p.defects}${p.lost?.length ? ` · 잃은 값 ${p.lost.join(',')}` : ''}${w && w.fixed !== p.fixed ? `(옛 잣대 ${w.fixed}/${w.defects})` : ''}` }
+  if (pol(A) || pol(B)) md.push(`다듬기 검출: ${polTxt(A)} → ${polTxt(B)}${[...(pol(A)?.missed || []), ...(pol(B)?.missed || [])].length ? ` · 못 고침 앞 ${(pol(A)?.missed || []).join(',') || '없음'} · 뒤 ${(pol(B)?.missed || []).join(',') || '없음'}` : ''}`, '')
   if (total.rules.length) md.push(`셈 규칙이 다르다: ${total.rules.map((k) => `${k}(앞 ${ruleOf(A, RULE_FIELD[k]) || '없음'} · 뒤 ${ruleOf(B, RULE_FIELD[k]) || '없음'})`).join(' · ')}`, '')
   md.push(`양쪽에 돈 채널 ${total.channels} · 합 ${sumTxt(total)}`)
   md.push(`조건이 같은 채널 ${total.same.channels} · 합 ${sumTxt(total.same)}${total.modelDiffer.length ? ` · 모델 다름: ${total.modelDiffer.join(' · ')}` : ''}${total.ruleDiffer.length ? ` · 규칙 다름: ${total.ruleDiffer.join(' · ')}` : ''}${total.feedDiffer.length ? ` · 원천 다름: ${total.feedDiffer.join(' · ')}` : ''}(조건이 다른 채널의 차이에는 모델 · 셈 규칙 · 넣은 것의 몫이 섞여 있다)`, '')
@@ -2044,7 +2068,7 @@ async function report() {
     if (!fa || !fb) { console.error('쓰는 법: channel-eval.mjs report --compare <before.json> <after.json> [--no-rescore]'); process.exit(2) }
     const [A0, B0] = await Promise.all([fa, fb].map(async (f) => JSON.parse(await fs.readFile(path.resolve(f), 'utf8'))))
     // 셈 규칙이 다른 옛 결과는 저장된 rows 로 다시 세고(recountRun) · 지식 폴더가 남아 있으면 지금 채점으로 다시 매긴다(rescoreRun · --no-rescore 로 끈다)
-    const fit = async (J) => (process.argv.includes('--no-rescore') ? refixSeed(recountRun(J)) : rescoreRun(refixSeed(recountRun(J))))
+    const fit = async (J) => (process.argv.includes('--no-rescore') ? refixSeed(recountRun(J)) : repolishRun(await rescoreRun(refixSeed(recountRun(J)))))
     const [A, B] = [await fit(A0), await fit(B0)]
     // 계측 통째(T13): 결과가 가리키는 계측 파일(meters)이 남아 있으면 모든 프로세스의 띄움 · 비 API 를 같은 셈으로
     for (const J of [A, B]) {

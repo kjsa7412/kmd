@@ -115,6 +115,11 @@ test('H14 · H15 · H16 · H8: 다듬기 검출률 · http 입력 · 골든 값�
   const b = polishScoreOf(good, spec)
   assert.equal(b.rate, 1, b.missed.join(' / '))
   assert.deepEqual(polishScoreOf(good.replace('14일', '15일'), spec).lost, ['14일'], '값을 바꾸면 잃은 값으로 센다')
+  // T14: 백틱 안 한국어 문장은 백틱 짝 안 글만 본다(짝과 짝 사이 맨글은 백틱 안이 아니다 · real-6c)
+  const sp = (t) => polishScoreOf(t, spec).missed.includes('백틱: 백틱 안 한국어 문장')
+  assert.equal(sp('로그 폴더는 `/var/log/gateway` 이고 설정 키는 `log_dir` 이다.'), false, '짝 사이 「 이고 설정 키는 」 은 백틱 안이 아니다')
+  assert.equal(sp('2. 고른 파일을 `지우고 이름을 남긴다`'), true, '백틱 안 한국어 문장은 남은 것')
+  assert.equal(sp('`log_dir` 과 `gzip`'), false, '코드 백틱은 걸리지 않는다')
 
   const s3 = { n: 3, title: '장애 대응 절차', md: fs.readFileSync(path.join(FIX, '03 장애 대응 절차.md'), 'utf8') }
   const inp = httpInputOf(s3)

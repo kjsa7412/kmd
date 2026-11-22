@@ -27,6 +27,8 @@ import path from 'node:path'
 //   shape-seed — 기초 세우기 구조안(재료 kind seed · SEED_PLAN_SCHEMA)을 안다(TODO 10 · 서버는 이것을 알린 일꾼에게만 기초 세우기 일감을 준다)
 //   session — 파일 · 커밋 들이기를 세션으로 돈다(지식 생성 하네스 H-D34): Claude Code 세션을 띄워 팀 서버의 MCP 에 붙는다.
 //     Claude Code 를 세션으로 띄울 수 있을 때만 알린다
+// 다듬기 고쳐 받기(T14): 걸린 항목만 고치고 값은 옛 글 그대로 · 값 아닌 정돈(백틱 · 수준 표시 · 줄표 · 오기)은 옛 글로 되돌리지 않는다(real-6 · 6b: 값 오판으로 고쳐 받을 때 백틱 문장이 옛 글로 돌아갔다)
+export const polishFixPromptOf = (g, draft, fix, opt) => [polishPromptOf(g, opt), `지난 초안이 kmd 검사에 걸렸다: ${fix}`, '걸린 항목만 고치고 값은 옛 글 그대로 둔다. 값 아닌 정돈(백틱 · 수준 표시 · 줄표 · 오기)은 옛 글로 되돌리지 않는다.', `지난 초안:\n${JSON.stringify(draft)}`].join('\n\n')
 export const KNOWN_TYPES = ['file', 'commit', 'polish', ...SHAPE_CLAUDE_TYPES, 'shape-seed']
 export const knownTypes = () => (agentAvailable() ? [...KNOWN_TYPES, 'session'] : KNOWN_TYPES)
 const STOP = { login: '로그인이 끝났다', limit: '한도에 닿았다', missing: 'Claude Code(claude) 가 설치되어 있지 않다' }
@@ -172,7 +174,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
     if (d.error) { log(`${name}: 초안을 넣지 못했다(${d.error})`); return { job, summary: { put: 0 }, skipped: d.error } }
     if (d.fix) {
       log(`${name}: 검사에 걸렸다 · 고쳐 쓴다(${String(d.fix).slice(0, 120)})`)
-      prompt = sseed ? seedPlanFixPromptOf(g, r.value, d.fix) : spl ? shapePlanFixPromptOf(g, r.value, d.fix) : swr ? shapeWriteFixPromptOf(g, r.value, d.fix, opt) : pol ? [polishPromptOf(g, opt), `지난 초안이 kmd 검사에 걸렸다: ${d.fix}`, '걸린 항목만 고치고 값은 옛 글 그대로 둔다.', `지난 초안:\n${JSON.stringify(r.value)}`].join('\n\n') : intakeFixPromptOf(g, r.value, d.fix, opt)
+      prompt = sseed ? seedPlanFixPromptOf(g, r.value, d.fix) : spl ? shapePlanFixPromptOf(g, r.value, d.fix) : swr ? shapeWriteFixPromptOf(g, r.value, d.fix, opt) : pol ? polishFixPromptOf(g, r.value, d.fix, opt) : intakeFixPromptOf(g, r.value, d.fix, opt)
       continue
     }
     await call(server, key, '/api/worker/status', { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))

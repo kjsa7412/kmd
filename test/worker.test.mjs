@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { slots, sweepProjects } from '../core/worker.js'
+import { slots, sweepProjects, polishFixPromptOf } from '../core/worker.js'
 import { makeHub } from '../server/hub.js'
 import { copyDir } from './helpers.mjs'
 
@@ -229,4 +229,14 @@ test('Claude 짜임 개인: 이 PC 의 claude -p 로 구조안 · 글(같은 프
     assert.equal(p.state, 'done')
     assert.ok(p.result.plan.docs.some((d) => d.items.some((it) => it.h === '점검 목록')))
   })
+})
+
+// 채널 평가 T14: 다듬기 고쳐 받기 꼬리 · 값은 옛 글 그대로 · 값 아닌 정돈은 옛 글로 되돌리지 않는다
+test('다듬기 고쳐 받기: 값 아닌 정돈(백틱 · 수준 표시 · 줄표 · 오기)은 옛 글로 되돌리지 않는다', () => {
+  const p = polishFixPromptOf({ doc: 'docs/a.md', title: 'a', sections: [{ h: '지우기 차례', base: 'b1', body: '② 고른 파일을 `지우고 이름을 남긴다`' }] }, { updates: [] }, '옛 글의 값이 빠졌다: x')
+  assert.match(p, /지난 초안이 kmd 검사에 걸렸다: 옛 글의 값이 빠졌다: x/)
+  assert.match(p, /값은 옛 글 그대로 둔다/)
+  assert.match(p, /값 아닌 정돈\(백틱 · 수준 표시 · 줄표 · 오기\)은 옛 글로 되돌리지 않는다/)
+  assert.match(p, /지난 초안:\n\{"updates":\[\]\}/)
+  assert.match(p, /백틱만 걷고 글자는 그대로 둔다/, '다듬기 프롬프트를 그대로 싣는다')
 })
