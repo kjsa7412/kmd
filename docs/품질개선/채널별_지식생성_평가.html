@@ -1270,7 +1270,7 @@ footer code{font:12px var(--mono);word-break:break-all}
 
 <section id="after5">
   <h2>품질 다지기 4차 뒤 (real-7q1 · 7q2 · 7q3 · real-7)</h2>
-  <p class="h2sub">사람이 고른 셋 가운데 1 · 2 는 실측으로 확인, 3(188 대량 넣기 · 문서 들이기)은 시험 지식이 서버에 없어 돌리지 못함. polish 결함 고침 네 판 6/6 · 고쳐 받기 0, kmd-seed 넣은 지식의 옮긴 소제목 0, shape-restructure F1 0.9565 ~ 1. 회귀 판 real-7 은 3차 평균과 같은 수준(시간 +3.6% · 비용 -2.0% · F1 0.960).</p>
+  <p class="h2sub">사람이 고른 셋 가운데 1 · 2 는 실측으로 확인, 3(188 대량 넣기 · 문서 들이기)은 새 시험 지식 「테스트-대량-넣기」 를 세워 끝까지 돌림(모두 들어감 · md 원천은 표지를 떼고 다시 제안). polish 결함 고침 네 판 6/6 · 고쳐 받기 0, kmd-seed 넣은 지식의 옮긴 소제목 0, shape-restructure F1 0.9565 ~ 1. 회귀 판 real-7 은 3차 평균과 같은 수준(시간 +3.6% · 비용 -2.0% · F1 0.960).</p>
   <p class="note">HEAD <code>4f40519</code> · sonnet. 걸린 네 채널(polish · edit-source · kmd-seed · shape-restructure) 세 번(q1 · q2 · q3) · 17 채널 한 번(real-7) · 가짜 전 채널 fake-t4(넘어짐 0). 실측 동안 코드는 고치지 않음. $ · 초는 바탕 행을 뺀 채널 몫 · F1 은 지금 채점.</p>
 
   <div class="grid kpi">
@@ -1287,11 +1287,11 @@ footer code{font:12px var(--mono);word-break:break-all}
       <li>1 edit-source 1.32배: 판 흔들림(같은 판 바탕 차례 1.45배 · 결과 같음)</li>
       <li>2 kmd-seed: 바탕에 지금 글이 없는데 <code>WRITE_RULES</code> 「### 은 그대로」 · 걸림 말 「### 아래로」 · check 는 # · ## 만</li>
       <li>2 shape-restructure: 세 판 모두 표 꼴 「재전송 주기 | 1분」 채점 오탐(3차 고침 탓 아님)</li>
-      <li>3 188: 허락받은 시험 지식이 서버에 없음</li></ul></div>
+      <li>3 188: 허락받은 시험 지식이 11-17 에 걷혀 없음 → 새로 세워 돌림 · md 원천은 파서가 <code>ingest/</code> 표지를 주는데 <code>bulkProof</code> 가 첨부 없으면 E_INPUT</li></ul></div>
     <div class="card"><span class="tag pri">고친 것</span><ul class="tight">
       <li><code>0a4244a</code> · <code>1b51d39</code> 점수기 span(백틱 짝 안만) · <code>repolishRun</code> · 다듬기 백틱 줄 · <code>polishFixPromptOf</code> · edit-source 기준 「바탕 차례 흔들림 이하」 · <code>plainHas</code> 한글 경계</li>
       <li><code>b0626bb</code> · <code>1a5e664</code> · <code>4f40519</code> 걸림 말 · <code>SEED_TEXT_LINE</code> 세 길 · <code>seedTextProblems</code> 세 길 고쳐 받기(저장 검사 · 넣기 재확인은 그대로) · 재전송 정규식 하나만 넓힘</li>
-      <li>188: 쓰지 않음 · 열쇠 만들지 않음</li></ul></div>
+      <li>188: 코드는 고치지 않음(결함 다섯 T18 ~ T22) · 새 시험 지식만 세움 · 임시 열쇠 둘 끊음</li></ul></div>
   </div>
 
   <h3>걸린 채널 세 판</h3>
@@ -1359,24 +1359,30 @@ footer code{font:12px var(--mono);word-break:break-all}
   </div>
 
   <h3>188 실제 확인</h3>
+  <p class="note">build <code>0.1.0-20261122-1629</code>(<code>10b30e6</code> 판) · 2026-11-22 KST · 사람 허락 「세워서 진행」 · 새 시험 지식 <code>테스트-대량-넣기</code> · 배포 · 설정 변경 · 서비스 멈춤 없음.</p>
   <div class="tblwrap"><table>
-    <thead><tr><th>단계</th><th>결과</th></tr></thead>
+    <thead><tr><th>단계</th><th>결과</th><th>시간</th><th>비용</th></tr></thead>
     <tbody>
-      <tr><td class="ch">1 문서 들이기</td><td><span class="tag warn">하지 않음</span> 시험 지식 없음</td></tr>
-      <tr><td class="ch">2 대량 넣기(원본 올리기 + 참조 첨부)</td><td><span class="tag warn">하지 않음</span> 시험 지식 없음</td></tr>
-      <tr><td class="ch">3 권한 확인</td><td><span class="tag warn">하지 않음</span> 열쇠를 만들 까닭 없음</td></tr>
-      <tr><td class="ch">4 남긴 것</td><td>없음 · 서버에 쓰지 않음</td></tr>
+      <tr><td class="ch">0 시험 지식 세우기</td><td><span class="tag pri">들어감</span> <code>a1df1c9</code> · 주인 kjsa · 원격 없음 · 승인 저장</td><td class="num">1초 안</td><td class="num">0</td></tr>
+      <tr><td class="ch">1 문서 들이기</td><td><span class="tag pri">들어감</span> 일감 <code>3983b345361b</code> · 경고 0 · 오류 0 · 항목 <code>절차:테스트게이트웨이점검</code> · <code>3578627</code></td><td class="num">승인 대기 69초(세션 64) · 넣기 1초</td><td class="num">$0.651</td></tr>
+      <tr><td class="ch">2a 대량 넣기 docx</td><td><span class="tag pri">들어감</span> attachVia stage · 806B · sha256 같음 · 올린 자리 지워짐 · 경고 1(near) · <code>be140f4</code></td><td class="num">0.1 · 0.24초</td><td class="num">LLM 0</td></tr>
+      <tr><td class="ch">2b 같은 docx 다시</td><td><span class="tag pri">same</span> 다시 쓰지 않음</td><td class="num">0.1초</td><td class="num">0</td></tr>
+      <tr><td class="ch">2c 대량 넣기 md</td><td><span class="tag warn">처음 E_INPUT</span> 표지를 떼고 다시 제안해 들어감 · <code>a3d6e45</code></td><td class="num">0.1 ~ 0.24초</td><td class="num">0</td></tr>
+      <tr><td class="ch">3 권한</td><td><span class="tag pri">맞음</span> 읽기 자리 import · stage · propose · save 403 · 읽기 200 · 자리 없는 dpms 404 · 없는 지식 404 · 깨진 경로 400</td><td class="num">각 0.1초</td><td class="num">0</td></tr>
     </tbody>
   </table></div>
   <div class="left">
-    <div class="card"><span class="tag warn">원인</span><div>허락받은 시험 지식 「테스트 하네스 확인」 이 없음. <code>/srv/kmd</code> 는 dpms · gdi 뿐 · 서버 로그로 11-17 18:26 다시 켠 뒤 「지식 3 → 2」 · 그 시각 audit 없음(셸에서 폴더를 걷은 것으로 보임 · 누가 했는지는 확인 안 함) · 서버에 되살릴 사본 없음</div></div>
-    <div class="card"><span class="tag">서버 상태</span><div>build <code>0.1.0-20261122-1629</code>(<code>10b30e6</code> 판 · stageWalk 4) · kmd · kmd-worker 돎 · 도는 일 없음 · 운영 지식 dpms · gdi 에는 쓰지 않음</div></div>
-    <div class="card"><span class="tag info">열쇠</span><div>새 열쇠 없음. 11-17 임시 열쇠 <code>347c99efe076</code>(「셸」)이 남아 있음 · 손대지 않음 · 회수는 화면 사람 › 기기 또는 <code>POST /api/me/devices/revoke</code>(셸 CLI 에 기기 하나 끊는 명령 없음)</div></div>
+    <div class="card"><span class="tag bad">결함 1</span><div>md · txt · csv 원천은 스킬 순서 그대로 넣을 수 없음(T18). 파서는 첨부 없이 <code>ingest/</code> 표지를 주고 <code>bulkProof</code> 는 첨부가 없으면 E_INPUT · propose 는 받아들여 승인 뒤 save 에서 처음 막힘. 후보: <code>parseOne</code> · <code>bulkProof</code> · 스킬 3 · 5단계 · propose 같은 판정</div></div>
+    <div class="card"><span class="tag warn">결함 2</span><div>기록 id 에 원본 확장자(<code>…백업-절차.md.md</code> · <code>…장비-목록.docx.md</code>) · <code>slugOf</code> 가 쌍점 앞 확장자를 떼지 않음(T19)</div></div>
+    <div class="card"><span class="tag warn">작음 · 알림</span><div>stage 폴더 755 · 파일 644(T20) · 새 지식 guard 「장부에 없는 항목」 1(T21) · 첨부를 가리키는 링크 없음(T22)</div></div>
+    <div class="card"><span class="tag info">열쇠 회수</span><div>평문은 서버 대리 프로세스 메모리에만 · <code>874bcaac2863</code>(kjsa 임시) · <code>00aebf0b86bd</code>(test-read) 둘 다 revoked 1 · 끊은 뒤 401 · 목록에서 사라짐 · 서버 · PC 평문 0(독립 확인) · <code>347c99efe076</code> 은 손대지 않음(T17)</div></div>
+    <div class="card"><span class="tag">독립 확인</span><div>ssh 읽기만 · 보고 사실 모두 맞음 · 들이기 69초(보고) · 77초(로그)는 재는 구간 차 · dpms <code>5c862928694d</code> · gdi <code>471b87aee827</code> 그대로 · 서비스 다시 켜지 않음 · 도는 일 없음</div></div>
+    <div class="card"><span class="tag">남긴 것</span><div>지식 <code>/srv/kmd/테스트-대량-넣기</code>(HEAD <code>28419c05c011</code> · 문서 다섯 · 첨부 하나 · 기록 셋 · 장부 항목 셋) · 시험 사람 test-read(읽기 · 기기 0) · 지우기는 사람 확인 뒤</div></div>
   </div>
 
   <h3>남은 것</h3>
   <div class="left">
-    <div class="card"><span class="tag bad">사람 결정</span><div>188 대량 넣기 · 들이기: 시험 지식을 새로 세울지(총괄 관리자가 세우고 쓰기 자리) 또는 되살릴 사본을 알려 줄지 · 정하면 임시 열쇠 → 들이기 → 대량 넣기 → 권한 확인 → 열쇠 회수(T16) · 11-17 임시 열쇠 회수(T17)</div></div>
+    <div class="card"><span class="tag bad">사람 결정</span><div>188 대량 넣기 결함 T18 ~ T22 고칠 길 · 시험 지식 <code>테스트-대량-넣기</code> · test-read 지울지 · 11-17 임시 열쇠 회수(T17) · 옛 일꾼 열쇠 파일 <code>/root/worker.env.before-20261103-1137</code> 지울지</div></div>
     <div class="card"><span class="tag warn">품질</span><div>kmd-seed 첫 초안의 <code>###</code>(네 판 모두 · check 가 막음 · T15) · 회의 항목의 버린 안(까닭 모름 · 옮길지는 사람이 정함)</div></div>
     <div class="card"><span class="tag">확인</span><div>intake-src · session · pc-intake 한 판 길어짐은 다음 판에서 다시 봄 · C2 판정(하지 않는다) 그대로 · push 안 함 · 188 은 <code>10b30e6</code> 판(4차 고침 배포 전)</div></div>
   </div>
