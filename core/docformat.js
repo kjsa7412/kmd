@@ -51,7 +51,7 @@ export function isSystemLink(href, origins = []) {
 }
 
 // 줄 하나의 링크 주소 — 인라인 [a](x) · [a](<x y>) · 자동 링크 <https://…> · 참조 정의 [r]: x
-function hrefsIn(t) {
+export function hrefsIn(t) {
   const out = []
   for (const m of t.matchAll(/\]\(\s*(?:<([^>\n]*)>|([^)\s]+))|<((?:https?:\/\/|\/|#\/)[^>\s]+)>/g)) out.push(m[1] ?? m[2] ?? m[3])
   const d = t.match(/^\s{0,3}\[[^\]]+\]:\s*(?:<([^>]*)>|(\S+))/)
@@ -81,7 +81,7 @@ export function formatCheck(content, { doc = null, old = null, origins = [] } = 
     }
     if (fence) return
     const n = i + 1
-    if (/^\s{0,3}#{1,2}\s/.test(ln)) out.push({ line: n, what: `머리 줄(${ln.trim().slice(0, 30)}): 항목 글은 머리 아래 내용만 · 소제목은 ### 아래로` })
+    if (/^\s{0,3}#{1,2}\s/.test(ln)) out.push({ line: n, what: `머리 줄(${ln.trim().slice(0, 30)}): 항목 글은 머리 아래 내용만 · 항목 안의 짜임은 수준 표시(1. · 1.1.)로` })
     const t = ln.replace(/(`+)[^`]*?\1/g, '')
     if (REF_OPEN.test(t.trim()) || REF_CLOSE.test(t.trim())) out.push({ line: n, what: '참고 블록 표식: 참고는 kmd 가 단다' })
     else if (/<!--/.test(t) && !OK_MARK.test(t)) out.push({ line: n, what: '표지 밖 주석(<!-- -->): 본문에 두지 않는다' })

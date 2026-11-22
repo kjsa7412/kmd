@@ -23,7 +23,7 @@ import { DATE_RE, topicOfName } from './ingest.js'
 import { formFor, DEFAULT_FORMS } from './guard.js'
 import { readText } from './text.js'
 import { writeFileAtomic, writeJsonAtomic } from './atomic.js'
-import { cleanPlan, readShape, planCheck, SEED_RULES } from './shape.js'
+import { cleanPlan, readShape, planCheck, SEED_RULES, SEED_TEXT_LINE, seedTextProblems } from './shape.js'
 import { formatProblems } from './docformat.js'
 import { WRITE_RULES } from './writerules.js'
 import { KmdError } from './errors.js'
@@ -340,7 +340,7 @@ export async function packCheck(dir, { k = null, files = null } = {}) {
       if (row.role === '비밀 의심' || P.rows.some((x) => x.src === s && x.role === '비밀 의심')) errors.push({ where: `${d.id} › ${it.h}`, why: `비밀 의심 재료를 쓴다(${row.path}): 빼거나 사람이 본 뒤 비밀을 가린 글로 다시 넣는다`, code: 'secret' })
       else if (row.pick === '빼기' || row.pick === '보류') warnings.push({ where: `${d.id} › ${it.h}`, why: `${row.role} 재료를 쓴다(${row.path} · 고르기 ${row.pick})` })
     }
-    if (typeof it.text === 'string') for (const p of formatProblems(it.text, { doc: `docs/${d.id}.md` })) errors.push({ where: `${d.id} › ${it.h}`, why: `${p.line}째 줄 ${p.what}`, code: 'format' })
+    if (typeof it.text === 'string') for (const p of [...formatProblems(it.text, { doc: `docs/${d.id}.md` }), ...seedTextProblems(it.text, { heads: d.items.map((y) => y.h) })]) errors.push({ where: `${d.id} › ${it.h}`, why: `${p.line}째 줄 ${p.what}`, code: 'format' })
   }
   // 덮임(6-1 7) — 넣음으로 고른 재료는 모두 어느 항목에 쓰이거나 까닭과 함께 skip
   const skipped = new Set(P.plan.skip.map((x) => x.src))
@@ -352,7 +352,7 @@ export async function packCheck(dir, { k = null, files = null } = {}) {
     const hs = planned.get(t.doc)
     for (const it of t.items) {
       if (!hs?.has(it.h)) errors.push({ where: `${t.file} › ${it.h}`, why: `구조안에 없는 항목이다: ${t.doc} › ${it.h}`, code: 'text' })
-      for (const p of formatProblems(it.text, { doc: `docs/${t.doc}.md` })) errors.push({ where: `${t.file} › ${it.h}`, why: `${p.line}째 줄 ${p.what}`, code: 'format' })
+      for (const p of [...formatProblems(it.text, { doc: `docs/${t.doc}.md` }), ...seedTextProblems(it.text, { heads: hs || [] })]) errors.push({ where: `${t.file} › ${it.h}`, why: `${p.line}째 줄 ${p.what}`, code: 'format' })
     }
   }
   if (P.counts.scanNeed) warnings.push({ where: '스캔', why: `글이 없는 스캔 ${P.counts.scanNeed}: 보류로 남는다(kmd-seed text 로 글을 넣으면 재료가 된다)` })
@@ -418,6 +418,7 @@ export function promptOf(P, kind, { from = 0, n = 10, doc = null } = {}) {
       `결과는 ${file} 에 { "doc": "${d.id}", "items": [{ "h": "<머리 그대로>", "text": "<항목 글>" }] } 하나로 쓴다.`,
       '- 재료에 없는 값을 지어내지 않는다(값 대조가 걸러 넣지 못함으로 남긴다). 같은 대상의 여러 재료는 늦은 판이 이긴다.',
       WRITE_RULES,
+      SEED_TEXT_LINE,
       '항목:',
       ...d.items.map((it) => JSON.stringify({ h: it.h, src: it.src || [] })),
       `다 쓰면 ${checkCmd(pack)} 로 꼴을 검사한다.`,

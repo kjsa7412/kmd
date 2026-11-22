@@ -49,7 +49,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
-import { readShape, cleanPlan, planCheck, putErrors, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, SEED_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, seedPriorOf, pickOf } from '../core/shape.js'
+import { readShape, cleanPlan, planCheck, putErrors, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, SEED_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedDraftProblems, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, seedPriorOf, pickOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -1279,6 +1279,12 @@ ${genRulesBlock({ profile: 'shape' })}`
         const last = n === INTAKE_FIX
         const x = writeOfDraft(g, r.value)
         let why = x.error || null
+        // 글 초안 검사(작성기준 5-1 · 세션 꾸러미 check 와 같은 함수) — 재료 소제목 · 끊긴 앵커는 고쳐 받기 몫 · 마지막이면 알림만 남기고 받는다(저장은 그대로 알림)
+        if (!why) {
+          const sp = seedDraftProblems(x.texts, d.items.map((it) => it.h))
+          if (sp.length && !last) why = sp.slice(0, 3).join(' · ')
+          else if (sp.length) feedPush(id, { k: 'kmd', text: `글 초안 알림 ${sp.length}(받았다): ${sp.slice(0, 3).join(' · ')}`, tone: 'warn' }, tag)
+        }
         let items = null
         let j = null
         if (!why) {
@@ -1413,6 +1419,11 @@ ${genRulesBlock({ profile: 'shape' })}`
       const x = writeOfDraft(sg.g, body?.draft)
       if (x.error && !last) { saveJobs(); return { fix: x.error } }
       const d = sg.w.plan.docs.find((y) => y.id === doc)
+      // 글 초안 검사(작성기준 5-1 · 세션 길 seedWriteOne 과 같은 함수) — 고쳐 쓰게 · 마지막이면 받는다(저장은 그대로 알림)
+      if (!x.error && !last) {
+        const sp = seedDraftProblems(x.texts, d.items.map((it) => it.h))
+        if (sp.length) { saveJobs(); return { fix: sp.slice(0, 3).join(' · ') } }
+      }
       let row
       if (x.error) row = { state: 'fail', why: x.error }
       else {

@@ -22,6 +22,8 @@ import { nameProblem, stepFp, brokenLinks } from './restructure.js'
 import { coordsOfSection } from './knowledge.js'
 import { judgeId } from './values.js'
 import { WRITE_RULES } from './writerules.js'
+import { lintLevels } from './levels.js'
+import { hrefsIn, slugOf } from './docformat.js'
 
 export { stepFp }
 const P = path.posix
@@ -633,6 +635,7 @@ export function shapeWritePromptOf(g, { writeRules = WRITE_RULES } = {}) {
     '- 출처의 값(숫자 · 날짜 · 주소 · 이름 · 코드)은 글자 그대로 옮긴다. 출처에 없는 값을 지어내지 않는다.',
     '- items 는 목표마다 하나 · doc 와 h 는 아래 목표 그대로 · text 는 항목 본문만(## 머리 없이).',
     writeRules,
+    ...(g.kind === 'seed' ? [SEED_TEXT_LINE] : []),
     '목표:',
     ...g.targets.map((t) => `[target ${t.doc} › ${t.h}]${t.part ? ` 몫: ${t.part}` : ''}`),
     '출처:',
@@ -949,6 +952,31 @@ const SEED_PRIOR_RULE = [
 //   files[].text · prior[].text 가 모두 있을 때만(seedInlineOk) · 넘으면 지금 길: 세션 폴더의 md/ 사본은 그대로 둔다
 //   재료 글에 구분자를 흉내 내는 줄(`<<<` · `>>>` · `[target `)이 있으면 싣지 않고 지금 길(Read 도구 결과로 갈린다 · 재료 밖 지시처럼 보이지 않게)
 export const SEED_WRITE_HEAD = '바탕 세우기 항목 글을 짓는다(세션).'
+// 바탕 세우기 글 초안의 재료 소제목(채널 평가 4차 shape · real-6b · 6s2 「### 되돌리기」 가 항목 안 머리로 옮겨졌다 · 바탕에는 「지금 글」 이 없다)
+//   세션 꾸러미(core/survey.js promptOf text)와 화면 길(seedWriteSessionPromptOf) 두 곳이 같이 싣는다 · 다른 채널(WRITE_RULES)은 그대로
+export const SEED_TEXT_LINE = '- 재료의 # · ## · ### 머리는 원본 파일의 짜임이다. 지금 글이 아니다. 항목 하나에 든 재료 소제목은 머리 줄로 옮기지 않고 그 항목 안 「1.」 덩이나 문장으로 녹인다. 같은 문서 링크 [x](#x)는 이 문서의 항목 머리에만 단다.'
+// 바탕 세우기 글 초안 검사(작성기준 5-1 · 마른 검사 · 고쳐 받기 몫 · 넣기 재확인 putErrors · 저장 검사에는 넣지 않는다) — [{ line, what }]
+//   소제목(###~) · 같은 문서 앵커(#x)가 그 문서의 항목 머리(heads)에 닿지 않음
+export function seedTextProblems(text, { heads = [] } = {}) {
+  const lines = String(text ?? '').replace(/\r\n/g, '\n').split('\n')
+  const out = lintLevels(lines).filter((p) => p.code === 'sub-head').map((p) => ({ line: p.line, what: p.msg }))
+  const slugs = new Set([...heads].map((h) => slugOf(h)))
+  let fence = null
+  lines.forEach((ln, i) => {
+    const f = ln.match(/^\s{0,3}(`{3,}|~{3,})/)
+    if (f) { fence = !fence ? f[1] : f[1][0] === fence[0] && f[1].length >= fence.length ? null : fence; return }
+    if (fence) return
+    for (const href of hrefsIn(ln.replace(/(`+)[^`]*?\1/g, ''))) {
+      if (!href.startsWith('#') || href.startsWith('#/')) continue
+      let frag = href.slice(1)
+      try { frag = decodeURIComponent(frag) } catch { /* 깨진 꼴은 그대로 견준다 */ }
+      if (!slugs.has(slugOf(frag.normalize('NFC')))) out.push({ line: i + 1, what: `끊긴 앵커(${href.slice(0, 40)}): 같은 문서 링크는 이 문서의 항목 머리에만 단다` })
+    }
+  })
+  return out.sort((a, b) => a.line - b.line)
+}
+// 받은 글 초안(writeOfDraft texts) 전체의 걸림 줄 — 화면 길 두 곳(세션 seedWriteOne · 일감 seedJobDone)이 같이 쓴다
+export const seedDraftProblems = (texts, heads) => texts.flatMap((t) => seedTextProblems(t.content, { heads }).map((p) => `「${t.h}」 ${p.line}째 줄 ${p.what}`))
 export const SEED_INLINE_MAX = 20000
 const SEED_INLINE_FENCE = /^\s*(?:<<<|>>>|\[target )/m
 export const seedInlineOk = (files, prior = []) => { const all = [...files, ...prior]; return all.length > 0 && all.every((f) => typeof f.text === 'string') && all.reduce((a, f) => a + f.text.length, 0) <= SEED_INLINE_MAX && !all.some((f) => SEED_INLINE_FENCE.test(f.text)) }
@@ -963,6 +991,7 @@ export function seedWriteSessionPromptOf(g, files, { writeRules = WRITE_RULES, f
     '- 재료의 값(숫자 · 날짜 · 주소 · 이름 · 코드)은 글자 그대로 옮긴다. 재료에 없는 값을 지어내지 않는다.',
     '- items 는 목표마다 하나 · doc 와 h 는 아래 목표 그대로 · text 는 항목 본문만(## 머리 없이).',
     writeRules,
+    SEED_TEXT_LINE,
     ...(form ? [form] : []),
     `- summary 에는 문서 「${g.doc}」 의 요약 1~3문장을 쓴다(이 문서가 무엇을 어떤 단위로 적나 · 문서 전체에 같은 값). 바뀌는 상태 · 수는 쓰지 않는다.`,
     ...(prior.length ? [SEED_PRIOR_RULE] : []),

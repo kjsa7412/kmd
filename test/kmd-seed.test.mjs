@@ -139,6 +139,15 @@ test('마른 검사 — 구조안 없음 · 덮임 빠짐 · 비밀 의심 재�
   assert.ok(c2.errors.some((e) => e.code === 'src' && /m:0000000000000000/.test(e.why)), '꾸러미에 없는 재료')
   assert.ok(c2.errors.some((e) => e.code === 'format' && /기록 · 이력 링크/.test(e.why)), '글 초안 꼴(작성기준 3절)')
   assert.ok(c2.errors.some((e) => e.code === 'text' && /없는 항목/.test(e.where)))
+  // 재료 소제목 · 끊긴 앵커(채널 평가 4차 shape · real-6b · 6s2 「### 되돌리기」) — 바탕 글 초안은 모두 새 글이라 걸림(작성기준 5-1)
+  fs.writeFileSync(path.join(pack, 'texts', '운영__배포.json'), JSON.stringify({ doc: '운영/배포', items: [{ h: '배포 창', text: '배포 창은 목요일 14:00 이다.\n\n### 되돌리기\n\n1. 앞 판으로 돌린다.' }] }))
+  const c3 = await packCheck(pack)
+  assert.ok(c3.errors.some((e) => e.code === 'format' && /소제목\(### 되돌리기\)/.test(e.why)), JSON.stringify(c3.errors))
+  fs.writeFileSync(path.join(pack, 'texts', '운영__배포.json'), JSON.stringify({ doc: '운영/배포', items: [{ h: '배포 창', text: '배포 창은 목요일 14:00 이다. 막히면 [앞 판 돌리기](#앞-판-돌리기) 를 본다. [되돌리기](#되돌리기)' }] }))
+  const c4 = await packCheck(pack)
+  const anc = c4.errors.filter((e) => e.code === 'format' && /끊긴 앵커/.test(e.why))
+  assert.equal(anc.length, 1, JSON.stringify(c4.errors))
+  assert.match(anc[0].why, /#앞-판-돌리기/, '이 문서의 항목 머리에 닿는 앵커(#되돌리기)는 걸리지 않는다')
   assert.ok(!c2.errors.some((e) => e.code === 'secret' || e.code === 'coverage'), JSON.stringify(c2.errors))
   // 다 고침
   plan.docs[2].items[0].src = [s('스캔/서약서.pdf')]
@@ -196,6 +205,9 @@ test('프롬프트 — 카드 · 구조안 · 글에 작성기준(좋은 예 · 
   assert.match(text, /좋은 예/)
   assert.match(text, /나쁜 예/)
   assert.match(text, /배포 창/)
+  const { SEED_TEXT_LINE } = await import('../core/shape.js')
+  assert.ok(text.includes(SEED_TEXT_LINE), '재료 소제목 줄(화면 길과 같은 상수)')
+  assert.ok(!card.includes(SEED_TEXT_LINE) && !promptOf(P, 'plan').includes(SEED_TEXT_LINE), '글 초안에만 싣는다')
   assert.throws(() => promptOf(P, 'text', { doc: '없음' }), /구조안에 없는 문서/)
   // 부르는 꼴(채널 평가 T10 ⑦): check 는 스크립트 절대 경로 한 줄 · cd · ls · mkdir 없음 · 폴더는 이미 있다
   const { SEED_SCRIPT, seedCheckCmd } = await import('../core/survey.js')

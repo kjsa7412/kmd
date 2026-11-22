@@ -423,6 +423,23 @@ test('글 짓기 세션: 작은 재료는 첫 말에 싣고 크면 md/ 를 읽�
     assert.doesNotMatch(p, /<<< md\//)
   }
   assert.equal(seedInlineOk([{ file: 'b.md', text: '값은 a >>> b 처럼 줄 가운데면 괜찮다' }]), true, '줄 머리만 본다')
+  // 재료 소제목 줄(채널 평가 4차 shape) — 세션 꾸러미와 같은 상수
+  const { SEED_TEXT_LINE } = await import('../core/shape.js')
+  assert.ok(small.includes(SEED_TEXT_LINE) && big.includes(SEED_TEXT_LINE))
+  assert.ok(!shapeWritePromptOf({ doc: 'a', sources: [], targets: [{ doc: 'a', h: '수집기' }] }).includes(SEED_TEXT_LINE), '짜임 다시 잡기 글 짓기에는 싣지 않는다')
+  assert.ok(shapeWritePromptOf({ kind: 'seed', doc: 'a', sources: [], targets: [{ doc: 'a', h: '수집기' }] }).includes(SEED_TEXT_LINE), '일감 길(shape-write kind seed)도 같은 줄')
+})
+
+// 바탕 세우기 글 초안 검사(작성기준 5-1 · 세션 꾸러미 check · 화면 길 고쳐 받기 같은 함수)
+test('글 초안 검사: 재료 소제목 · 끊긴 앵커는 걸림 · 울타리 · 코드 · 항목 머리 앵커는 지나간다', async () => {
+  const { seedTextProblems } = await import('../core/shape.js')
+  const heads = ['배포 절차', '되돌리기 창']
+  assert.deepEqual(seedTextProblems('배포는 목요일이다.\n\n1. 빌드한다.\n1.1. 올린다.', { heads }), [])
+  const p = seedTextProblems('앞\n### 되돌리기\n1. 돌린다.\n#### 확인\n[되돌리기](#되돌리기) · [창](#되돌리기-창) · [절차](#%EB%B0%B0%ED%8F%AC-%EC%A0%88%EC%B0%A8)', { heads })
+  assert.deepEqual(p.map((x) => x.line), [2, 4, 5], JSON.stringify(p))
+  assert.match(p[0].what, /소제목\(### 되돌리기\)/)
+  assert.match(p[2].what, /끊긴 앵커\(#되돌리기\)/)
+  assert.deepEqual(seedTextProblems('```\n### 코드 안\n[x](#없음)\n```\n`[y](#없음)` · [바깥](https://a.b/#없음) · [문서](운영.md#없음) · [화면](#/kn/a)', { heads }), [], '울타리 · 코드 · 다른 문서 · 바깥 · 화면 주소는 보지 않는다')
 })
 
 // 채널 평가 이어서: 바탕 글 짓기 세션만 summary 를 꼭 낸다(빼먹으면 no-summary 로 고쳐 받았다) · 팀 합치기 · 나누기 스키마는 그대로
