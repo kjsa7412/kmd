@@ -210,3 +210,26 @@ test('개인 프로그램에는 올리기 길이 없다(404)', async () => {
     assert.equal(r.status, 404)
   } finally { await pc.close() }
 })
+
+test('24시간 지난 올린 원본은 걷기 전이라도 풀지 않는다(E_INPUT) · 지식을 지우면 stage/<지식> 도 같이 지운다', async () => {
+  const name = '테스트 올림 3.docx'
+  const buf = docx('배포 창', '배포는 화요일 3시에 한다.')
+  const F = await fileOf(name, buf)
+  const up = await put(P.wr, buf)
+  assert.equal(up.status, 200)
+  const f = path.join(homeOf('wr'), up.sha)
+  const t = new Date(Date.now() - 25 * 3600_000)
+  fs.utimesSync(f, t, t)
+  const p = await proposeOk(bulkInput(3, F.tags))
+  const r = await mcp('save', { knowledge: KN, proposal: p.proposal, kit: KIT, attach: [{ path: `docs/assets/${name}`, ref: up.j.ref }] })
+  assert.equal(r.error, 'E_INPUT', JSON.stringify(r))
+  assert.match(r.message, /올린 원본이 없다/)
+  assert.ok(fs.existsSync(f), '걷기 전이라 파일은 있지만 풀지 않았다')
+  // 지식 지우기
+  const home = path.join(stageRoot(), encodeURIComponent(KN))
+  assert.ok(fs.existsSync(home))
+  const sh = { user: 'boss', admin: true, shell: true }
+  const meta = await s.hub.meta(KN, sh)
+  await s.hub.deleteKnowledge(sh, KN, { confirm: meta.name })
+  assert.ok(!fs.existsSync(home), '지식을 지우면 올린 원본 자리도 지운다')
+})

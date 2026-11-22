@@ -182,3 +182,22 @@ test('kmd-parse --upload: 원본을 PUT 으로 올리고 atts 에 ref · 열쇠�
     fs.rmSync(d, { recursive: true, force: true })
   }
 })
+
+test('uploadAuth: .mcp.json 의 kmd-team 주소와 --upload 주소가 다르면 why 를 돌려주고 헤더 도우미를 부르지 않는다', async () => {
+  const { uploadAuth } = await import('../server/bin/kmd-parse.mjs')
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-parse-auth-'))
+  try {
+    const mark = path.join(d, 'called')
+    const helper = path.join(d, 'helper.mjs')
+    fs.writeFileSync(helper, `import fs from 'node:fs'\nfs.writeFileSync(${JSON.stringify(mark)}, '1')\nprocess.stdout.write(JSON.stringify({ Authorization: 'Bearer x' }))\n`)
+    fs.writeFileSync(path.join(d, '.mcp.json'), JSON.stringify({ mcpServers: { 'kmd-team': { type: 'http', url: 'http://10.0.0.9:8090/mcp', headersHelper: `"${process.execPath}" "${helper}"` } } }))
+    const r = uploadAuth({ origin: 'http://127.0.0.1:1', cwd: d, env: {} })
+    assert.match(r.why, /주소와 다르다/)
+    assert.equal(r.header, undefined)
+    assert.ok(!fs.existsSync(mark), '주소가 다르면 도우미를 부르지 않는다(열쇠를 꺼내지 않는다)')
+    // 같은 주소면 도우미를 부른다(대조군)
+    const ok = uploadAuth({ origin: 'http://10.0.0.9:8090', cwd: d, env: {} })
+    assert.equal(ok.header, 'Bearer x')
+    assert.ok(fs.existsSync(mark))
+  } finally { fs.rmSync(d, { recursive: true, force: true }) }
+})

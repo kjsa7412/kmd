@@ -312,15 +312,17 @@ ${genRulesBlock({ profile: 'shape' })}`
   const STAGE_TTL = 24 * 3600_000
   const STAGE_SHA = /^[0-9a-f]{64}$/
   const stageHome = (id, user) => path.join(STAGE_DIR, encodeURIComponent(id), crypto.createHash('sha256').update('user:' + String(user || '')).digest('hex').slice(0, 16))
-  // 폴더 아래 파일 크기 합 · 24시간 지난 파일 걷기(실패는 log · 던지지 않는다)
-  async function stageWalk(dir, { sweep = false } = {}) {
+  // 폴더 아래 파일 크기 합 · 24시간 지난 파일 걷기(실패는 log · 던지지 않는다).
+  //   acc 를 주면 한 번 걸어 합(all)과 home 아래 합(mine)을 같이 센다(올리기 한 번에 STAGE_DIR 을 한 번만 걷는다)
+  async function stageWalk(dir, { sweep = false, home = null, acc = null, under = false } = {}) {
     let bytes = 0
     const ents = await fs.readdir(dir, { withFileTypes: true }).catch((e) => (e.code === 'ENOENT' ? [] : (log(`올린 원본 자리를 읽지 못했다 ${dir}: ${e.message}`), [])))
     for (const e of ents) {
       const f = path.join(dir, e.name)
       if (e.isDirectory()) {
-        bytes += await stageWalk(f, { sweep })
-        if (sweep) await fs.rmdir(f).catch(() => {}) // 빈 폴더만 지워진다
+        bytes += await stageWalk(f, { sweep, home, acc, under: under || (!!home && samePath(f, home)) })
+        // 빈 폴더만 지워진다(ENOTEMPTY · ENOENT 는 예상한 일 · 그 밖은 log)
+        if (sweep) await fs.rmdir(f).catch((x) => { if (x.code !== 'ENOTEMPTY' && x.code !== 'ENOENT' && x.code !== 'EEXIST') log(`올린 원본 빈 폴더 걷기 ${f}: ${x.message}`) })
         continue
       }
       const st = await fs.lstat(f).catch(() => null)
@@ -330,6 +332,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         continue
       }
       bytes += st.size
+      if (acc) { acc.all += st.size; if (under) acc.mine += st.size }
     }
     return bytes
   }
@@ -348,9 +351,11 @@ ${genRulesBlock({ profile: 'shape' })}`
   //   검사: lstat(보통 파일만) · realpath 가 기대한 자리 그대로(심볼릭 · junction 으로 다른 곳을 가리키면 거절) · 읽은 바이트의 sha256 을 다시 셈(바꿔치기 거절) · 32MB 안.
   //   → { attach: [{ path, b64 }…], used: [올린 자리 파일], via: { b64, ref, b64Kb } } · 풀린 항목은 { path, b64 } 라 core/save.js · bulkProof 는 그대로
   const samePath = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b)
-  async function stageFile(want, base) {
+  // ttl 을 주면 그보다 오래된 파일(걷기 전이라도)은 없는 것으로 친다(기준 문서의 「24시간 둔다」 와 같게)
+  async function stageFile(want, base, { ttl = 0 } = {}) {
     const st = await fs.lstat(want).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
     if (!st) return null
+    if (ttl && Date.now() - st.mtimeMs > ttl) return null
     if (!st.isFile()) throw new KmdError('E_INPUT', '첨부 원본 자리가 보통 파일이 아니다(심볼릭 · 폴더는 받지 않는다 · 아무것도 쓰지 않았다)')
     const realBase = await fs.realpath(base).catch(() => null)
     const real = await fs.realpath(want).catch(() => null)
@@ -379,7 +384,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const p = assetPath(meta.dir, a.path)
       const home = stageHome(meta.id, ctx.user)
       const mine = path.join(home, m[1])
-      let buf = await stageFile(mine, STAGE_DIR)
+      let buf = await stageFile(mine, STAGE_DIR, { ttl: STAGE_TTL })
       let from = buf ? mine : null
       if (buf && crypto.createHash('sha256').update(buf).digest('hex') !== m[1]) throw new KmdError('E_INPUT', '올린 원본이 그 sha256 과 다르다(바뀐 파일 · 아무것도 쓰지 않았다): kmd-parse 를 그 파일만 다시 돌린다')
       if (!buf) {
@@ -6044,21 +6049,26 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (crypto.createHash('sha256').update(buf).digest('hex') !== sha) throw new KmdError('E_INPUT', '받은 바이트의 sha256 이 올릴 자리와 다르다(아무것도 두지 않았다)')
       const home = stageHome(meta.id, ctx.user)
       const want = path.join(home, sha)
-      const have = await stageFile(want, STAGE_DIR).catch(() => null)
+      // 한도 셈과 쓰기는 한 줄(serial): 같은 사람이 동시에 여러 개 올려도 같은 합을 보고 함께 넘지 않는다
+      return serial('stage:' + path.resolve(STAGE_DIR), async () => {
+      // 멱등 확인: 내 자리 파일이 심볼릭 · 제자리 밖이거나 읽지 못하면 log 를 남기고 덮어쓴다
+      const have = await stageFile(want, STAGE_DIR).catch((e) => { log(`올린 원본 멱등 확인 ${id}: ${e.message}`); return null })
       if (have && have.equals(buf)) {
         const now = new Date()
         await fs.utimes(want, now, now).catch((e) => log(`올린 원본 때를 고치지 못했다 ${id}: ${e.message}`))
         return { ref: `sha256:${sha}`, bytes: buf.length, same: true }
       }
-      await stageSweep()
-      const mine = await stageWalk(home)
+      // 한 번 걸어 24시간 지난 것을 걷고 · 내 자리 합(mine)과 서버 합(all)을 같이 센다
+      const acc = { all: 0, mine: 0 }
+      await stageWalk(STAGE_DIR, { sweep: true, home, acc }).catch((e) => log(`지난 올린 원본 걷기: ${e.message}`))
+      const { mine, all } = acc
       const cap = config.stageMax ?? 200 << 20
       if (mine + buf.length > cap) throw new KmdError('E_RATE', `이 지식에 올려 둔 원본 합(${Math.round(cap / 1048576)}MB)을 넘는다. 넣은 뒤(저장이 올린 원본을 지운다) 또는 24시간 뒤 다시 올린다`, { details: { retryAfter: 3600 } })
-      const all = await stageWalk(STAGE_DIR)
       const capAll = config.stageTotal ?? 2 * 1024 ** 3
       if (all + buf.length > capAll) throw new KmdError('E_RATE', `팀 서버에 올려 둔 원본 합(${Math.round(capAll / 1048576)}MB)을 넘는다. 잠시 뒤 다시 올린다`, { details: { retryAfter: 3600 } })
       await writeFileAtomic(want, buf, { encoding: null })
       return { ref: `sha256:${sha}`, bytes: buf.length }
+      })
     },
     stageHome: (id, user) => stageHome(id, user),
     async readKey(ctx, kn) {
