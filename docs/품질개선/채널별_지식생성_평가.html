@@ -174,7 +174,7 @@ footer code{font:12px var(--mono);word-break:break-all}
 </header>
 
 <nav class="toc" aria-label="차례">
-  <a href="#s1">1 요약</a><a href="#s2">2 채널</a><a href="#cost">비용 · 시간</a><a href="#s3">3 제품 결함</a><a href="#s4">4 시험 도구</a><a href="#s5">5 품질 묶음</a><a href="#s6">6 줄일 거리</a><a href="#s7">7 다음 측정</a><a href="#after">개선 뒤</a><a href="#after2">시간 줄이기 뒤</a><a href="#after3">시간 줄이기 2차</a><a href="#after4">시간 줄이기 3차</a><a href="#left">남은 것</a>
+  <a href="#s1">1 요약</a><a href="#s2">2 채널</a><a href="#cost">비용 · 시간</a><a href="#s3">3 제품 결함</a><a href="#s4">4 시험 도구</a><a href="#s5">5 품질 묶음</a><a href="#s6">6 줄일 거리</a><a href="#s7">7 다음 측정</a><a href="#after">개선 뒤</a><a href="#after2">시간 줄이기 뒤</a><a href="#after3">시간 줄이기 2차</a><a href="#after4">시간 줄이기 3차</a><a href="#after5">품질 다지기 4차</a><a href="#left">남은 것</a>
 </nav>
 
 <!-- 1 -->
@@ -1265,6 +1265,120 @@ footer code{font:12px var(--mono);word-break:break-all}
     <div class="card"><span class="tag warn">T14 edits</span><div>polish 결함 고침 5/6(백틱 안 한국어 문장) · 고친 뒤 판은 6c 한 판 · edit-source 출력 차 1.32배(기준 1.3배)<br>4차 바로잡음: 6c 는 점수기 거짓 걸림(짝과 짝 사이 맨글)이라 잣대를 백틱 짝 안만 보게 고쳐 다시 세면 6/6 · real-6 · 6b 5/6 · real-5 · 5b 4/6 그대로 · 6 · 6b 는 프롬프트와 고쳐 받기 꼬리를 고침(real-7 · 7b 로 확인할 몫) · edit-source 1.32배는 판 흔들림(같은 판 바탕 차례 1.45배)이라 기준을 「바탕 차례 흔들림 이하」 로 바꿈</div></div>
     <div class="card"><span class="tag warn">품질</span><div>kmd-seed 글 초안이 원본 <code>##</code> 소제목을 그대로 옮김(6s1 · 6c) · shape-restructure F1 0.83 ~ 0.88 · pc-intake 성격 흔들림<br>4차(<code>b0626bb</code>): 바탕 글 초안 세 길에 같은 프롬프트 줄 · 새로 쓴 <code>###</code> · 끊긴 <code>#앵커</code> 는 고쳐 받기 걸림(저장 검사 · 넣기 재확인은 그대로 알림) · 실제 판 확인은 남음 · shape-restructure 는 채점 바로잡음(위 흔들림 칸)</div></div>
     <div class="card"><span class="tag">확인</span><div>바탕 행 +5% 는 고침이 닿지 않는 길의 흔들림 · C2 판정(하지 않는다) 그대로 · push 와 188 배포는 하지 않음(188 은 <code>cc1307d</code>)</div></div>
+  </div>
+</section>
+
+<section id="after5">
+  <h2>품질 다지기 4차 뒤 (real-7q1 · 7q2 · 7q3 · real-7)</h2>
+  <p class="h2sub">사람이 고른 셋 가운데 1 · 2 는 실측으로 확인, 3(188 대량 넣기 · 문서 들이기)은 시험 지식이 서버에 없어 돌리지 못함. polish 결함 고침 네 판 6/6 · 고쳐 받기 0, kmd-seed 넣은 지식의 옮긴 소제목 0, shape-restructure F1 0.9565 ~ 1. 회귀 판 real-7 은 3차 평균과 같은 수준(시간 +3.6% · 비용 -2.0% · F1 0.960).</p>
+  <p class="note">HEAD <code>4f40519</code> · sonnet. 걸린 네 채널(polish · edit-source · kmd-seed · shape-restructure) 세 번(q1 · q2 · q3) · 17 채널 한 번(real-7) · 가짜 전 채널 fake-t4(넘어짐 0). 실측 동안 코드는 고치지 않음. $ · 초는 바탕 행을 뺀 채널 몫 · F1 은 지금 채점.</p>
+
+  <div class="grid kpi">
+    <div class="card k pri"><div class="l">채널 몫 시간</div><div class="n">37.8 → 39.2분</div><div class="d">3차 평균 대비 +3.6% · real-1 47.5분 대비 -17.6%</div></div>
+    <div class="card k pri"><div class="l">채널 몫 $</div><div class="n">7.17 → 7.03</div><div class="d">3차 평균 대비 -2.0% · real-1 8.61 대비 -18.4%</div></div>
+    <div class="card k pri"><div class="l">F1 평균 (16 채널)</div><div class="n">0.957 → 0.960</div><div class="d">real-1 0.832 대비 +0.128</div></div>
+    <div class="card k pri"><div class="l">다듬기 검출</div><div class="n">5/6 → 6/6</div><div class="d">네 판 모두 6/6 · 고쳐 받기 0</div></div>
+  </div>
+
+  <h3>원인 → 고친 것</h3>
+  <div class="fixrow">
+    <div class="card"><span class="tag warn">원인</span><ul class="tight">
+      <li>1 polish 5/6: 6c 는 점수기 거짓 걸림(짝과 짝 사이 맨글) · 6 · 6b 는 고쳐 받기 꼬리 「값은 옛 글 그대로」 가 백틱으로 되돌림</li>
+      <li>1 edit-source 1.32배: 판 흔들림(같은 판 바탕 차례 1.45배 · 결과 같음)</li>
+      <li>2 kmd-seed: 바탕에 지금 글이 없는데 <code>WRITE_RULES</code> 「### 은 그대로」 · 걸림 말 「### 아래로」 · check 는 # · ## 만</li>
+      <li>2 shape-restructure: 세 판 모두 표 꼴 「재전송 주기 | 1분」 채점 오탐(3차 고침 탓 아님)</li>
+      <li>3 188: 허락받은 시험 지식이 서버에 없음</li></ul></div>
+    <div class="card"><span class="tag pri">고친 것</span><ul class="tight">
+      <li><code>0a4244a</code> · <code>1b51d39</code> 점수기 span(백틱 짝 안만) · <code>repolishRun</code> · 다듬기 백틱 줄 · <code>polishFixPromptOf</code> · edit-source 기준 「바탕 차례 흔들림 이하」 · <code>plainHas</code> 한글 경계</li>
+      <li><code>b0626bb</code> · <code>1a5e664</code> · <code>4f40519</code> 걸림 말 · <code>SEED_TEXT_LINE</code> 세 길 · <code>seedTextProblems</code> 세 길 고쳐 받기(저장 검사 · 넣기 재확인은 그대로) · 재전송 정규식 하나만 넓힘</li>
+      <li>188: 쓰지 않음 · 열쇠 만들지 않음</li></ul></div>
+  </div>
+
+  <h3>걸린 채널 세 판</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>볼 것</th><th>q1</th><th>q2</th><th>q3</th><th>real-7</th><th>견줌</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">polish 결함 고침</td><td class="num">6/6</td><td class="num">6/6</td><td class="num">6/6</td><td class="num">6/6</td><td>real-6 · 6b 5/6</td></tr>
+      <tr><td class="ch">polish 고쳐 받기</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td>real-6 · 6b 1 · 1</td></tr>
+      <tr><td class="ch">polish 들어감</td><td class="num">2/2</td><td class="num">1/2</td><td class="num">1/2</td><td class="num">1/2</td><td>1/2 는 결함 없는 둘째 문서 「고칠 것이 없다」</td></tr>
+      <tr><td class="ch">edit-source 출력 토큰</td><td class="num">5134</td><td class="num">4024</td><td class="num">3205</td><td class="num">4252</td><td>최대/최소 1.60배</td></tr>
+      <tr><td class="ch">같은 HEAD 바탕 차례 출력</td><td class="num">5041</td><td class="num">17536</td><td class="num">7383</td><td class="num">6216</td><td>흔들림 3.48배</td></tr>
+      <tr><td class="ch">edit-source F1 · 고쳐 받기 · 초</td><td class="num">1 · 0 · 89</td><td class="num">1 · 0 · 75</td><td class="num">1 · 0 · 60</td><td class="num">1 · 0 · 79</td><td>평균 74.7초</td></tr>
+      <tr><td class="ch">kmd-seed 넣은 지식 원본 소제목</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td>real-6b · 6s2 1</td></tr>
+      <tr><td class="ch">kmd-seed 첫 초안 원본 소제목</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td>check 가 잡아 한 번 고침</td></tr>
+      <tr><td class="ch">kmd-seed F1</td><td class="num">1</td><td class="num">1</td><td class="num">0.963</td><td class="num">0.963</td><td></td></tr>
+      <tr><td class="ch">shape-restructure F1</td><td class="num">1</td><td class="num">0.9565</td><td class="num">0.9565</td><td class="num">0.9565</td><td>2차 수준 · 3차 옛 채점 0.833 · 0.88</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">edit-source: 옛 기준 1.3배로는 넘음(1.60배) · 바꾼 기준 「같은 HEAD 바탕 차례 흔들림 이하」 로는 넘지 않음(1.60 대 3.48배). kmd-seed: 프롬프트 줄만으로는 첫 초안의 <code>###</code> 을 막지 못하고 check · 고쳐 받기가 막음.</p>
+
+  <h3>회귀 판 채널 표 (real-6 평균 → real-7)</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>채널</th><th>초</th><th>Δ초</th><th>$</th><th>Δ$</th><th>들어감</th><th>F1</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">intake-file</td><td class="num">273 → 196</td><td class="num">-28%</td><td class="num">0.686 → 0.550</td><td class="num">-20%</td><td class="num">2/2</td><td class="num">0.952</td></tr>
+      <tr><td class="ch">intake-commit</td><td class="num">61 → 62</td><td class="num">+2%</td><td class="num">0.400 → 0.406</td><td class="num">+2%</td><td class="num">2/2</td><td class="num">1</td></tr>
+      <tr><td class="ch">intake-src</td><td class="num">269 → 414</td><td class="num">+54%</td><td class="num">0.837 → 1.008</td><td class="num">+20%</td><td class="num">3/4</td><td class="num">1</td></tr>
+      <tr><td class="ch">polish</td><td class="num">142 → 82</td><td class="num">-42%</td><td class="num">0.451 → 0.259</td><td class="num">-43%</td><td class="num">1/2</td><td class="num">1</td></tr>
+      <tr><td class="ch">shape</td><td class="num">243 → 261</td><td class="num">+7%</td><td class="num">0.684 → 0.696</td><td class="num">+2%</td><td class="num">1/1</td><td class="num">0.88</td></tr>
+      <tr><td class="ch">shape-folder</td><td class="num">5 → 6</td><td class="num">+1초</td><td class="num">0 → 0</td><td class="num">-</td><td class="num">1/1</td><td class="num">0.696</td></tr>
+      <tr><td class="ch">shape-pc</td><td class="num">171 → 148</td><td class="num">-14%</td><td class="num">0.525 → 0.482</td><td class="num">-8%</td><td class="num">1/1</td><td class="num">0.963</td></tr>
+      <tr><td class="ch">shape-restructure</td><td class="num">69 → 63</td><td class="num">-9%</td><td class="num">0.206 → 0.144</td><td class="num">-30%</td><td class="num">1/1</td><td class="num">0.957</td></tr>
+      <tr><td class="ch">send</td><td class="num">123 → 99</td><td class="num">-20%</td><td class="num">0.316 → 0.292</td><td class="num">-8%</td><td class="num">2/2</td><td class="num">1</td></tr>
+      <tr><td class="ch">session</td><td class="num">131 → 187</td><td class="num">+43%</td><td class="num">0.564 → 0.635</td><td class="num">+13%</td><td class="num">2/2</td><td class="num">0.952</td></tr>
+      <tr><td class="ch">bulk</td><td class="num">287 → 182</td><td class="num">-36%</td><td class="num">0.641 → 0.467</td><td class="num">-27%</td><td class="num">1/1</td><td class="num">1</td></tr>
+      <tr><td class="ch">http</td><td class="num">1 → 1</td><td class="num">0초</td><td class="num">0 → 0</td><td class="num">-</td><td class="num">2/2</td><td class="num">1</td></tr>
+      <tr><td class="ch">edit</td><td class="num">1 → 2</td><td class="num">+1초</td><td class="num">0 → 0</td><td class="num">-</td><td class="num">3/7(거절 4 기대)</td><td class="num">1</td></tr>
+      <tr><td class="ch">edit-source</td><td class="num">78 → 79</td><td class="num">+1%</td><td class="num">0.257 → 0.248</td><td class="num">-3%</td><td class="num">1/1</td><td class="num">1</td></tr>
+      <tr><td class="ch">pc-intake</td><td class="num">110 → 238</td><td class="num">+116%</td><td class="num">0.272 → 0.463</td><td class="num">+71%</td><td class="num">1/1</td><td class="num">1</td></tr>
+      <tr><td class="ch">kmd-migrate</td><td class="num">144 → 138</td><td class="num">-4%</td><td class="num">0.428 → 0.397</td><td class="num">-7%</td><td class="num">0/1</td><td class="num">재지 않음</td></tr>
+      <tr><td class="ch">kmd-seed</td><td class="num">162 → 191</td><td class="num">+18%</td><td class="num">0.903 → 0.978</td><td class="num">+8%</td><td class="num">1/1</td><td class="num">0.963</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">길어진 intake-src(이번 판 고쳐 받기 1) · session · pc-intake(차례 5 → 8)는 4차 고침이 닿지 않는 길의 한 판 흔들림 · 들어감 · F1 은 같거나 나음. kmd-migrate 0/1 은 DROP_REVIEW(사라지는 문장 1곳)가 맞게 막은 것(real-6b 도 같음). shape 0.88 은 real-6b 와 같은 흔들림 범위(빠짐 0 · 자리 0.857).</p>
+
+  <h3>합계 (채널 몫 시간)</h3>
+  <div class="card">
+    <div class="wf" role="img" aria-label="채널 몫 시간 real-1 2849초, 3차 평균 2267초, real-7 2349초">
+      <div class="wr"><span>real-1</span><div class="tr"><i class="w-tot" style="left:0;width:95.0%"></i></div><span class="v">2849초</span></div>
+      <div class="wr"><span>3차 평균</span><div class="tr"><i class="w-mod" style="left:0;width:75.6%"></i></div><span class="v">2267초</span></div>
+      <div class="wr"><span>real-7</span><div class="tr"><i class="w-dn" style="left:0;width:78.3%"></i></div><span class="v">2349초</span></div>
+    </div>
+    <div class="tblwrap" style="margin-top:12px"><table>
+      <thead><tr><th></th><th>real-1</th><th>3차 평균</th><th>real-7</th><th>Δ real-1 · 3차</th></tr></thead>
+      <tbody>
+        <tr><td>채널 몫 시간</td><td class="num">2849초</td><td class="num">2267초</td><td class="num"><b>2349초(39.2분)</b></td><td class="num">-17.6% · +3.6%</td></tr>
+        <tr><td>채널 몫 $</td><td class="num">8.608</td><td class="num">7.168</td><td class="num"><b>7.025</b></td><td class="num">-18.4% · -2.0%</td></tr>
+        <tr><td>바탕 시간 · $</td><td class="num">1670초 · 3.716</td><td class="num">1822초 · 4.199</td><td class="num">1904초 · 4.233</td><td class="num">+14.0% · +4.5%</td></tr>
+        <tr><td>바탕 포함 시간</td><td class="num">4519초</td><td class="num">4089초</td><td class="num"><b>4253초(70.9분)</b></td><td class="num">-5.9% · +4.0%</td></tr>
+        <tr><td>바탕 포함 $</td><td class="num">12.324</td><td class="num">11.366</td><td class="num"><b>11.258</b></td><td class="num">-8.6% · -1.0%</td></tr>
+        <tr><td>F1 평균(16)</td><td class="num">0.832</td><td class="num">0.957</td><td class="num"><b>0.960</b></td><td class="num">+0.128 · +0.003</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">3차 대비 +3.6% 는 세 채널(intake-src · session · pc-intake) 몫. 셋을 빼면 14 채널 합 1757 → 1510초. API 밖 109 → 128초는 부하 탐침이 조금 높았던 몫(부하 표시 행 0). 차례 141 · 146 → 137.</p>
+  </div>
+
+  <h3>188 실제 확인</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>단계</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">1 문서 들이기</td><td><span class="tag warn">하지 않음</span> 시험 지식 없음</td></tr>
+      <tr><td class="ch">2 대량 넣기(원본 올리기 + 참조 첨부)</td><td><span class="tag warn">하지 않음</span> 시험 지식 없음</td></tr>
+      <tr><td class="ch">3 권한 확인</td><td><span class="tag warn">하지 않음</span> 열쇠를 만들 까닭 없음</td></tr>
+      <tr><td class="ch">4 남긴 것</td><td>없음 · 서버에 쓰지 않음</td></tr>
+    </tbody>
+  </table></div>
+  <div class="left">
+    <div class="card"><span class="tag warn">원인</span><div>허락받은 시험 지식 「테스트 하네스 확인」 이 없음. <code>/srv/kmd</code> 는 dpms · gdi 뿐 · 서버 로그로 11-17 18:26 다시 켠 뒤 「지식 3 → 2」 · 그 시각 audit 없음(셸에서 폴더를 걷은 것으로 보임 · 누가 했는지는 확인 안 함) · 서버에 되살릴 사본 없음</div></div>
+    <div class="card"><span class="tag">서버 상태</span><div>build <code>0.1.0-20261122-1629</code>(<code>10b30e6</code> 판 · stageWalk 4) · kmd · kmd-worker 돎 · 도는 일 없음 · 운영 지식 dpms · gdi 에는 쓰지 않음</div></div>
+    <div class="card"><span class="tag info">열쇠</span><div>새 열쇠 없음. 11-17 임시 열쇠 <code>347c99efe076</code>(「셸」)이 남아 있음 · 손대지 않음 · 회수는 화면 사람 › 기기 또는 <code>POST /api/me/devices/revoke</code>(셸 CLI 에 기기 하나 끊는 명령 없음)</div></div>
+  </div>
+
+  <h3>남은 것</h3>
+  <div class="left">
+    <div class="card"><span class="tag bad">사람 결정</span><div>188 대량 넣기 · 들이기: 시험 지식을 새로 세울지(총괄 관리자가 세우고 쓰기 자리) 또는 되살릴 사본을 알려 줄지 · 정하면 임시 열쇠 → 들이기 → 대량 넣기 → 권한 확인 → 열쇠 회수(T16) · 11-17 임시 열쇠 회수(T17)</div></div>
+    <div class="card"><span class="tag warn">품질</span><div>kmd-seed 첫 초안의 <code>###</code>(네 판 모두 · check 가 막음 · T15) · 회의 항목의 버린 안(까닭 모름 · 옮길지는 사람이 정함)</div></div>
+    <div class="card"><span class="tag">확인</span><div>intake-src · session · pc-intake 한 판 길어짐은 다음 판에서 다시 봄 · C2 판정(하지 않는다) 그대로 · push 안 함 · 188 은 <code>10b30e6</code> 판(4차 고침 배포 전)</div></div>
   </div>
 </section>
 
