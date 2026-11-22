@@ -386,6 +386,8 @@ export function makeMcp(store) {
       let old = oldOf(args)
       const bare = record == null && sections == null && names == null && forms == null && natures == null && kinds == null && distinct == null && excluded == null && !Object.keys(old).length
       if (bare && proposal != null) {
+        // 자리 먼저(T23): 쓰기 자리 없는 사람은 들고 있는 입력을 찾기 전에 E_FORBIDDEN(읽기 미만은 404) · 저장 문도 줄 안에서 다시 본다
+        if (!ctx?.machine && !ctx?.agent) { const k0 = await store.get(knowledge, ctx); store.need(ctx, k0.id, 'write') }
         const got = keptInput(ctx, knowledge, proposal)
         if (!got) throw new KmdError('E_INPUT', '이 proposal 의 제안 입력을 들고 있지 않다(30분이 지났거나 서버가 다시 떴다): propose 에 보낸 입력(record · sections · names …)을 proposal 과 같이 다시 싣는다(아무것도 쓰지 않았다)')
         ;({ record, sections, names, forms, natures, kinds, distinct, excluded } = got)

@@ -447,3 +447,12 @@ test('채널 평가 T10: 개인 프로그램(PC) MCP 도 승인한 제안이면 
     assert.match(fs.readFileSync(path.join(pcRoot, 'apv', 'docs', '배포절차.md'), 'utf8'), new RegExp(`요청의 ${to}% 만`))
   } finally { await pc.close() }
 })
+
+test('T23: 쓰기 자리 없는 사람의 짧은 save(proposal 만) = E_FORBIDDEN(들고 있는 입력을 찾기 전에) · 읽기 미만 지식은 E_NOTFOUND', async () => {
+  const ro = await mcp('save', { knowledge: 'apv', kit: KIT, proposal: { hash: 'x'.repeat(16) } }, P.rd)
+  assert.equal(ro.error, 'E_FORBIDDEN', JSON.stringify(ro))
+  const none = await mcp('save', { knowledge: '없는지식', kit: KIT, proposal: { hash: 'x'.repeat(16) } }, P.rd)
+  assert.equal(none.error, 'E_NOTFOUND', JSON.stringify(none))
+  const wr = await mcp('save', { knowledge: 'apv', kit: KIT, proposal: { hash: 'x'.repeat(16) } }, P.wr)
+  assert.equal(wr.error, 'E_INPUT', '쓰기 자리가 있으면 그대로 「제안 입력을 들고 있지 않다」')
+})

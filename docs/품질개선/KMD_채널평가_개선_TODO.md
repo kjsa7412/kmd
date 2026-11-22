@@ -133,6 +133,7 @@
 | 대량 넣기 188 결함 T18 · T19 · T20 | `5c496b2` | 글 원천은 올린 원본 `source { path, ref }` 로 증명(파서 · 저장 문 · 제안이 같은 판정 `ingestProofWhy`) · 제안도 승인 전에 증명 · `slugOf` 가 원본 확장자를 뗌 · 올린 자리 700 / 600 · 스킬 판 22 · 시험 stage · approve · parse · save · teamkit 52/52 |
 | T18 ~ T20 검토 지적 고침 | `98d27ca` | 첨부도 `ingest/` 경로와 대 봄 · NFC · 원본 없음은 다시 설치 안내 · 대량 넣기 밖 제안의 attach 는 버림 · 글 원천 쓰기 자리 없음은 E_FORBIDDEN · same 다시 올림도 모드 좁힘 · MCP propose attach 모양 · 설명서 · 서비스 문서 · 평가 도구 프롬프트 · 스킬(같은 내용 파일) · 판 22 해시 · 188 확인은 배포 뒤 |
 | 188 배포 · 다시 확인(사람 「push · 배포 · 확인」) | 이 커밋(보고) · 서버 시험은 커밋 없음 | 188 배포 `98d27ca` · build `0.1.0-20261122-2135` · TEAM_KIT_REV 22(서버 스킬 sha256 로컬과 같음) · 시험 지식 `테스트-대량-넣기` 에서 md · csv 글 원천(source 증명 · 경고 0 · 들어감 · `83ee95c` · `784a9dd`) · docx 첨부 회귀(`aa523c3` · sha256 같음) · 기록 id 끝 확장자 없음 · stage 700 / 600 · 저장 뒤 파일 지워짐 · 원본 없는 제안 E_INPUT + 다시 설치 안내 · test-read propose · save E_FORBIDDEN · stage PUT 403 · 임시 열쇠 둘(`847f30a44ece` · `d5ddfaab330d`) 끊음 · 401 · 평문 0 · dpms · gdi 그대로 · 독립 확인 어긋남 없음 · 새 작은 결함 T23 |
+| T23 쓰기 자리 먼저(사람 「T23 도 고쳐서 진행」) | 이 커밋 | MCP save 의 짧은 save(proposal 만)에서 쓰기 자리를 들고 있는 입력보다 먼저 본다 · 시험 approve T23 · 188 배포는 하지 않음 |
 
 ## 7. 다시 재기 뒤 남은 것(T1 ~ T23)
 
@@ -174,7 +175,7 @@ real-1 → 최종 판(real-2 · real-2b · real-3)에서 채널 몫 비용은 $8
 - [x] **T20 (작음) 올린 원본 자리 권한.** (끝남(2026-11-22 · `5c496b2` · 검토 뒤 고침은 그다음 커밋): `stagePut` 이 폴더 700(이미 있는 stage · 지식 · 사람 폴더도 좁힘) · 파일 600 · 같은 원본을 다시 올린 same 도 파일 · 폴더를 좁힌다 · 시험 stage(POSIX 만 단언 · 이 PC 는 Windows 라 건너뜀). 188 확인(2026-11-22 · 배포 `98d27ca`): 올린 직후 stage · 지식 · 사람 폴더 700 · 파일 600(소유 kmd) · 앞 판에서 남은 stage 최상위 755 는 첫 올림 때 700 으로 좁혀짐 · 저장 뒤 파일 지워지고 빈 폴더(700)만 남음.) 188 `/srv/kmd/.kmd/stage/<지식>/<사람>/` 폴더 755 · 파일 644 라 다른 OS 사용자가 읽는다. 어떻게: `stagePut` 의 `writeFileAtomic` 모드 600 · mkdir 모드 700. 끝남 기준: stage 시험에서 모드 확인(Windows 는 건너뜀).
 - [ ] **T21 (알림) 새 지식의 guard 한 건.** 새 지식은 처음부터 기본 `처음 › 개요` 가 「장부에 없는 항목」 1 로 잡힌다. 설계상 그대로일 수 있어 정하고(빼거나 장부에 올림) 기준 문서에 적는다.
 - [ ] **T22 (관찰) 첨부 원본을 가리키는 링크 없음.** 188 에서 `docs/assets/테스트 장비 목록.docx` 는 들어갔지만 문서 · 기록 어디에도 `assets/` 링크가 없다(기록에는 「- 파일 테스트 장비 목록.docx」 글만). 의도인지 정하고, 가리키게 하면 작성기준 링크 꼴(문서 · 항목 · 바깥)에 첨부를 더할지 함께 정한다.
-- [ ] **T23 (작음) 쓰기 자리 없는 사람의 짧은 save 가 E_FORBIDDEN 이 아니라 E_INPUT.** 188 다시 확인(2026-11-22)에서 test-read(읽기 자리)가 proposal 만 실은 save 를 보내면 「제안 입력을 들고 있지 않다」(E_INPUT) 가 온다. 아무것도 쓰이지 않아 보안 문제는 아니다(입력 전체를 실은 save · propose 는 E_FORBIDDEN · stage PUT 은 403). 원인: `server/mcp.js` save(390줄 부근)가 propose 때 들고 있던 입력을 먼저 찾고 쓰기 자리는 그 뒤 `hub.save` 에서 본다. 어떻게: save 에서 들고 있는 입력을 찾기 전에 `hub.need(ctx, kn, 'write')` 를 먼저 본다. 끝남 기준: 읽기 자리 열쇠의 proposal 만 실은 save 가 E_FORBIDDEN · MCP 시험.
+- [x] **T23 (작음) 쓰기 자리 없는 사람의 짧은 save 가 E_FORBIDDEN 이 아니라 E_INPUT.** 188 다시 확인(2026-11-22)에서 test-read(읽기 자리)가 proposal 만 실은 save 를 보내면 「제안 입력을 들고 있지 않다」(E_INPUT) 가 온다. 아무것도 쓰이지 않아 보안 문제는 아니다(입력 전체를 실은 save · propose 는 E_FORBIDDEN · stage PUT 은 403). 원인: `server/mcp.js` save(390줄 부근)가 propose 때 들고 있던 입력을 먼저 찾고 쓰기 자리는 그 뒤 `hub.save` 에서 본다. 어떻게: save 에서 들고 있는 입력을 찾기 전에 `hub.need(ctx, kn, 'write')` 를 먼저 본다. 끝남 기준: 읽기 자리 열쇠의 proposal 만 실은 save 가 E_FORBIDDEN · MCP 시험. (끝남(2026-11-22): server/mcp.js save 가 proposal 만 실은 짧은 save 에서 들고 있는 입력을 찾기 전에 store.need(ctx, id, 'write') 를 본다(읽기 미만은 store.get 이 E_NOTFOUND · 기계 · 에이전트 열쇠는 저장 문이 따로 본다) · 시험 approve T23(읽기 자리 E_FORBIDDEN · 없는 지식 E_NOTFOUND · 쓰기 자리는 그대로 E_INPUT) · approve · propose · pc-propose 33/33.)
 
 ### 결론
 
