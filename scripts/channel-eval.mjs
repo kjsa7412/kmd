@@ -173,6 +173,7 @@ const deltaOf = (a, b) => (a && b && !a.error && !b.error ? Object.fromEntries([
 //   지킴이는 안쪽의 첫 출력(init 줄)을 넘기기 전에 띄운다(없으면 20초 뒤): 안쪽의 띄움 · init 과 CPU 를 나누지 않게(T13 · 감싸개 몫) · 첫 출력을 넘기기 전이라
 //   pending 끊기(init 을 읽고 곧바로 끊음)보다 늘 먼저다. 그 전에 끊긴 안쪽은 채널 끝 reapPids 가 거둔다.
 //   시각 칸(T13 · init 쓰임 표): wrapMs(감싸개 node 가 뜬 때 → 안쪽을 띄운 때 · 시험 도구 몫) · t.firstOut(첫 출력 바이트) · t.init · t.firstAsst(첫 assistant) · t.close(닫힘): 모두 안쪽을 띄운 때부터 ms
+//   init 은 첫 것만(둘째 질의의 init 은 diag.inits 로 수만 센다 · real-5 kmd-seed 한 프로세스가 177초 뒤 init 을 다시 내어 덮였다)
 //   안쪽 pid 는 PIDS 파일에 start · end 줄로 남기고, channel-eval 은 채널마다 끝에 end 없는 안쪽을 거둔다(reapPids).
 const WATCH = `const [w, i] = process.argv.slice(1).map(Number); const { spawnSync } = require('node:child_process'); const alive = (p) => { try { process.kill(p, 0); return true } catch (e) { return e.code === 'EPERM' } }; const kill = () => { if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(i), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }); else { try { process.kill(i, 'SIGKILL') } catch {} } }; const t = setInterval(() => { if (!alive(i)) { clearInterval(t); return } if (!alive(w)) { kill(); clearInterval(t) } }, 1000)`
 const wrapSrc = (inner, log, kind, pids) => `// channel-eval 계측 감싸개(scripts/channel-eval.mjs 가 지었다 · 손대지 않는다)
@@ -212,7 +213,7 @@ const eat = (l) => {
   if (!l.startsWith('{')) return
   let j
   try { j = JSON.parse(l) } catch { return }
-  if (j.type === 'system' && j.subtype === 'init') { D.initMs = T.init = Date.now() - t0; const k = (j.mcp_servers || []).find((x) => x.name === 'kmd'); D.kmd = k ? k.status : null }
+  if (j.type === 'system' && j.subtype === 'init') { if (D.initMs != null) { D.inits = (D.inits || 1) + 1; return } D.initMs = T.init = Date.now() - t0; const k = (j.mcp_servers || []).find((x) => x.name === 'kmd'); D.kmd = k ? k.status : null }
   else if (j.type === 'system' && j.subtype === 'api_retry') D.retries++
   else if (j.type === 'system' && Array.isArray(j.mcp_servers)) { const k = j.mcp_servers.find((x) => x.name === 'kmd'); if (k && k.status === 'connected' && D.kmdAt == null) D.kmdAt = Date.now() - t0 }
   if (j.type === 'assistant') {
@@ -547,15 +548,18 @@ export function refitMeterRows(J, lines = []) {
 //   real-1 처럼 diag 가 없는 옛 계측도 ms · dur · api 로 견준다(init 칸의 대리값)
 export function meterStatsOf(lines = []) {
   const runs = new Map()
-  for (const l of lines) runs.set(l.run, l)
+  const nOf = new Map()
+  for (const l of lines) { runs.set(l.run, l); nOf.set(l.run, (nOf.get(l.run) || 0) + 1) }
   const ls = [...runs.values()]
   const res = ls.filter((l) => !l.noResult && typeof l.dur === 'number' && typeof l.api === 'number')
+  // result 가 여럿인 프로세스(kmd-seed 의 Agent 하위 에이전트 뒤 둘째 질의 등): 마지막 result 의 dur 은 그 질의 몫뿐이라 ms - dur 이 띄움이 아니다(real-5 한 프로세스 177초) · 그래서 result 하나인 것만 따로 센다
+  const res1 = res.filter((l) => nOf.get(l.run) === 1)
   const med = (xs) => { const v = xs.filter((x) => typeof x === 'number').sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null }
   const r1 = (x) => Math.round(x / 100) / 10
   const n = res.length || 1
   return {
     procs: ls.length, cut: ls.filter((l) => l.noResult).length,
-    launchPer: r1(sum(res.map((l) => l.ms - l.dur)) / n), durApiPer: r1(sum(res.map((l) => l.dur - l.api)) / n),
+    launchPer: r1(sum(res.map((l) => l.ms - l.dur)) / n), multi: res.length - res1.length, launchPer1: r1(sum(res1.map((l) => l.ms - l.dur)) / (res1.length || 1)), durApiPer: r1(sum(res.map((l) => l.dur - l.api)) / n),
     nonApiSec: Math.round(sum(ls.map((l) => (l.noResult ? l.ms : typeof l.api === 'number' ? l.ms - l.api : 0))) / 1000), apiSec: Math.round(sum(res.map((l) => l.api)) / 1000),
     initMed: med(ls.map((l) => l.diag?.initMs)), wrapMed: med(ls.map((l) => l.diag?.wrapMs)),
     // 감싸개 안 합(모든 프로세스 ms) · 시험 도구 몫 합(preMs · 웃값 · 없으면 감싸개 몫 wrapMs 합 · 둘 다 없으면 null)
@@ -1924,7 +1928,7 @@ export function compareOf(A, B) {
   if (ms[0] || ms[1]) {
     const v = (x, k) => (x && x[k] != null ? x[k] : '-')
     md.push('| 계측 통째(모든 프로세스) | 앞 | 뒤 |', '|---|---|---|')
-    for (const [k, label] of [['procs', '프로세스'], ['cut', '끊긴 프로세스(result 없음)'], ['launchPer', '프로세스당 띄움 ms - dur(초)'], ['durApiPer', '프로세스당 dur - api(초)'], ['nonApiSec', '비 API 합 ms - api(초)'], ['apiSec', 'API 합(초)'], ['initMed', 'init 중앙값(ms)'], ['wrapMed', '감싸개 몫 중앙값(ms · 시험 도구)'], ['rowSec', '모든 행 ms 합(바탕 포함 · 초)'], ['procSec', '감싸개 안 합(모든 프로세스 ms · 초)'], ['outSec', '감싸개 밖(행 합 - 감싸개 안 · 초 · 회계 몫)'], ['toolSec', '시험 도구 몫 합(초 · preMs 웃값 · 없으면 wrapMs)']]) md.push(`| ${label} | ${v(ms[0], k)}${k === 'toolSec' && ms[0]?.toolBy ? ` (${ms[0].toolBy})` : ''} | ${v(ms[1], k)}${k === 'toolSec' && ms[1]?.toolBy ? ` (${ms[1].toolBy})` : ''} |`)
+    for (const [k, label] of [['procs', '프로세스'], ['cut', '끊긴 프로세스(result 없음)'], ['launchPer', '프로세스당 띄움 ms - dur(초)'], ['multi', 'result 여럿인 프로세스(ms - dur 이 띄움이 아니다)'], ['launchPer1', '프로세스당 띄움 · result 하나인 것만(초)'], ['durApiPer', '프로세스당 dur - api(초)'], ['nonApiSec', '비 API 합 ms - api(초)'], ['apiSec', 'API 합(초)'], ['initMed', 'init 중앙값(ms)'], ['wrapMed', '감싸개 몫 중앙값(ms · 시험 도구)'], ['rowSec', '모든 행 ms 합(바탕 포함 · 초)'], ['procSec', '감싸개 안 합(모든 프로세스 ms · 초)'], ['outSec', '감싸개 밖(행 합 - 감싸개 안 · 초 · 회계 몫)'], ['toolSec', '시험 도구 몫 합(초 · preMs 웃값 · 없으면 wrapMs)']]) md.push(`| ${label} | ${v(ms[0], k)}${k === 'toolSec' && ms[0]?.toolBy ? ` (${ms[0].toolBy})` : ''} | ${v(ms[1], k)}${k === 'toolSec' && ms[1]?.toolBy ? ` (${ms[1].toolBy})` : ''} |`)
     md.push('')
   }
   // 감싸개 밖 시간 · 시험 도구 몫 · MCP 서버 몫(T13): 같은 규칙으로 양쪽을 센다(행 ms - 감싸개 안 ms · 옛 결과(procMs 없음)는 report 가 계측 파일 줄에서 refitMeterRows 로 procMs 를 다시 단다 · 못 단 행이 있는 채널은 「-」).
