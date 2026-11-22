@@ -100,7 +100,7 @@ export const TOOLS = [
         excluded: { type: 'array', items: { type: 'object', properties: { name: str('뺀 항목'), why: str('까닭 한 줄') }, required: ['name'] }, description: 'propose 에 보낸 excluded 그대로' },
         kinds: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 kinds 그대로' },
         natures: { type: 'array', items: { type: 'object', properties: { doc: str('이 제안이 세우는 새 문서: 예 게이트웨이 설계'), nature: str('으뜸 성격: 대상 · 서술 · 절차 · 시험 · 용어 · 사건 · 보고 · 대장 · 결정 가운데 하나'), summary: str('요약 1 ~ 3문장(한 줄 300자 안): 이 문서가 무엇을 어떤 단위로 적나') }, required: ['doc', 'nature'] }, description: 'propose 에 보낸 natures 그대로. 새 문서의 으뜸 성격과 요약(생성 룰 R3-4 · R7-2): 같은 제안의 sections 가 세우는 새 문서에만 · 갈래 장부의 「## 문서 성격」 표에 선다 · 있는 문서의 성격은 고치지 않는다' },
-        attach: { type: 'array', description: '원본 첨부(쓰기 자리부터 · 사람이 원본도 첨부하라고 했을 때만): 파일마다 { path: docs/assets/ 아래 자리, b64: 파일 바이트의 base64 }. save 한 번에 합 8MB 까지 · 그림 · pdf · 오피스 · hwp · txt · zip. 같은 자리에 같은 파일이 있으면 그대로(same) · 다른 파일이 있으면 덮지 않고 E_CONFLICT. 기록 · 항목 글과 한 묶음', items: { type: 'object', properties: { path: str('docs/assets/<경로>'), b64: str('파일 바이트의 base64') }, required: ['path', 'b64'] } },
+        attach: { type: 'array', description: '원본 첨부(쓰기 자리부터): 파일마다 { path: docs/assets/ 아래 자리, ref } 또는 { path, b64 } 가운데 하나. ref 는 대량 넣기(kmd-team-import)에서 kmd-parse --upload 가 준 「sha256:<64자>」 그대로: 원본은 파서가 팀 서버에 이미 올렸다(base64 를 짓거나 원본 파일을 읽지 않는다 · ref 는 ingest/ 표지가 있는 저장만 · 합 32MB). b64 는 사람이 원본도 첨부하라고 했을 때 파일 바이트의 base64(save 한 번에 합 8MB). 이 PC 의 파일 경로는 받지 않는다. 그림 · pdf · 오피스 · hwp · txt · zip. 같은 자리에 같은 파일이 있으면 그대로(same) · 다른 파일이 있으면 덮지 않고 E_CONFLICT. 기록 · 항목 글과 한 묶음', items: { type: 'object', properties: { path: str('docs/assets/<경로>'), ref: str('kmd-parse --upload 가 준 sha256:<64자> 그대로(대량 넣기)'), b64: str('파일 바이트의 base64(ref 가 없을 때)') }, required: ['path'] } },
         record: {
           type: 'object',
           properties: {
@@ -362,9 +362,9 @@ export function makeMcp(store) {
         try { const x = JSON.parse(v); return Array.isArray(x) ? x : v } catch { return v }
       }
       ;[sections, names, forms, natures, attach, distinct, excluded, kinds] = [listOf(sections), listOf(names), listOf(forms), listOf(natures), listOf(attach), listOf(distinct), listOf(excluded), listOf(kinds)]
-      // 첨부(S-D30 · K6-4) — 사람이 「원본도 첨부」 라고 했을 때만 스킬이 싣는다 · 한 번 합 8MB · 모양 · 자리 · 쓰기 자리는 저장 문이 본다
+      // 첨부(S-D30 · K6-4 · P-D47): b64 는 사람이 「원본도 첨부」 라고 했을 때만 · 한 번 합 8MB(b64 항목만 센다) · ref(올린 원본 참조 · 대량 넣기)는 저장 문이 풀고 합 32MB · 모양 · 자리 · 쓰기 자리 · 채널은 저장 문이 본다
       if (attach != null) {
-        if (!Array.isArray(attach)) throw new KmdError('E_INPUT', 'attach 는 { path, b64 } 의 목록이다')
+        if (!Array.isArray(attach)) throw new KmdError('E_INPUT', 'attach 는 { path, ref } · { path, b64 } 의 목록이다')
         const bytes = attach.reduce((a, x) => a + Math.floor((String(x?.b64 || '').length * 3) / 4), 0)
         if (bytes > MCP_ATTACH_MAX) throw new KmdError('E_TOO_BIG', `첨부는 save 한 번에 ${MCP_ATTACH_MAX >> 20}MB 까지: 큰 원본은 첨부하지 않고 글만 넣는다`)
         if (!attach.length) attach = null

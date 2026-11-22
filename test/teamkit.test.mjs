@@ -58,8 +58,8 @@ after(async () => {
 })
 
 // 스킬 판 표(S-D15) — 지금 판의 스킬 글 해시(teamKitParts().ver) 한 줄. 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면
-//   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 줄을 새 판 · 새 해시로 바꾼다(판 18: 생성 룰 5판(R3-5 는 R2-1 로) · 판 20: 승인 뒤 save 는 proposal 만 · 대량 넣기 다시 propose 한 파일은 바로 넣기)
-const KIT_HASH = { 16: '3f2c415c', 17: 'f2c33544', 18: 'ae471e99', 19: '0a0b5125', 20: '939c1e59' }
+//   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 줄을 새 판 · 새 해시로 바꾼다(판 18: 생성 룰 5판(R3-5 는 R2-1 로) · 판 20: 승인 뒤 save 는 proposal 만 · 대량 넣기 다시 propose 한 파일은 바로 넣기 · 판 21: 대량 넣기 원본은 kmd-parse --upload 로 올리고 attach 는 { path, ref })
+const KIT_HASH = { 16: '3f2c415c', 17: 'f2c33544', 18: 'ae471e99', 19: '0a0b5125', 20: '939c1e59', 21: 'a18dac7a' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)

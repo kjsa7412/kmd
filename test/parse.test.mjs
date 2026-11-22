@@ -108,3 +108,77 @@ test('kmd-parse: 없는 파일은 why · 종료 1 · 파일 하나도 받는다 
     fs.rmSync(d, { recursive: true, force: true })
   }
 })
+
+// 원본 올리기(P-D47 · T12): 가짜 팀 서버: 열쇠는 헤더로만 · 줄 · index.json · 오류 글에 열쇠가 없다 · atts 는 { path, ref, bytes } · 32MB 넘음은 attachWhy · 401 은 끝 줄 why 로 멈춤
+test('kmd-parse --upload: 원본을 PUT 으로 올리고 atts 에 ref · 열쇠는 어디에도 싣지 않는다 · 32MB 넘음 attachWhy · 401 이면 멈춘다 · 헤더 도우미는 kmd-team 주소가 같을 때만', async () => {
+  const http = await import('node:http')
+  const SECRET = 'kmdk_test-secret-1234567890'
+  const got = []
+  let mode = 'ok'
+  const srv = http.createServer((req, res) => {
+    const parts = []
+    req.on('data', (c) => parts.push(c))
+    req.on('end', () => {
+      const body = Buffer.concat(parts)
+      got.push({ method: req.method, url: req.url, auth: req.headers.authorization, n: body.length })
+      const sha = crypto.createHash('sha256').update(body).digest('hex')
+      if (mode === '401') { res.writeHead(401, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ error: 'E_AUTH', message: '열쇠가 맞지 않는다' })) }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ ref: `sha256:${sha}`, bytes: body.length }))
+    })
+  })
+  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok))
+  const url = `http://127.0.0.1:${srv.address().port}`
+  const run = (args, { env = {}, cwd } = {}) => new Promise((ok) => {
+    const c = spawn(process.execPath, [BIN, ...args], { env: { ...process.env, ...env }, ...(cwd ? { cwd } : {}) })
+    const o = []
+    c.stdout.on('data', (x) => o.push(x))
+    c.stderr.on('data', (x) => o.push(x))
+    c.on('close', (code) => ok({ code, text: Buffer.concat(o).toString('utf8'), lines: Buffer.concat(o).toString('utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) }))
+  })
+  const { d, src } = folder()
+  fs.writeFileSync(path.join(src, '큰그림.png'), Buffer.alloc((32 << 20) + 10))
+  const out = path.join(d, '글')
+  try {
+    const r = await run([src, '--out', out, '--upload', url, '--kn', 'test-kn', '--auth-env', 'KMD_T_KEY'], { env: { KMD_T_KEY: SECRET } })
+    assert.equal(r.code, 2, r.text)
+    assert.ok(!r.text.includes(SECRET), '줄에 열쇠가 없다')
+    assert.ok(!fs.readFileSync(path.join(out, 'index.json'), 'utf8').includes(SECRET), 'index.json 에 열쇠가 없다')
+    const by = Object.fromEntries(r.lines.filter((l) => l.rel).map((l) => [l.rel, l]))
+    const sha = crypto.createHash('sha256').update(DOCX).digest('hex')
+    assert.deepEqual(by['배포.docx'].atts, [{ path: 'docs/assets/배포.docx', ref: `sha256:${sha}`, bytes: DOCX.length }], 'file 칸 없이 ref')
+    assert.deepEqual(by['메모.txt'].atts, [], '첨부 꼴이 아닌 것은 올리지 않는다')
+    assert.deepEqual(by['큰그림.png'].atts, [])
+    assert.match(by['큰그림.png'].attachWhy, /32MB/)
+    const ups = got.filter((g) => g.url.includes('/stage/'))
+    assert.ok(ups.every((g) => g.method === 'PUT' && g.auth === `Bearer ${SECRET}` && g.url.startsWith('/api/k/test-kn/stage/')), JSON.stringify(ups))
+    assert.ok(ups.some((g) => g.url.endsWith(sha)))
+    assert.ok(!ups.some((g) => g.n > 32 << 20), '32MB 넘는 원본은 보내지 않는다')
+    // 401: 끝 줄 why 로 멈춘다(종료 1) · 열쇠 없음
+    mode = '401'
+    const r2 = await run([src, '--upload', url, '--kn', 'test-kn', '--auth-env', 'KMD_T_KEY'], { env: { KMD_T_KEY: SECRET } })
+    assert.equal(r2.code, 1)
+    assert.match(r2.lines.at(-1).why, /E_AUTH/)
+    assert.ok(!r2.text.includes(SECRET))
+    // 헤더 도우미: .mcp.json 의 kmd-team 주소가 다르면 열쇠를 꺼내지 않는다 · 같으면 도우미 출력의 Authorization 을 쓴다
+    mode = 'ok'
+    const helper = path.join(d, 'helper.mjs')
+    fs.writeFileSync(helper, `process.stdout.write(JSON.stringify({ Authorization: 'Bearer ${SECRET}' }))\n`)
+    const hh = `"${process.execPath}" "${helper}"`
+    fs.writeFileSync(path.join(d, '.mcp.json'), JSON.stringify({ mcpServers: { 'kmd-team': { type: 'http', url: 'http://10.0.0.9:8090/mcp', headersHelper: hh } } }))
+    const r3 = await run([path.join(src, '배포.docx'), '--upload', url, '--kn', 'test-kn'], { cwd: d })
+    assert.equal(r3.code, 1)
+    assert.match(r3.lines.at(-1).why, /주소와 다르다/)
+    fs.writeFileSync(path.join(d, '.mcp.json'), JSON.stringify({ mcpServers: { 'kmd-team': { type: 'http', url: `${url}/mcp`, headersHelper: hh } } }))
+    const n0 = got.length
+    const r4 = await run([path.join(src, '배포.docx'), '--upload', url, '--kn', 'test-kn'], { cwd: d })
+    assert.equal(r4.code, 0, r4.text)
+    assert.equal(r4.lines[0].atts[0].ref, `sha256:${sha}`)
+    assert.equal(got.at(-1).auth, `Bearer ${SECRET}`)
+    assert.equal(got.length, n0 + 1)
+    assert.ok(!r4.text.includes(SECRET))
+  } finally {
+    srv.close()
+    fs.rmSync(d, { recursive: true, force: true })
+  }
+})

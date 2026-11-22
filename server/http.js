@@ -17,6 +17,7 @@ import { makeAuth } from '../core/auth.js'
 import { makeMcp } from './mcp.js'
 import { makeHub, defaultDataDir } from './hub.js'
 import { TEAM_IMPORT_MAX } from '../core/importer.js'
+import { ATTACH_MAX_BYTES } from '../core/save.js'
 import { VERSION, BUILD } from './version.js'
 import { tryGit, maskUrl } from '../core/git.js'
 import * as owners from '../core/owners.js'
@@ -124,6 +125,27 @@ function readBody(req, max = MAX_BODY, big = 'E_INPUT') {
         reject(new KmdError('E_INPUT', 'JSON 모양이 아니다'))
       }
     })
+    req.on('error', reject)
+  })
+}
+
+// 날 바이트 몸(원본 올리기 · P-D47): max 를 넘으면 E_TOO_BIG(413 · 남은 몸은 버리며 읽는다 · 30초 넘게 오면 끊는다)
+function readRaw(req, max) {
+  return new Promise((resolve, reject) => {
+    const parts = []
+    let n = 0
+    let over = false
+    req.on('data', (c) => {
+      if (over) return
+      n += c.length
+      if (n > max) {
+        over = true
+        parts.length = 0
+        reject(new KmdError('E_TOO_BIG', `올릴 원본이 너무 크다: ${Math.round(max / 1048576)}MB 까지`))
+        setTimeout(() => req.destroy(), 30_000).unref()
+      } else parts.push(c)
+    })
+    req.on('end', () => { if (!over) resolve(Buffer.concat(parts)) })
     req.on('error', reject)
   })
 }
@@ -1497,6 +1519,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         }
         const out = await mcp.call(body, ctx)
         return out ? send(res, 200, out) : (res.writeHead(202), res.end())
+      }
+      // 원본 올리기(P-D47 · 대량 넣기 파서 kmd-parse --upload): PUT /api/k/:id/stage/:sha · 팀 서버만 · 판정(hub.meta 404 → 사람 기기 열쇠 → 쓰기 403 → sha 꼴)을 넘은 뒤에만 몸을 읽는다
+      const stg = p.match(/^\/api\/k\/([^/]+)\/stage\/([^/]+)$/)
+      if (stg) {
+        if (mode !== 'team') throw new KmdError('E_NOTFOUND', '그런 길은 없다')
+        if (req.method !== 'PUT') throw new KmdError('E_METHOD', 'PUT 으로 올린다')
+        need(ctx)
+        return send(res, 200, await hub.stagePut(ctx, dec(stg[1]), dec(stg[2]), () => readRaw(req, ATTACH_MAX_BYTES)))
       }
       if (p.startsWith('/api/')) { auditWatch(req, res, p, ctx); return await api(req, res, url, ctx, set) }
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, '읽기만', 'text/plain; charset=utf-8')

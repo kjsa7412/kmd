@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // kmd-parse — 대량 넣기 파서(K6-1 · 설계 4-6). 내 PC 의 파일 · 폴더를 글(md)로 바꿔 한 줄씩 낸다. Claude Code 스킬 kmd-team-import 가 읽는다.
 //
-//   kmd-parse <파일|폴더> [--out <폴더>] [--attach]
+//   kmd-parse <파일|폴더> [--out <폴더>] [--attach] [--upload <팀 서버 주소> --kn <팀 지식 id>]
 //
 //   읽는 파일  md · txt · log · csv · tsv · html · json · docx · pptx · xlsx · hwpx · hwp · pdf · 그림
 //              숨김(. 으로 시작) · node_modules · 오피스 잠금 파일(~$ · .~)은 건너뛴다
@@ -12,7 +12,12 @@
 //              scan  글 층이 없는 pdf · 그림만 든 오피스: Claude Code 가 원본을 직접 읽어 글을 짓는다
 //              img   그림: 글이 없다 · 원본 첨부로만 둔다
 //              why   못 바꾼 까닭(깨진 파일 · 암호 · 너무 큼 · 없는 파일)
-//              atts  --attach 일 때 원본 첨부 자리 [{ path: docs/assets/<경로>, file: <이 PC 의 파일>, bytes }]
+//              atts  --upload 일 때 [{ path: docs/assets/<경로>, ref: 'sha256:<64자>', bytes }]: 원본은 팀 서버에 올렸다 · save 의 attach 에 그대로 싣는다(base64 를 짓지 않는다)
+//                    --attach 만이면(옛 꼴) [{ path, file: <이 PC 의 파일>, bytes }] · 팀 저장은 file 을 받지 않는다
+//              attachWhy  첨부하지 못한 까닭(32MB 넘음 · 올리기 한도 · 연결): 그 줄은 ingest/ · md/ 표지를 떼고 글만 넣는다
+//   --upload   원본을 PUT <주소>/api/k/<지식>/stage/<sha256> 로 올린다(저장승인 설계 P-D47 · 사람 기기 열쇠 · 쓰기 자리 · 32MB 안 · 24시간 둔다)
+//              열쇠는 이 폴더 .mcp.json 의 kmd-team 헤더 도우미(headersHelper)를 불러 메모리에만 둔다: 줄 · index.json · 오류 글에 싣지 않는다 · 주소가 kmd-team 연결과 같을 때만
+//              --auth-env <변수> 는 시험용(그 환경 변수의 열쇠) · 401 · 403 · 404 면 끝 줄 why 로 멈춘다(종료 1)
 //   --out      글을 <폴더>/<경로>.md 로 쓰고 줄에는 md 대신 mdFile 을 싣는다 · <폴더>/index.json 에 모든 줄
 //   끝 줄      { done: true, n, fail }
 //   종료 코드  0 모두 · 2 일부 못 바꿈 · 1 못 함(없는 경로 · 읽을 파일 없음)
@@ -21,11 +26,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
 import { fileToMd, cleanPath } from '../../core/importer.js'
 
 export const PARSE_EXT = /\.(md|markdown|txt|log|csv|tsv|html?|json|docx|pptx|xlsx|hwpx|hwp|pdf|png|jpe?g|gif|webp|svg|bmp)$/i
 // 파일 하나 상한 — 팀 화면 파일 넣기(32MB)보다 넉넉히 · 이보다 크면 바꾸지 않고 why
 export const PARSE_MAX_FILE = 64 << 20
+// 올리는 원본 하나 상한: 팀 저장의 첨부 상한(core/save.js ATTACH_MAX_BYTES)과 같다 · 넘으면 올리지 않고 attachWhy
+export const UPLOAD_MAX = 32 << 20
 const skipName = (n) => n.startsWith('.') || n.startsWith('~$') || n === 'node_modules'
 export const wantParse = (rel) => PARSE_EXT.test(rel) && !rel.split('/').some(skipName)
 
@@ -48,8 +56,45 @@ export function listFiles(root) {
   return out
 }
 
-// 파일 하나 → 한 줄
-export async function parseOne({ rel, file }, { attach = false } = {}) {
+// 올리기 열쇠: 시험은 --auth-env 의 환경 변수 · 그 밖은 이 폴더 .mcp.json 의 kmd-team 헤더 도우미(주소가 같을 때만) → { header } | { why }
+//   도우미의 stderr · 열쇠는 어디에도 옮기지 않는다
+const originOf = (u) => { try { const x = new URL(String(u)); return /^https?:$/.test(x.protocol) ? x.origin : null } catch { return null } }
+export function uploadAuth({ origin, authEnv = null, cwd = process.cwd(), env = process.env } = {}) {
+  if (authEnv) {
+    const k = String(env[authEnv] || '').trim()
+    return k ? { header: `Bearer ${k}` } : { why: `환경 변수 ${authEnv} 에 열쇠가 없다` }
+  }
+  const no = { why: '이 폴더의 .mcp.json 에 kmd-team 연결이 없다: 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣는다' }
+  let cfg
+  try { cfg = JSON.parse(fs.readFileSync(path.join(cwd, '.mcp.json'), 'utf8')) } catch { return no }
+  const srv = cfg?.mcpServers?.['kmd-team']
+  if (!srv || typeof srv.headersHelper !== 'string' || !srv.headersHelper.trim()) return no
+  if (!originOf(srv.url) || originOf(srv.url) !== originOf(origin)) return { why: '--upload 주소가 .mcp.json 의 kmd-team 연결 주소와 다르다(열쇠는 그 서버에만 보낸다)' }
+  const r = spawnSync(srv.headersHelper, { shell: true, encoding: 'utf8', timeout: 30_000, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  let h = null
+  try { h = r.status === 0 ? JSON.parse(String(r.stdout || '').trim()) : null } catch { h = null }
+  const v = h && (h.Authorization || h.authorization)
+  return typeof v === 'string' && v.trim() ? { header: v.trim() } : { why: '헤더 도우미가 이 PC 의 팀 열쇠를 꺼내지 못했다: 팀 화면 › 설정 › 에이전트 설치의 한 줄을 다시 붙여 넣는다' }
+}
+// 원본 하나 올리기 → { ref } | { why }(이 파일만 첨부 못 함) | { stop }(열쇠 · 자리 · 지식이 틀려 더 올리지 않는다)
+export async function uploadOne({ origin, kn, header }, buf) {
+  const sha = crypto.createHash('sha256').update(buf).digest('hex')
+  let r
+  try {
+    r = await fetch(`${originOf(origin)}/api/k/${encodeURIComponent(kn)}/stage/${sha}`, { method: 'PUT', headers: { authorization: header, 'content-type': 'application/octet-stream' }, body: buf })
+  } catch (e) {
+    return { why: `원본을 올리지 못했다(연결: ${e?.cause?.code || e?.name || '네트워크'})` }
+  }
+  let j = null
+  try { j = await r.json() } catch { j = null }
+  if (r.ok && j?.ref === `sha256:${sha}`) return { ref: j.ref }
+  const msg = String(j?.message || '').replace(/[\r\n]+/g, ' ').slice(0, 200)
+  if ([401, 403, 404].includes(r.status)) return { stop: `원본을 올릴 수 없다(${j?.error || r.status}${msg ? ` · ${msg}` : ''})` }
+  return { why: `원본을 올리지 못했다(${j?.error || r.status}${msg ? ` · ${msg}` : ''})` }
+}
+
+// 파일 하나 → 한 줄 · upload: { origin, kn, header } 면 원본을 올려 atts 에 ref 를 싣는다
+export async function parseOne({ rel, file }, { attach = false, upload = null } = {}) {
   let buf
   try {
     const st = fs.statSync(file)
@@ -71,7 +116,16 @@ export async function parseOne({ rel, file }, { attach = false } = {}) {
     line.failed = true
     if (!line.why) line.why = fm.blank ? '글도 그림도 없는 파일이다' : '바꾸지 못했다'
   }
-  line.atts = attach && fm.attach ? [{ path: `docs/assets/${rel}`, file: path.resolve(file), bytes: buf.length }] : []
+  line.atts = []
+  if (upload && fm.attach && !line.failed) {
+    if (buf.length > UPLOAD_MAX) line.attachWhy = `원본이 ${UPLOAD_MAX >> 20}MB 를 넘어 첨부하지 않는다`
+    else {
+      const u = await uploadOne(upload, buf)
+      if (u.stop) return { ...line, stop: u.stop }
+      if (u.ref) line.atts = [{ path: `docs/assets/${rel}`, ref: u.ref, bytes: buf.length }]
+      else line.attachWhy = u.why
+    }
+  } else if (attach && fm.attach) line.atts = [{ path: `docs/assets/${rel}`, file: path.resolve(file), bytes: buf.length }]
   return line
 }
 
@@ -81,11 +135,20 @@ export async function run(argv, { write = (s) => process.stdout.write(s) } = {})
   const has = (f) => { const i = args.indexOf(f); if (i < 0) return false; args.splice(i, 1); return true }
   const out = at('--out')
   const attach = has('--attach')
+  const up = at('--upload')
+  const kn = at('--kn')
+  const authEnv = at('--auth-env')
   const target = args.find((a) => !a.startsWith('--'))
   const emit = (o) => write(JSON.stringify(o) + '\n')
-  if (!target || out === '') {
-    emit({ done: true, n: 0, fail: 0, why: '쓰는 법: kmd-parse <파일|폴더> [--out <폴더>] [--attach]' })
+  if (!target || out === '' || up === '' || (up != null && !kn) || (up != null && !originOf(up))) {
+    emit({ done: true, n: 0, fail: 0, why: '쓰는 법: kmd-parse <파일|폴더> [--out <폴더>] [--attach] [--upload <팀 서버 주소> --kn <팀 지식 id>]' })
     return 1
+  }
+  let upload = null
+  if (up != null) {
+    const a = uploadAuth({ origin: up, authEnv })
+    if (!a.header) { emit({ done: true, n: 0, fail: 0, why: a.why }); return 1 }
+    upload = { origin: up, kn, header: a.header }
   }
   if (!fs.existsSync(target)) {
     emit({ rel: path.basename(target), md: null, sha: null, tags: [], why: '없는 파일이다', atts: [], failed: true })
@@ -100,7 +163,11 @@ export async function run(argv, { write = (s) => process.stdout.write(s) } = {})
   let fail = 0
   const index = []
   for (const f of files) {
-    const line = await parseOne(f, { attach })
+    const line = await parseOne(f, { attach, upload })
+    if (line.stop) {
+      emit({ done: true, n: index.length, fail, why: line.stop })
+      return 1
+    }
     if (line.failed) fail++
     if (out && line.md != null) {
       const mdFile = path.join(out, ...`${line.rel}.md`.split('/'))

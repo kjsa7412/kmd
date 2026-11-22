@@ -304,6 +304,98 @@ ${genRulesBlock({ profile: 'shape' })}`
     await writeJsonAtomic(attachDayFile, attachDay)
   }
   const giveBack = (id, n) => attachGive(id, n).catch((x) => log(`하루 첨부 합을 되돌리지 못했다 ${id}: ${x.message}`))
+  // 원본 올리기(스테이지 · 저장승인 설계 P-D47 · 권한 모델 7절): 대량 넣기 파서(kmd-parse --upload)가 원본 바이트를 팀 서버에 먼저 올린다.
+  //   save 는 { path, ref: 'sha256:<64자>' } 만 싣고 저장 문(hub.save · resolveAttach)이 자기 자리의 파일로 푼다(모델이 base64 를 짓지 않는다).
+  //   자리 <살림>/stage/<지식 id>/<sha16('user:'+사람)>/<sha256>: 경로 조각은 검사를 거친 지식 id · 사람 해시 · 64자 hex 뿐(사람이 보낸 글은 들지 않는다).
+  //   지식 폴더 밖(<살림>)이라 백업 · 보내기 · 지식 폴더 다시 읽기에 들지 않는다(넣지 않은 원본이 새지 않게) · 24시간 지난 것은 올릴 때 · 서버를 켤 때 걷는다
+  const STAGE_DIR = path.join(dataDir, 'stage')
+  const STAGE_TTL = 24 * 3600_000
+  const STAGE_SHA = /^[0-9a-f]{64}$/
+  const stageHome = (id, user) => path.join(STAGE_DIR, encodeURIComponent(id), crypto.createHash('sha256').update('user:' + String(user || '')).digest('hex').slice(0, 16))
+  // 폴더 아래 파일 크기 합 · 24시간 지난 파일 걷기(실패는 log · 던지지 않는다)
+  async function stageWalk(dir, { sweep = false } = {}) {
+    let bytes = 0
+    const ents = await fs.readdir(dir, { withFileTypes: true }).catch((e) => (e.code === 'ENOENT' ? [] : (log(`올린 원본 자리를 읽지 못했다 ${dir}: ${e.message}`), [])))
+    for (const e of ents) {
+      const f = path.join(dir, e.name)
+      if (e.isDirectory()) {
+        bytes += await stageWalk(f, { sweep })
+        if (sweep) await fs.rmdir(f).catch(() => {}) // 빈 폴더만 지워진다
+        continue
+      }
+      const st = await fs.lstat(f).catch(() => null)
+      if (!st) continue
+      if (sweep && (Date.now() - st.mtimeMs > STAGE_TTL || /\.tmp$/.test(e.name) && Date.now() - st.mtimeMs > 3600_000)) {
+        await fs.rm(f, { force: true }).catch((x) => log(`지난 올린 원본을 걷지 못했다 ${f}: ${x.message}`))
+        continue
+      }
+      bytes += st.size
+    }
+    return bytes
+  }
+  const stageSweep = () => stageWalk(STAGE_DIR, { sweep: true }).catch((e) => { log(`지난 올린 원본 걷기: ${e.message}`); return 0 })
+  // 올리기 판정: 팀 서버만 · hub.meta(읽기 미만 404) → 사람 기기 열쇠만(에이전트 · 기계 · 팀 일꾼 · 초안 열쇠 · 쿠키 거절) → 쓰기 자리(403) → sha 꼴
+  async function stageGate(ctx, id, sha) {
+    if (mode !== 'team') throw new KmdError('E_NOTFOUND', '그런 길은 없다')
+    const meta = await hub.meta(id, ctx)
+    if (!ctx?.device || ctx.agent || ctx.machine || ctx.worker || ctx.draft) throw new KmdError('E_FORBIDDEN', '원본 올리기는 이 PC 의 기기 열쇠로만 한다', { need: 'person' })
+    hub.need(ctx, id, 'write')
+    if (!STAGE_SHA.test(String(sha || ''))) throw new KmdError('E_INPUT', '올릴 자리는 원본 바이트의 sha256(64자 소문자 hex)이다')
+    return meta
+  }
+  // 첨부 참조 풀기: 저장 문 안(hub.save · canSave 뒤 · 하루 합 앞). 항목마다 b64 와 ref 가운데 하나만 · ref 는 대량 넣기 채널(bulk)에서만 · PC 경로(file)는 받지 않는다.
+  //   찾는 차례: ① 내 올린 자리(같은 사람 해시 자리만 · 남이 올린 원본은 못 쓴다) ② 그 지식 docs/assets 의 같은 자리에 sha 가 같은 파일(이어 하기 · same).
+  //   검사: lstat(보통 파일만) · realpath 가 기대한 자리 그대로(심볼릭 · junction 으로 다른 곳을 가리키면 거절) · 읽은 바이트의 sha256 을 다시 셈(바꿔치기 거절) · 32MB 안.
+  //   → { attach: [{ path, b64 }…], used: [올린 자리 파일], via: { b64, ref, b64Kb } } · 풀린 항목은 { path, b64 } 라 core/save.js · bulkProof 는 그대로
+  const samePath = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b)
+  async function stageFile(want, base) {
+    const st = await fs.lstat(want).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+    if (!st) return null
+    if (!st.isFile()) throw new KmdError('E_INPUT', '첨부 원본 자리가 보통 파일이 아니다(심볼릭 · 폴더는 받지 않는다 · 아무것도 쓰지 않았다)')
+    const realBase = await fs.realpath(base).catch(() => null)
+    const real = await fs.realpath(want).catch(() => null)
+    if (!realBase || !real || !samePath(real, path.join(realBase, path.relative(base, want)))) throw new KmdError('E_INPUT', '첨부 원본이 제자리 밖을 가리킨다(아무것도 쓰지 않았다)')
+    if (st.size > ATTACH_MAX_BYTES) throw new KmdError('E_TOO_BIG', `첨부 원본은 ${ATTACH_MAX_BYTES >> 20}MB 까지다`)
+    return fs.readFile(want)
+  }
+  async function resolveAttach(ctx, meta, att, channel) {
+    const via = { b64: 0, ref: 0, b64Kb: 0 }
+    if (!Array.isArray(att)) return { attach: att, used: [], via }
+    const out = []
+    const used = []
+    let total = 0
+    for (const a of att) {
+      if (!a || typeof a !== 'object') { out.push(a); continue }
+      if (a.file != null) throw new KmdError('E_INPUT', '첨부에 이 PC 의 파일 경로(file)는 받지 않는다: kmd-parse --upload 가 준 { path, ref } 를 싣는다(아무것도 쓰지 않았다)')
+      if (a.ref == null) {
+        if (typeof a.b64 === 'string') { via.b64++; via.b64Kb += a.b64.length / 1024; total += Math.floor((a.b64.length * 3) / 4) }
+        out.push(a)
+        continue
+      }
+      if (a.b64 != null) throw new KmdError('E_INPUT', '첨부마다 b64 와 ref 가운데 하나만 싣는다(아무것도 쓰지 않았다)')
+      if (mode !== 'team' || channel !== 'bulk') throw new KmdError('E_INPUT', '첨부 참조(ref)는 팀 지식의 대량 넣기(세션의 kmd-team-import · ingest/ 표지)만 쓴다(아무것도 쓰지 않았다)')
+      const m = /^sha256:([0-9a-f]{64})$/.exec(String(a.ref))
+      if (!m) throw new KmdError('E_INPUT', '첨부 참조는 kmd-parse 가 준 「sha256:<64자>」 그대로다(아무것도 쓰지 않았다)')
+      const p = assetPath(meta.dir, a.path)
+      const home = stageHome(meta.id, ctx.user)
+      const mine = path.join(home, m[1])
+      let buf = await stageFile(mine, STAGE_DIR)
+      let from = buf ? mine : null
+      if (buf && crypto.createHash('sha256').update(buf).digest('hex') !== m[1]) throw new KmdError('E_INPUT', '올린 원본이 그 sha256 과 다르다(바뀐 파일 · 아무것도 쓰지 않았다): kmd-parse 를 그 파일만 다시 돌린다')
+      if (!buf) {
+        const have = await stageFile(p.full, meta.dir)
+        if (have && crypto.createHash('sha256').update(have).digest('hex') === m[1]) buf = have
+      }
+      if (!buf) throw new KmdError('E_INPUT', `올린 원본이 없다(${p.rel} · 24시간이 지났거나 올리지 않았다): kmd-parse 를 그 파일만 --upload 로 다시 돌린다(아무것도 쓰지 않았다)`)
+      total += buf.length
+      if (total > ATTACH_MAX_BYTES) throw new KmdError('E_TOO_BIG', `첨부는 save 한 번에 합 ${ATTACH_MAX_BYTES >> 20}MB 까지다(아무것도 쓰지 않았다)`)
+      via.ref++
+      if (from) used.push(from)
+      out.push({ path: a.path, b64: buf.toString('base64') })
+    }
+    via.b64Kb = Math.round(via.b64Kb)
+    return { attach: out, used, via }
+  }
   // 장부 읽기 — 없으면 빈 것 · 읽거나 풀지 못하면 그 파일을 <file>.broken-<때> 로 비켜 두고 빈 것으로 시작한다(깨진 파일을 빈 것으로 덮지 않는다)
   async function readLedger(file, empty, what) {
     try {
@@ -2603,7 +2695,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       // 그 지식의 일(넣은 파일 이름 · 터미널 줄)도 — 남기면 줄 없는 지식이 되어 누구에게나 보인다
       for (const [rid, r] of runs) if (r.kn === id) runs.delete(rid)
       for (const [t, a] of agentKeys) if (a.kn === id) agentKeys.delete(t)
-      for (const p of [`backup/${e}.json`, `send/${e}.json`, `inbox/${e}.json`, `baseline/${e}.json`, `searchcheck/${e}.json`, `learn/${e}.json`, `runs/${e}.json`, `index/${e}`, `sources/${e}`, `watch/${e}`]) await fs.rm(path.join(dataDir, p), { recursive: true, force: true }).catch(() => {})
+      for (const p of [`backup/${e}.json`, `send/${e}.json`, `inbox/${e}.json`, `baseline/${e}.json`, `searchcheck/${e}.json`, `learn/${e}.json`, `runs/${e}.json`, `index/${e}`, `sources/${e}`, `watch/${e}`, `stage/${e}`]) await fs.rm(path.join(dataDir, p), { recursive: true, force: true }).catch(() => {})
       // 기초 세우기 재료 — 도는 올리기와 한 줄로(올리기가 폴더를 되살리지 않게)
       await serial(hub.seedDir(id), () => fs.rm(hub.seedDir(id), { recursive: true, force: true })).catch((x) => log('기초 세우기 재료 지우기', id, x.message))
       for (const x of await listSecrets(dataDir).catch(() => [])) if (x.name.startsWith(secretPrefix(id))) await delSecret(dataDir, x.name).catch(() => {}) // 가져올 곳의 자격
@@ -2789,8 +2881,15 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (channel && !opt.system && !asIntake && !opt.shape) rateTake(ctx, id)
       // 첨부(S-D30) — 쓰기 이상 · 지식마다 하루 합(들이기 저장의 첨부는 파일 넣기가 받은 그때 셌다)
       let took = 0
+      // 첨부 참조(ref · P-D47): 저장 문 안에서 올린 자리 · docs/assets 의 파일로 풀어 { path, b64 } 와 같은 줄로 보낸다(하루 합은 풀린 바이트로 센다)
+      let stageUsed = []
+      let attachVia = null
       if (input?.attach != null && !asIntake) {
         if (!hub.canSave(ctx, id)) throw new KmdError('E_FORBIDDEN', '첨부는 쓰기 자리부터 둔다')
+        const ra = await resolveAttach(ctx, meta, input.attach, channel)
+        if (ra.via.ref) input = { ...input, attach: ra.attach }
+        stageUsed = ra.used
+        if (Array.isArray(input.attach) && input.attach.length) attachVia = ra.via
         if (Array.isArray(input.attach)) {
           const n = input.attach.reduce((a, x) => a + Math.floor((String(x?.b64 || '').length * 3) / 4), 0)
           await attachTake(id, n)
@@ -2799,10 +2898,14 @@ ${genRulesBlock({ profile: 'shape' })}`
       }
       const t0 = Date.now()
       //   kit — 세션 스킬 판(MCP 가 넘긴 수 · 없으면 null · S-D15)
-      const logLine = { at: localStamp(), kn: id, user: ctx.user || null, device: ctx.device || null, ch: channel || (opt.system ? 'system' : 'server'), kit: Number.isInteger(opt.kit) ? opt.kit : null }
+      //   attachVia: 첨부를 어떻게 받았나(b64 항목 수 · ref 항목 수 · b64 글 KB · 채널 평가 attachRaw 는 여기서 읽는다)
+      const logLine = { at: localStamp(), kn: id, user: ctx.user || null, device: ctx.device || null, ch: channel || (opt.system ? 'system' : 'server'), kit: Number.isInteger(opt.kit) ? opt.kit : null, ...(attachVia ? { attachVia } : {}) }
       const stage = {}
       try {
-        return await saveIn(ctx, id, meta, input, opt, channel, logLine, t0, stage)
+        const r = await saveIn(ctx, id, meta, input, opt, channel, logLine, t0, stage)
+        // 커밋 뒤: 쓴 올린 원본을 지운다(던지지 않는다 · 실패한 저장은 위 catch 로 가 올린 원본이 남아 다시 시도할 수 있다)
+        if (stageUsed.length && !r?.errors?.length) for (const f of stageUsed) await fs.rm(f, { force: true }).catch((x) => log(`쓴 올린 원본을 지우지 못했다 ${id}: ${x.message}`))
+        return r
       } catch (e) {
         // 아무것도 쓰지 못했다 — 센 첨부를 되돌린다
         if (took) await giveBack(id, took)
@@ -5886,7 +5989,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     },
     // 운영 값(설정 › 팀 일꾼 「운영 값」 · N6 에서 설정 › 운영 · 총괄 관리자 · 읽기만) — 바꾸는 곳은 그 값의 화면 · serve.json(UX T6-26)
     opsView() {
-      const SAFE = ['helpContact', 'backupRoot', 'backupRoots', 'sourceRoots', 'sourceHosts', 'collect', 'trustProxy', 'attachDaily', 'intakeDaily', 'intakeQueue', 'saveRate', 'savelogMax', 'dl', 'prepMax', 'scryptN']
+      const SAFE = ['helpContact', 'backupRoot', 'backupRoots', 'sourceRoots', 'sourceHosts', 'collect', 'trustProxy', 'attachDaily', 'stageMax', 'stageTotal', 'intakeDaily', 'intakeQueue', 'saveRate', 'savelogMax', 'dl', 'prepMax', 'scryptN']
       const SECRET = ['gitlab']
       const conf = {}
       for (const k of SAFE) if (config[k] != null) conf[k] = config[k]
@@ -5932,6 +6035,32 @@ ${genRulesBlock({ profile: 'shape' })}`
     },
     // 보내기 초안 세션의 읽기 열쇠(채널 평가 P2 검토) — 팀 서버가 내준다: 이 PC 의 기기 열쇠로 청하고 · 받는 지식 하나 · 읽기만(propose · save 는 403) · 20분.
     //   세션에 기기 열쇠를 넘기지 않는다(쓰기 가능 · 오래 감 · 모든 지식). 읽기 자리 미만이면 「없는 지식」(404)
+    // 원본 올리기(P-D47 · PUT /api/k/:id/stage/:sha · 팀 서버만): read() 는 판정을 넘은 뒤에만 몸을 읽는다(32MB 안 · http 가 E_TOO_BIG).
+    //   같은 sha 는 멱등 · 사람 · 지식마다 config.stageMax(200MB) · 서버 합 config.stageTotal(2GB)을 넘으면 E_RATE → { ref: 'sha256:<64자>', bytes }
+    async stagePut(ctx, id, sha, read) {
+      const meta = await stageGate(ctx, id, sha)
+      const buf = await read()
+      if (!Buffer.isBuffer(buf) || !buf.length) throw new KmdError('E_INPUT', '올릴 원본 바이트가 없다')
+      if (crypto.createHash('sha256').update(buf).digest('hex') !== sha) throw new KmdError('E_INPUT', '받은 바이트의 sha256 이 올릴 자리와 다르다(아무것도 두지 않았다)')
+      const home = stageHome(meta.id, ctx.user)
+      const want = path.join(home, sha)
+      const have = await stageFile(want, STAGE_DIR).catch(() => null)
+      if (have && have.equals(buf)) {
+        const now = new Date()
+        await fs.utimes(want, now, now).catch((e) => log(`올린 원본 때를 고치지 못했다 ${id}: ${e.message}`))
+        return { ref: `sha256:${sha}`, bytes: buf.length, same: true }
+      }
+      await stageSweep()
+      const mine = await stageWalk(home)
+      const cap = config.stageMax ?? 200 << 20
+      if (mine + buf.length > cap) throw new KmdError('E_RATE', `이 지식에 올려 둔 원본 합(${Math.round(cap / 1048576)}MB)을 넘는다. 넣은 뒤(저장이 올린 원본을 지운다) 또는 24시간 뒤 다시 올린다`, { details: { retryAfter: 3600 } })
+      const all = await stageWalk(STAGE_DIR)
+      const capAll = config.stageTotal ?? 2 * 1024 ** 3
+      if (all + buf.length > capAll) throw new KmdError('E_RATE', `팀 서버에 올려 둔 원본 합(${Math.round(capAll / 1048576)}MB)을 넘는다. 잠시 뒤 다시 올린다`, { details: { retryAfter: 3600 } })
+      await writeFileAtomic(want, buf, { encoding: null })
+      return { ref: `sha256:${sha}`, bytes: buf.length }
+    },
+    stageHome: (id, user) => stageHome(id, user),
     async readKey(ctx, kn) {
       if (mode !== 'team') throw new KmdError('E_NOTFOUND', '팀 서버만 읽기 열쇠를 내준다')
       if (!ctx?.device || ctx.agent || ctx.machine || ctx.draft || ctx.worker) throw new KmdError('E_FORBIDDEN', '이 PC 의 기기 열쇠로만 청한다', { need: 'person' })
@@ -7437,6 +7566,8 @@ ${genRulesBlock({ profile: 'shape' })}`
         const gone = await hub.shapeSweep()
         if (gone.length) log('남은 연습 판을 걷었다', gone.join(' · '))
       } catch (e) { log('남은 연습 판 걷기', e.message) }
+      // 올린 원본(P-D47): 24시간 지난 것을 걷는다(팀 서버만 · 실패는 log)
+      if (mode === 'team') await stageSweep()
       intakeDay = await readLedger(intakeDayFile, {}, '하루 들이기 수 장부')
       attachDay = await readLedger(attachDayFile, {}, '하루 첨부 합 장부')
       // 다시 켤 때 — 같은 일감의 기록(job/<id>)이 이미 있으면 그 일감은 넣었다(커밋 뒤 · 장부를 쓰기 전에 꺼졌다 · S-D48)

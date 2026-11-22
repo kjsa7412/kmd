@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadKnowledge } from '../core/knowledge.js'
 import { scoreKnowledge, gateOf, itemsOf, factText, natureOf } from '../scripts/harness-eval.mjs'
-import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf, launchOf, meterStatsOf, probeLoad, LOAD_NODE_MS, refitMeterRows, mcpSliceOf, seedCheckFix, refixSeed } from '../scripts/channel-eval.mjs'
+import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf, launchOf, meterStatsOf, probeLoad, LOAD_NODE_MS, refitMeterRows, mcpSliceOf, seedCheckFix, refixSeed, CHANNELS } from '../scripts/channel-eval.mjs'
 
 const FIX = path.resolve('test/fixture/harness/빈지식')
 const gold = JSON.parse(fs.readFileSync(path.join(FIX, 'gold.json'), 'utf8'))
@@ -474,4 +474,15 @@ test('kmd-seed 고쳐 받기 셈(T14 seed): check tool_use 에 이어진 is_erro
   assert.equal(refixSeed(R), R, '이미 셈이 있으면 그대로')
   assert.equal(J.channels['kmd-seed'].rows[0].fix, 7, '원본은 그대로')
   fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('채널 평가 T12: bulk 는 제품 경로(kmd-parse --upload · { path, ref }) · feedRev 4 · 시험 도구가 저장 문을 감싸 ref 를 갈아 끼우지 않는다', async () => {
+  assert.equal(CHANNELS.bulk.feedRev, 4)
+  const src = fs.readFileSync(new URL('../scripts/channel-eval.mjs', import.meta.url), 'utf8')
+  const body = src.slice(src.indexOf('async function runBulk('), src.indexOf('async function runEdit('))
+  assert.ok(!/hub\.save\s*=/.test(body), '저장 문을 감싸지 않는다')
+  assert.ok(!/attachRef|refs\.set/.test(body), 'ref 갈아 끼우기를 걷었다')
+  assert.match(body, /'--upload'/)
+  assert.match(body, /attachVia: 'stage'/)
+  assert.match(src, /attach: x\.atts && x\.atts\.length \? x\.atts\.map\(\(a\) => \(\{ path: a\.path, ref: a\.ref \}\)\)/, '가짜 세션도 atts 그대로')
 })

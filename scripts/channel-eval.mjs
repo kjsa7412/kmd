@@ -38,10 +38,10 @@ const SERVE = { decideMs: 3600000, sourceTickMs: 3600000, inboxTickMs: 3600000, 
 
 // ───────── 채널 표 ─────────
 //   ch      savelog 에 찍혀야 할 채널 값(channelOk) · llm 은 부르는 꼴(session · schema · none)
-//   feedRev 넣는 법의 판(원천 번호는 같아도 넣는 글 · 바꾸는 값이 바뀌면 올린다 · 견주기가 「원천 다름」 으로 가른다) — 2: real-1 뒤(H14 심은 문서 · H15 · H16 goldStep · 원천 전체 · 바탕 01 · 02 · 09 · 커밋 07 다음 값) · 3: bulk 첨부를 attachRef 로(T5)
+//   feedRev 넣는 법의 판(원천 번호는 같아도 넣는 글 · 바꾸는 값이 바뀌면 올린다 · 견주기가 「원천 다름」 으로 가른다) — 2: real-1 뒤(H14 심은 문서 · H15 · H16 goldStep · 원천 전체 · 바탕 01 · 02 · 09 · 커밋 07 다음 값) · 3: bulk 첨부를 attachRef 로(T5) · 4: bulk 첨부를 제품 경로(kmd-parse --upload · { path, ref })로 · 시험 도구의 ref 갈아 끼우기 걷음(T12)
 //   src     골든 원천 번호(gold.json sources.n) · base 는 앞 상태로 먼저 넣는 원천(무인 들이기 · intake-src · 비용은 따로)
 //   unit    실제 Claude 예상(원천 · 건 하나) — 지난 실측(H4b · H7b: 세션 들이기 원천당 ≈ $0.45 · 3.5분)에서 어림
-const CHANNELS = {
+export const CHANNELS = {
   'intake-file': { ch: 'intake-file', llm: 'session', src: [1, 2], unit: { usd: 0.45, min: 3.5 }, run: runIntakeFile, note: '화면 올리기 둘(importFiles → 승인 대기 → 승인): docx(원본 첨부 · bin) 하나 + md 하나. uploadAsk 끔(바로 들어감)은 설정을 바꾼 경우라 재지 않는다' },
   'intake-commit': { ch: 'intake-src', feedRev: 2, llm: 'session', src: [7], extra: 1, base: [1], unit: { usd: 0.25, min: 1.3 }, run: runIntakeCommit, note: '커밋 들이기(채널 이름 intake-commit 은 걷었다 · D2: 저장 줄 ch intake-src + 기록 태그 code-change) · 사람이 연 커밋 일감(07 값 5→10) + 운영 길(가져올 곳 git 의 새 커밋 10→15 · H18)' },
   'intake-src': { ch: 'intake-src', llm: 'session', src: [1, 2], unit: { usd: 0.45, min: 3.5 }, run: runIntakeSrc, note: '가져올 곳: 문서 폴더(하나씩 · 다시 돌려 same) + git 커밋 하나' },
@@ -52,7 +52,7 @@ const CHANNELS = {
   'shape-restructure': { ch: 'shape', feedRev: 2, llm: 'schema', src: [], base: [1, 2, 9], fakeBase: [1, 3], unit: { usd: 0.5, min: 4, per: '구조안' }, run: runShapeRestructure, note: '짜임 다시 잡기(어지럽힌 바탕 01 · 02 · 09 + 지식관리자의 말 → shapeAsk shape-plan → 검사 → 연습 판 → 넣기 · 구조안은 앞 걸음 · 바꿀 것 없음은 기대한 결과로 셈 · H10)' },
   send: { ch: 'send', llm: 'schema', src: [6, 8], base: [1], fakeSrc: [6, 3], unit: { usd: 0.4, min: 3 }, run: runSend, note: '개인 프로그램 → 팀 지식 보내기(sendPreview = Claude · sendPicked = 승인) · 팀 지식에 바탕(01)을 세운 뒤 값이 바뀐 판(06)을 보낸다' },
   session: { ch: 'session', llm: 'session', src: [6, 2], base: [1], unit: { usd: 0.5, min: 4 }, run: runSession, note: '사람 MCP 세션(kmd-team-save · propose → 승인 대신 → save) · 바탕(01) 위에 값이 바뀐 판(06) · 회의(02) · 머리 없는 대용(runAgent)' },
-  bulk: { ch: 'bulk', feedRev: 3, llm: 'session', src: [6, 4], base: [1], unit: { usd: 0.5, min: 3 }, run: runBulk, note: '사람 MCP 대량 넣기(kmd-team-import · ingest/ 표지 + 첨부 · 한 세션에 원천 여럿) · 바탕(01) 위 · 머리 없는 대용(runAgent) · 첨부는 attachRef 를 시험 도구가 원본 base64 로 바꿔 넣는다(T5 · 제품의 첨부 생성 몫은 이 시간에 없다)' },
+  bulk: { ch: 'bulk', feedRev: 4, llm: 'session', src: [6, 4], base: [1], unit: { usd: 0.5, min: 3 }, run: runBulk, note: '사람 MCP 대량 넣기(kmd-team-import · ingest/ 표지 + 첨부 · 한 세션에 원천 여럿) · 바탕(01) 위 · 머리 없는 대용(runAgent) · 첨부는 제품 경로 그대로: kmd-parse --upload 가 원본을 올리고 세션은 { path, ref } 를 싣는다(T12 · P-D47 · 파서 몫 parseMs 는 행 시간 밖)' },
   http: { ch: 'http', feedRev: 2, llm: 'none', src: [3], base: [1], unit: { usd: 0, min: 0.1, per: '건' }, run: runHttp, note: 'API 열쇠 저장(POST /api/k/:id/propose → 받은 proposal 그대로 /save · 사람 채널 · 원천 전체(머리 앞 글 포함)와 names · natures · forms 절차를 싣고 B 는 gold 안의 값으로 · H15) · 코드에 남아 있음 · H-D33 폐기 예정' },
   edit: { ch: 'edit', feedRev: 2, llm: 'none', src: [], base: [1], unit: { usd: 0, min: 0.1, per: '건' }, cases: 6, run: runEdit, note: '화면 고치기(저장 제안 → 넣기) · 기록 정정(fixes) · 거절 길(E_INPUT · E_FORMAT · E_CONFLICT · E_APPROVE)' },
   'edit-source': { ch: 'intake-file', llm: 'session', src: [], base: [1], unit: { usd: 0.45, min: 3.5, per: '건' }, cases: 1, run: runEditSource, note: '화면 고치기의 새 항목(editAsSource → 넣을 것 → 팀 일꾼 세션 → 승인 대기 → 승인) · 저장 줄 ch 는 intake-file' },
@@ -286,7 +286,7 @@ export default async function ({ kn, files, read, mcp }) {
   await mcp('brief', { knowledge: kn })
   if (files.includes('index.json')) {
     const out = []
-    for (const x of JSON.parse(read('index.json'))) out.push(await one({ kn, mcp, md: read(x.mdFile), name: x.rel.replace(/\\.[^.]+$/, ''), tags: x.tags, attach: [{ path: x.attachPath, b64: x.attachRef }] }))
+    for (const x of JSON.parse(read('index.json'))) out.push(await one({ kn, mcp, md: read(x.mdFile), name: x.rel.replace(/\\.[^.]+$/, ''), tags: x.tags, attach: x.atts && x.atts.length ? x.atts.map((a) => ({ path: a.path, ref: a.ref })) : null }))
     return JSON.stringify(out).slice(0, 500)
   }
   return JSON.stringify(await one({ kn, mcp, md: read('원천.md'), name: '원천' })).slice(0, 500)
@@ -1220,59 +1220,76 @@ async function runSession(E, C) {
   } finally { await t.close() }
 }
 async function runBulk(E, C) {
-  const crypto = await import('node:crypto')
-  const { fileToMd } = await import('../core/importer.js')
+  const os = await import('node:os')
+  const { execFile } = await import('node:child_process')
   const t = await team(E, 'bulk')
   const rows = []
+  // 원본 첨부(T12 · 저장승인 설계 P-D47): 제품 경로 그대로: 원본 docx 를 일 폴더 밖 임시 폴더에 두고 kmd-parse --upload 로 팀 서버에 올린다(사람 기기 열쇠 · --auth-env).
+  //   세션은 index.json 의 atts({ path, ref })를 save 의 attach 에 그대로 싣고, 저장 문(hub.save)이 올린 원본으로 푼다. 시험 도구는 저장 문을 감싸지 않는다(ref 갈아 끼우기 · feedRev 3 은 걷었다 · feedRev 4).
+  //   대량 넣기의 원본은 사무 파일이다: 첨부 꼴(core/save.js ASSET_EXT)에 md 가 없어 골든 md 를 docx(머리 줄 → 제목 스타일)로 바꿔 원본으로 쓴다
+  const srcDir = await fs.mkdtemp(path.join(os.tmpdir(), 'kmd-eval-bulk-'))
   try {
     if (E.fake) process.env.FAKE_AGENT_SCRIPT = E.intakeScript
     rows.push(...(await baseIntake(E, t, C.base || [], 'bulk')))
     const before = await scoreOf(t.dir, KN, fedOf(C))
     const srcs = await Promise.all(C.src.map(srcOf))
-    const files = []
-    const index = []
-    // 원본 첨부(T5) — 원본 바이트는 일 폴더에 두지 않는다: 대용 세션이 .b64 를 Read 하면 긴 줄이 잘려 다른 base64 를 내고(E_INPUT) 수십 KB 를 다시 생성했다(real-2 bulk 약 170초).
-    //   index 의 attachRef(「@원본/N」)를 save 의 attach b64 칸에 그대로 실으면 이 시험 도구가 저장 문 앞(hub.save)에서 원본 base64 로 바꿔 넣는다.
-    //   제품 세션은 kmd-parse 가 준 파일을 base64 로 싣는다(첨부를 모델 출력에서 빼는 제품 고침은 따로) · 그래서 이 행의 시간은 제품의 첨부 생성 몫을 담지 않는다(attachVia ref)
-    const refs = new Map()
-    // 대량 넣기의 원본은 사무 파일이다: 첨부 꼴(core/save.js ASSET_EXT)에 md 가 없어 md 원천은 넣지 못한다(E_INPUT 「올릴 수 없는 첨부 꼴」).
-    //   그래서 골든 md 를 docx(머리 줄 → 제목 스타일)로 바꿔 원본으로 쓴다 · 글 · 지문은 서버와 같은 fileToMd 로
+    const byRel = new Map()
     for (const s of srcs) {
       const rel = s.file.replace(/\.md$/, '.docx')
-      const buf = await docxOf(s.md)
-      const { md } = await fileToMd(rel, buf, { convert: true })
-      if (!md) throw Object.assign(new Error(`docx 를 글로 바꾸지 못했다: ${rel}`), { code: 'CONVERT' })
-      const sha = crypto.createHash('sha256').update(String(md).trim()).digest('hex').slice(0, 16)
+      const full = path.join(srcDir, '원본', ...rel.split('/'))
+      await fs.mkdir(path.dirname(full), { recursive: true })
+      await fs.writeFile(full, await docxOf(s.md))
+      byRel.set(rel, s)
+    }
+    // 파서 몫(parseMs): 글로 바꾸기 + 올리기 · 세션 행 시간 밖(제품에서는 세션이 부르는 Bash 한 번)
+    const outDir = path.join(srcDir, '글')
+    const p0 = Date.now()
+    const parsed = await new Promise((ok) => execFile(process.execPath, [path.join(ROOT, 'server', 'bin', 'kmd-parse.mjs'), path.join(srcDir, '원본'), '--out', outDir, '--upload', t.s.url, '--kn', t.kn, '--auth-env', 'KMD_EVAL_UPLOAD_KEY'], { env: { ...process.env, KMD_EVAL_UPLOAD_KEY: t.me.key }, encoding: 'utf8', maxBuffer: 16 << 20, timeout: 5 * 60_000 }, (err, stdout) => ok({ err, stdout: String(stdout || '') })))
+    const parseMs = Date.now() - p0
+    const lines = parsed.stdout.split('\n').filter(Boolean).map((x) => { try { return JSON.parse(x) } catch { return null } }).filter(Boolean)
+    const end = lines.find((x) => x.done) || {}
+    if (end.why || !lines.some((x) => x.rel)) throw Object.assign(new Error(`kmd-parse --upload 가 넘어졌다: ${end.why || parsed.err?.message || '줄 없음'}`), { code: 'PARSE' })
+    const files = []
+    const index = []
+    for (const x of lines.filter((y) => y.rel)) {
+      const s = byRel.get(x.rel)
+      if (!s || !x.mdFile) continue
       const mdFile = `글/${s.n}.md`
-      const attachRef = `@원본/${s.n}`
-      refs.set(attachRef, buf.toString('base64'))
-      index.push({ rel, attachPath: `docs/assets/${rel}`, mdFile, attachRef, sha, tags: [`ingest/${rel}`, `md/${sha}`] })
-      files.push({ name: mdFile, data: md })
+      files.push({ name: mdFile, data: await fs.readFile(x.mdFile, 'utf8') })
+      index.push({ rel: x.rel, mdFile, sha: x.sha, tags: x.tags, atts: x.atts || [], ...(x.attachWhy ? { attachWhy: x.attachWhy } : {}) })
     }
     files.push({ name: 'index.json', data: JSON.stringify(index, null, 1) })
-    const save0 = t.s.hub.save
-    // attachRaw · attachRawKb: 참조가 아니라 세션이 base64 를 손수 실은 첨부(T5 · 첨부 생성 몫이 정말 0 인가) · .b64 는 일 폴더에 없어 b64Reads 는 늘 0 이다
-    const att = { filled: 0, raw: 0, rawKb: 0 }
-    t.s.hub.save = (ctx, id, input, opt) => save0.call(t.s.hub, ctx, id, input && Array.isArray(input.attach) ? { ...input, attach: input.attach.map((a) => { const k = String(a?.b64 || '').trim(); if (!refs.has(k)) { if (k) { att.raw++; att.rawKb += k.length / 1024 } return a } att.filled++; return { ...a, b64: refs.get(k) } }) } : input, opt)
-    try {
+    const uploaded = index.filter((x) => x.atts.some((a) => a.ref)).length
+    // attachRaw · attachRawKb: 세션이 base64 를 손수 실은 첨부(저장 측정 줄 attachVia.b64 · 실패한 저장 줄도 센다: 생성 몫은 났다) · attachFilled: 들어간 저장이 참조(ref)로 실은 첨부
+    const sl0 = t.savelog().length
+    const viaOf = () => {
+      const sl = t.savelog().slice(sl0).filter((l) => l.ch === 'bulk' && l.attachVia)
+      return { raw: sl.reduce((a, l) => a + (Number(l.attachVia.b64) || 0), 0), rawKb: sl.reduce((a, l) => a + (Number(l.attachVia.b64Kb) || 0), 0), filled: sl.filter((l) => l.err == null).reduce((a, l) => a + (Number(l.attachVia.ref) || 0), 0) }
+    }
+    {
       rows.push(await measure(E, t, { channel: 'bulk', step: `대량 넣기 세션(원천 ${srcs.length} · 한 세션)`, file: srcs.map((s) => s.n).join(','), expectCh: 'bulk', selfCost: true }, async () => {
         const { r, tools, proxy, toolTrace } = await humanSession(E, t, {
           trace: path.join(t.root, 'trace-bulk.jsonl'),
           skill: 'kmd-team-import',
           files,
-          extra: '- 파서(kmd-parse)를 받지 않는다: 일 폴더의 index.json 이 파서 출력이다(rel · mdFile 글 · sha · tags · attachRef 원본 첨부 표).\n- 규칙 표 승인은 사람이 미리 했다: propose errors 가 0 이면 묻지 않고 파일마다 save 한다. save 의 record.tags 는 index.json 의 tags 그대로 · attach 는 [{ path: attachPath, b64: attachRef 글자 그대로(예: 「@원본/1」) }]. 원본 바이트는 이 시험이 채워 넣는다: base64 를 짓거나 원본 파일을 찾지 않는다.\n- 빈 지식이어도 기초 세우기를 기다리지 않고 이어 간다.',
+          extra: '- 파서(kmd-parse --upload)는 이 시험이 미리 돌렸다: 일 폴더의 index.json 이 파서 출력이다(rel · mdFile 글 · sha · tags · atts). 원본은 팀 서버에 이미 올렸다.\n- 규칙 표 승인은 사람이 미리 했다: propose errors 가 0 이면 묻지 않고 파일마다 save 한다. save 의 record.tags 는 index.json 의 tags 그대로 · attach 는 그 줄의 atts 를 [{ path, ref }] 로 그대로. base64 를 짓거나 원본 파일을 찾지 않는다.\n- 빈 지식이어도 기초 세우기를 기다리지 않고 이어 간다.',
           prompt: `일 폴더의 파일들을 팀 지식(knowledge id: ${t.kn})에 대량으로 넣어 줘. index.json 을 먼저 읽는다. 규칙 표는 승인한 것으로 본다.`,
         })
-        return { putFromSavelog: true, proxy, toolTrace, attachVia: 'ref', timeScope: 'tool', attachFilled: att.filled, attachRaw: att.raw, attachRawKb: Math.round(att.rawKb), b64Reads: tools.filter((x) => /\.b64\b/.test(x)).length, cost: r.cost || 0, turns: r.turns ?? null, calls: 1, agentOk: !!r.ok, toolCalls: tools.length, saveCalls: tools.filter((x) => x.startsWith('저장')).length, perFileCost: r4((r.cost || 0) / srcs.length), sources: srcs.length, answer: String(r.text || r.message || '').slice(0, 800), ...(r.ok ? {} : { codes: [`AGENT_${r.error || 'fail'}`], why: [String(r.message || '').slice(0, 300)] }) }
+        const v = viaOf()
+        return { putFromSavelog: true, proxy, toolTrace, attachVia: 'stage', timeScope: 'tool', parseMs, uploaded, attachFilled: v.filled, attachRaw: v.raw, attachRawKb: Math.round(v.rawKb), b64Reads: tools.filter((x) => /\.b64\b/.test(x)).length, cost: r.cost || 0, turns: r.turns ?? null, calls: 1, agentOk: !!r.ok, toolCalls: tools.length, saveCalls: tools.filter((x) => x.startsWith('저장')).length, perFileCost: r4((r.cost || 0) / srcs.length), sources: srcs.length, answer: String(r.text || r.message || '').slice(0, 800), ...(r.ok ? {} : { codes: [`AGENT_${r.error || 'fail'}`], why: [String(r.message || '').slice(0, 300)] }) }
       }))
+      // 같은 묶음 다시: 올린 원본은 첫 저장이 지웠다: 같은 ref 를 docs/assets 의 원본으로 풀어 same(이어 하기)
       rows.push(await measure(E, t, { channel: 'bulk', step: '같은 묶음 다시(모두 same 이어야)', expectCh: 'bulk', selfCost: true }, async () => {
         if (!E.fake) return { ran: false, why: ['진짜 판에서는 다시 돌리지 않는다(돈) · 가짜 판에서만 본다'] }
         const { r } = await humanSession(E, t, { skill: 'kmd-team-import', files, extra: '', prompt: `일 폴더의 파일들을 팀 지식(knowledge id: ${t.kn})에 대량으로 넣어 줘.` })
         return { put: false, agentOk: !!r.ok, answer: String(r.text || '').slice(0, 400), sameOk: /"same":true/.test(String(r.text || '')) }
       }))
-    } finally { t.s.hub.save = save0 }
+    }
     return scored({ rows, dirs: { root: t.root, kn: t.dir } }, t.dir, KN, fedOf(C), before)
-  } finally { await t.close() }
+  } finally {
+    await t.close()
+    await fs.rm(srcDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch((e) => console.log(`· 대량 넣기 임시 원본 폴더를 지우지 못했다: ${e.message}`))
+  }
 }
 
 async function runEdit(E, C) {
