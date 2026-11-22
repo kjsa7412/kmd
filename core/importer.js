@@ -186,6 +186,42 @@ export async function fileToMd(rel, buf, { convert: conv = true, mdOf = null } =
   }
 }
 
+// 대량 넣기 표지 · 증명(저장승인 설계 P-D16 · P-D47): 파서(kmd-parse)가 짓는 표지와 저장 문 · 제안이 대 보는 규칙이 이 셋 하나다.
+//   지문(md/<16자>): 바꾼 글이 있으면 sha256(md.trim()) 앞 16 · 없으면(스캔 · 그림) 원본 바이트의 지문
+//   표지: [ingest/<경로>(60자 안), md/<지문>]
+export const ingestFp = (md, buf) => crypto.createHash('sha256').update(md != null ? String(md).trim() : buf).digest('hex').slice(0, 16)
+export const ingestTags = (rel, fp) => [`ingest/${rel}`.slice(0, 60), `md/${fp}`]
+// 증명 판정 하나 → null(받음) | 까닭(부른 쪽이 E_INPUT 으로 · 아무것도 쓰지 않는다).
+//   tags 에 ingest/ · md/<지문> 이 다 있어야 하고, 서버가 본 원본을 글로 바꾼 지문이 md/ 와 같아야 한다:
+//   첨부 원천(오피스 · pdf · hwp · 그림): attach 의 { path, b64 } 가운데 하나(원본이 docs/assets 에 남는다)
+//   글 원천(md · txt · csv …): 첨부를 짓지 않는다 · source { path, b64 }(올린 원본 · 저장 문 · 제안이 내 올린 자리에서 푼 것) · ingest/ 가 그 경로여야 한다
+//   tags 만 흉내 내고 원본이 없거나 지문이 다르면 받지 않는다
+export async function ingestProofWhy(tags, { attach = null, source = null } = {}) {
+  const ts = (Array.isArray(tags) ? tags : []).map((t) => String(t).trim())
+  const md = ts.find((t) => /^md\/[0-9a-f]{16}$/.test(t))
+  const ing = ts.find((t) => t.startsWith('ingest/'))
+  const why = '대량 넣기(ingest/ 표지)는 파서가 준 표지(ingest/ · md/<지문>) 그대로와 원본(첨부 원천은 attach · 글 원천은 source: 파서 줄의 것 그대로)을 같이 실을 때만 받는다. 넣은 파일이 아니면 ingest/ 표지를 떼고 저장한다'
+  if (!md || !ing) return why
+  const atts = (Array.isArray(attach) ? attach : []).filter((a) => a && typeof a.path === 'string' && typeof a.b64 === 'string')
+  if (atts.length && source) return `${why}(글 원천 source 와 첨부 attach 를 같이 싣지 않는다)`
+  if (atts.length) {
+    for (const a of atts) {
+      const buf = Buffer.from(a.b64, 'base64')
+      const fm = await fileToMd(path.posix.basename(a.path), buf, { convert: true })
+      if (!fm.failed && ingestFp(fm.md, buf) === md.slice(3)) return null
+    }
+    return `${why}(첨부 원본의 글 지문이 ${md} 와 다르다)`
+  }
+  if (!source || typeof source.path !== 'string' || typeof source.b64 !== 'string') return why
+  const buf = Buffer.from(source.b64, 'base64')
+  const fm = await fileToMd(source.path, buf, { convert: true })
+  if (fm.attach) return `${why}(${fm.ext} 는 첨부 원천이다: source 가 아니라 attach 로 싣는다)`
+  if (fm.md == null || fm.failed) return `${why}(글 원천을 글로 바꾸지 못했다)`
+  if (ingestTags(source.path, '')[0] !== ing) return `${why}(글 원천의 경로가 ${ing} 와 다르다)`
+  if (ingestFp(fm.md, buf) !== md.slice(3)) return `${why}(글 원천의 글 지문이 ${md} 와 다르다)`
+  return null
+}
+
 // 기초 세우기 「폴더 그대로」(메뉴개편 8-1 · 8-2 · N7) — 재료 글 하나 → 문서 자리 · ## 항목 · 저장 덩이(Claude 를 부르지 않는다).
 //   문서 자리 = 올린 경로(폴더 짜임 그대로 · 확장자 뺌 · 링크 꼴과 부딪히는 # · % 는 뺌 · 빈 조각은 「문서」) ·
 //   비어 있지 않은 첫 줄이 # 줄이면 문서 제목이라 뺀다 · 머리(##) 앞 글은 「개요」 · ## 마다 항목(같은 머리는 「머리 (2)」) ·

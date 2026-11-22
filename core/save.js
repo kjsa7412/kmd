@@ -68,9 +68,13 @@ export function localStamp(d = new Date()) {
 }
 
 // 파일 이름 조각 — 제목의 앞부분 · 파일 이름에 못 쓰는 글자는 뺀다
-function slugOf(title) {
+//   앞부분 끝의 원본 확장자(대량 넣기 제목 「<파일 이름>: 무엇」 · 채널 평가 T19)는 뗀다: 기록 id 가 「….md.md」 · 「….docx.md」 가 되지 않게
+const SRC_EXT = /\.(md|markdown|txt|log|csv|tsv|html?|json|docx?|pptx?|xlsx?|hwpx?|pdf|png|jpe?g|gif|webp|svg|bmp|zip)$/i
+export function slugOf(title) {
   const s = nfc(title)
     .split(/\s+-\s+|:\s+/)[0]
+    .trim()
+    .replace(SRC_EXT, '')
     .replace(/[\\/:*?"<>|#%`'\u0000-\u001f]/g, '')
     .trim()
     .replace(/\s+/g, '-')

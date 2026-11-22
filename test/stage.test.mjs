@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
 import { TEAM_KIT_REV } from '../core/teamkit.js'
-import { fileToMd } from '../core/importer.js'
+import { fileToMd, ingestFp, ingestTags } from '../core/importer.js'
 import { storedZip } from './fixture/officefiles.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -85,6 +85,11 @@ test('올리기 판정: 쓰기 기기 열쇠 200 { ref, bytes } · 멱등 · sha
   assert.deepEqual([a.j.ref, a.j.bytes], [`sha256:${a.sha}`, buf.length])
   const f = path.join(homeOf('wr'), a.sha)
   assert.ok(fs.existsSync(f), '사람마다 자리')
+  // 올린 원본은 그 사람만(T20): 폴더 700 · 파일 600(POSIX 만 · Windows 는 모드를 쓰지 않는다)
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(f).mode & 0o777, 0o600, '파일 600')
+    for (const d of [homeOf('wr'), path.dirname(homeOf('wr')), stageRoot()]) assert.equal(fs.statSync(d).mode & 0o777, 0o700, `폴더 700: ${d}`)
+  }
   assert.ok(f.startsWith(stageRoot()) && !f.startsWith(path.join(tmp, 'kn')), '<살림>/stage 아래 · 지식 폴더 밖(백업 · 보내기 · 지식 폴더 다시 읽기에 들지 않는다)')
   const again = await put(P.wr, buf)
   assert.equal(again.status, 200)
@@ -136,7 +141,8 @@ test('참조 첨부: 대량 넣기 save { path, ref } → 들어감 · docs/asse
   const up = await put(P.wr, buf)
   assert.equal(up.status, 200)
   const inp = bulkInput(1, F.tags)
-  const p = await proposeOk(inp)
+  const att1 = [{ path: `docs/assets/${name}`, ref: up.j.ref }]
+  const p = await proposeOk({ ...inp, attach: att1 })
   const dayFile = path.join(tmp, 'data', 'attach-day.json')
   const day0 = fs.existsSync(dayFile) ? JSON.parse(fs.readFileSync(dayFile, 'utf8'))[KN]?.bytes || 0 : 0
   const r = await mcp('save', { knowledge: KN, proposal: p.proposal, kit: KIT, attach: [{ path: `docs/assets/${name}`, ref: up.j.ref }] })
@@ -149,8 +155,10 @@ test('참조 첨부: 대량 넣기 save { path, ref } → 들어감 · docs/asse
   const day1 = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'attach-day.json'), 'utf8'))[KN].bytes
   assert.ok(Math.abs(day1 - day0 - buf.length) <= 2, `하루 첨부 합은 풀린 바이트로 센다(base64 길이 셈 · 채움 2자 안): ${day1 - day0} · ${buf.length}`)
   // 이어 하기: 올린 원본 없이 같은 ref · docs/assets 의 sha 가 같은 파일로 풀려 same
-  const p2 = await mcp('propose', inp)
-  const r2 = await mcp('save', { ...inp, proposal: p2.proposal || 'b'.repeat(64), kit: KIT, attach: [{ path: `docs/assets/${name}`, ref: up.j.ref }] })
+  //   제안은 증명을 넘고(원본이 docs/assets 로 풀림) 항목이 이미 있어 오류 · 저장은 같은 표지로 same
+  const p2 = await mcp('propose', { ...inp, attach: att1 })
+  assert.notEqual(p2.error, 'E_INPUT', JSON.stringify(p2))
+  const r2 = await mcp('save', { ...inp, proposal: p2.proposal || 'b'.repeat(64), kit: KIT, attach: att1 })
   assert.equal(r2.same, true, JSON.stringify(r2))
 })
 
@@ -159,9 +167,13 @@ test('참조 첨부 거절: 남이 올린 ref · junction 으로 바꾼 자리 �
   const buf = docx('배포 창', '배포는 화요일 2시에 한다.')
   const F = await fileOf(name, buf)
   const inp = bulkInput(2, F.tags)
-  const p = await proposeOk(inp)
   const at = `docs/assets/${name}`
   const ref = `sha256:${crypto.createHash('sha256').update(buf).digest('hex')}`
+  // 제안도 원본으로 증명한다(T18): 올려서 제안받은 뒤 내 올린 자리를 비운다(아래 거절 시험의 바탕)
+  const up0 = await put(P.wr, buf)
+  assert.equal(up0.status, 200)
+  const p = await proposeOk({ ...inp, attach: [{ path: at, ref }] })
+  fs.rmSync(path.join(homeOf('wr'), up0.sha))
   const n0 = snap(kdir())
   const no = async (attach, extra = {}) => {
     const r = await mcp('save', { knowledge: KN, proposal: p.proposal, kit: KIT, attach, ...extra })
@@ -211,6 +223,84 @@ test('개인 프로그램에는 올리기 길이 없다(404)', async () => {
   } finally { await pc.close() }
 })
 
+// 글 원천(채널 평가 T18 · T19): md · txt · csv 는 첨부를 짓지 않고 올린 원본(source)으로 md/ 지문을 증명한다 · 제안에서 먼저 걸린다 · 기록 id 에 원본 확장자가 없다
+test('글 원천: 파서 tags 그대로 + source → propose · save 들어감(첨부 없음 · 올린 원본 지움 · 다시 same) · 기록 id 에 .md 가 없다', async () => {
+  const name = '테스트 백업 절차.md'
+  const buf = Buffer.from('# 테스트 백업 절차\n\n백업은 매일 2시에 한다.\n')
+  const fp = ingestFp((await fileToMd(name, buf)).md, buf)
+  const tags = ingestTags(name, fp)
+  const up = await put(P.wr, buf)
+  assert.equal(up.status, 200)
+  const source = { path: name, ref: up.j.ref }
+  const inp = { ...bulkInput(4, tags), record: { ...bulkInput(4, tags).record, title: `${name}: 백업 시각` } }
+  // 고치기 전(188 T18): tags 그대로 · 첨부 없음 → 승인 뒤 save 에서 처음 E_INPUT 이었다 · 이제 source 가 없으면 제안에서 걸린다
+  const bare = await mcp('propose', inp)
+  assert.equal(bare.error, 'E_INPUT', JSON.stringify(bare))
+  const p = await proposeOk({ ...inp, source })
+  const r = await mcp('save', { knowledge: KN, proposal: p.proposal, kit: KIT, source })
+  assert.ok(r.saved, JSON.stringify(r))
+  assert.equal(savelogOf().at(-1).ch, 'bulk')
+  assert.doesNotMatch(r.saved, /\.md/, `기록 id 에 원본 확장자가 없다: ${r.saved}`)
+  assert.match(r.saved, /테스트-백업-절차/)
+  assert.ok(fs.readdirSync(path.join(kdir(), 'work')).every((x) => !/\.md\.md$/.test(x)), '기록 파일 이름에 .md.md 가 없다')
+  assert.ok(!fs.existsSync(path.join(kdir(), 'docs', 'assets', name)), '글 원천은 docs/assets 에 두지 않는다')
+  assert.ok(!fs.existsSync(path.join(homeOf('wr'), up.sha)), '들어간 뒤 올린 원본을 지운다')
+  // 이어 하기: 파서가 다시 올리고 같은 표지 → same
+  assert.equal((await put(P.wr, buf)).status, 200)
+  const p2 = await mcp('propose', { ...inp, source })
+  assert.notEqual(p2.error, 'E_INPUT', JSON.stringify(p2))
+  const r2 = await mcp('save', { ...inp, proposal: p2.proposal || 'b'.repeat(64), kit: KIT, source })
+  assert.equal(r2.same, true, JSON.stringify(r2))
+})
+
+test('글 원천 거절: 지문 틀림 · tags 만 흉내 · 경로 다름 · 남이 올린 것 · b64 를 직접 · 첨부 꼴을 source 로 · ingest/ 없는 source · HTTP /save = E_INPUT(아무것도 쓰지 않음)', async () => {
+  const name = '테스트 장비 메모.txt'
+  const buf = Buffer.from('장비는 열 대다.\n')
+  const fp = ingestFp((await fileToMd(name, buf)).md, buf)
+  const tags = ingestTags(name, fp)
+  const ref = `sha256:${crypto.createHash('sha256').update(buf).digest('hex')}`
+  const n0 = snap(kdir())
+  const noP = async (inp, why) => {
+    const r = await mcp('propose', inp)
+    assert.equal(r.error, 'E_INPUT', `${why}: ${JSON.stringify(r)}`)
+    return r
+  }
+  // 남이 올린 원본: 내 자리에 없다
+  assert.equal((await put(P.wr2, buf)).status, 200)
+  assert.match((await noP({ ...bulkInput(5, tags), source: { path: name, ref } }, '남이 올린 것')).message, /올린 글 원천이 없다/)
+  assert.equal((await put(P.wr, buf)).status, 200)
+  // 지문 틀림
+  assert.match((await noP({ ...bulkInput(5, [tags[0], 'md/0123456789abcdef']), source: { path: name, ref } }, '지문 틀림')).message, /지문이/)
+  // tags 만 흉내(원본 없음)
+  await noP(bulkInput(5, tags), 'tags 만')
+  // 경로가 ingest/ 와 다르다
+  assert.match((await noP({ ...bulkInput(5, tags), source: { path: '다른 이름.txt', ref } }, '경로 다름')).message, /경로가/)
+  // b64 를 직접 실은 source · 모르는 칸
+  await noP({ ...bulkInput(5, tags), source: { path: name, b64: buf.toString('base64') } }, 'b64 직접')
+  await noP({ ...bulkInput(5, tags), source: { path: name, ref, b64: 'x' } }, '모르는 칸')
+  // 첨부 원천(docx)을 source 로
+  const dbuf = docx('배포 창', '배포는 화요일 5시에 한다.')
+  const dname = '테스트 올림 5.docx'
+  const dF = await fileOf(dname, dbuf)
+  const dup = await put(P.wr, dbuf)
+  assert.match((await noP({ ...bulkInput(5, dF.tags), source: { path: dname, ref: dup.j.ref } }, '첨부 꼴')).message, /attach 로/)
+  // ingest/ 없는 세션의 source(제안 · 저장)
+  await noP({ ...bulkInput(5, []), source: { path: name, ref } }, 'ingest/ 없는 source')
+  const okp = await proposeOk(bulkInput(5, []))
+  const ps = await mcp('save', { ...bulkInput(5, []), proposal: okp.proposal, kit: KIT, source: { path: name, ref } })
+  assert.equal(ps.error, 'E_INPUT', JSON.stringify(ps))
+  // HTTP /save 의 source 는 받지 않는다
+  const http = await req(`/api/k/${KN}/save`, P.wr, { ...bulkInput(5, tags), proposal: okp.proposal, source: { path: name, ref } })
+  assert.equal(http.j?.error, 'E_INPUT', JSON.stringify(http.j))
+  // 승인된 제안이 있어도 save 의 source 가 지문을 못 넘으면 E_INPUT(제안 해시는 원본을 보지 않는다 · 저장 문이 다시 증명한다)
+  const good = await proposeOk({ ...bulkInput(5, tags), source: { path: name, ref } })
+  const other = Buffer.from('장비는 스무 대다.\n')
+  const oup = await put(P.wr, other)
+  const bad = await mcp('save', { knowledge: KN, proposal: good.proposal, kit: KIT, source: { path: name, ref: oup.j.ref } })
+  assert.equal(bad.error, 'E_INPUT', JSON.stringify(bad))
+  assert.equal(snap(kdir()), n0, '아무것도 쓰지 않는다')
+})
+
 test('24시간 지난 올린 원본은 걷기 전이라도 풀지 않는다(E_INPUT) · 지식을 지우면 stage/<지식> 도 같이 지운다', async () => {
   const name = '테스트 올림 3.docx'
   const buf = docx('배포 창', '배포는 화요일 3시에 한다.')
@@ -220,8 +310,8 @@ test('24시간 지난 올린 원본은 걷기 전이라도 풀지 않는다(E_IN
   const f = path.join(homeOf('wr'), up.sha)
   const t = new Date(Date.now() - 25 * 3600_000)
   fs.utimesSync(f, t, t)
-  const p = await proposeOk(bulkInput(3, F.tags))
-  const r = await mcp('save', { knowledge: KN, proposal: p.proposal, kit: KIT, attach: [{ path: `docs/assets/${name}`, ref: up.j.ref }] })
+  // 제안에서 먼저 걸린다(승인 전 · T18)
+  const r = await mcp('propose', { ...bulkInput(3, F.tags), attach: [{ path: `docs/assets/${name}`, ref: up.j.ref }] })
   assert.equal(r.error, 'E_INPUT', JSON.stringify(r))
   assert.match(r.message, /올린 원본이 없다/)
   assert.ok(fs.existsSync(f), '걷기 전이라 파일은 있지만 풀지 않았다')
@@ -233,3 +323,4 @@ test('24시간 지난 올린 원본은 걷기 전이라도 풀지 않는다(E_IN
   await s.hub.deleteKnowledge(sh, KN, { confirm: meta.name })
   assert.ok(!fs.existsSync(home), '지식을 지우면 올린 원본 자리도 지운다')
 })
+

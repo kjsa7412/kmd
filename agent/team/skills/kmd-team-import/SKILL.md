@@ -25,16 +25,17 @@ description: 이 PC 의 폴더 · 파일(문서 · 회의록 · 오피스 · hwp
      tar -xf $z -C $t; Move-Item (Join-Path $t "kmd-parse-$v") $d; Remove-Item $t, $z -Recurse -Force
      ```
      sha256 이 다르면 받은 파일을 지우고 멈춘다(사람에게 말한다).
-2. **글로 바꾸고 원본을 올린다**: 이 폴더(`.mcp.json` 이 있는 곳)에서 `& "$env:USERPROFILE\.kmd\parse\<ver>\kmd-parse.cmd" "<폴더>" --out "$env:TEMP\kmd-parse\<폴더 이름>" --upload "<팀 서버 주소>" --kn "<지식 id>"`. 파서가 원본 파일을 팀 서버에 올리고(열쇠는 `.mcp.json` 의 kmd-team 헤더 도우미가 꺼낸다 · 24시간 둔다) 줄마다 파일 하나: `{ rel, mdFile, sha, tags, scan?, img?, why?, failed?, atts, attachWhy? }` · 끝 줄 `{ done, n, fail }`. 같은 내용이 `index.json` 에도 있다.
+2. **글로 바꾸고 원본을 올린다**: 이 폴더(`.mcp.json` 이 있는 곳)에서 `& "$env:USERPROFILE\.kmd\parse\<ver>\kmd-parse.cmd" "<폴더>" --out "$env:TEMP\kmd-parse\<폴더 이름>" --upload "<팀 서버 주소>" --kn "<지식 id>"`. 파서가 원본 파일을 팀 서버에 올리고(열쇠는 `.mcp.json` 의 kmd-team 헤더 도우미가 꺼낸다 · 24시간 둔다) 줄마다 파일 하나: `{ rel, mdFile, sha, tags, scan?, img?, why?, failed?, atts, source?, attachWhy? }` · 끝 줄 `{ done, n, fail }`. 같은 내용이 `index.json` 에도 있다.
    - 끝 줄에 `why` 가 있으면(열쇠 · 자리 · 지식이 틀림) 그 까닭을 사람에게 말하고 멈춘다.
-   - `atts` 는 `[{ path, ref, bytes }]` 다: `ref` 는 올린 원본의 참조(`sha256:<64자>`)다. `attachWhy` 가 있는 줄은 원본을 첨부하지 못한 파일이다(32MB 넘음 · 올리기 한도).
+   - `atts` 는 첨부 원천(오피스 · hwp · pdf · 그림)의 `[{ path, ref, bytes }]` 다: `ref` 는 올린 원본의 참조(`sha256:<64자>`)다. 글 원천(md · txt · csv …)은 첨부를 짓지 않고(`atts` 가 빈다) `source: { path, ref }` 를 준다: 올린 원본으로 표지(`md/<sha>`)를 증명한다. `attachWhy` 가 있는 줄은 원본을 올리지 못한 파일이다(32MB 넘음 · 올리기 한도).
    - `failed` 면 그 파일은 넣을 수 없다(까닭 `why` 를 끝에 같이 알린다).
    - `scan` 이면 글이 없는 pdf · 그림만 든 문서다. 원본 파일을 직접 읽어 글(md)을 짓는다. 지은 글이 그 파일의 글이다.
    - `img` 는 그림이다. 원본 첨부를 하지 않으면 건너뛴다.
    - 파일이 많으면 사람에게 수와 걸릴 일을 한 줄로 말하고 시작한다.
 3. **파일마다 제안**(파일 하나 = 기록 하나 = 제안 하나 · 아직 저장하지 않는다): `mdFile` 을 읽고
    - 파일에 나오는 것을 `match` 로 맞추고(항목 맞추기), 들어갈 항목을 `section` 으로 읽는다(`base` 를 받는다). 넣을 곳을 고르는 규칙 · 항목 글 모양은 `kmd-team-save` 와 옆의 `작성가이드.md` 그대로다.
-   - 기록: 제목 「<파일 이름>: 무엇」 · `tags` 는 파서가 준 `tags` 그대로(`ingest/<경로>` · `md/<sha>`: 같은 파일을 다시 넣으면 팀 서버가 `same` 으로 답한다 · `atts` 가 빈 줄(`attachWhy`)은 표지를 떼고 짓는다: 제안과 저장의 입력은 같아야 한다) · `changes` 에 이 파일로 정해진 것 · `touches` 는 글이 바뀌는 항목만.
+   - 기록: 제목 「<파일 이름(확장자 없이)>: 무엇」(예 「백업 절차: 보관 기간」) · `tags` 는 파서가 준 `tags` 그대로(`ingest/<경로>` · `md/<sha>`: 같은 파일을 다시 넣으면 팀 서버가 `same` 으로 답한다 · `attachWhy` 가 있는 줄은 표지를 떼고 짓는다: 제안과 저장의 입력은 같아야 한다) · `changes` 에 이 파일로 정해진 것 · `touches` 는 글이 바뀌는 항목만.
+   - **원본도 같이 싣는다**(표지가 있는 줄): 그 줄의 `atts` 는 `attach: [{ path, ref }]` 로, `source` 는 `source: { path, ref }` 로 그대로 `propose` 에 싣는다. 팀 서버가 올린 원본을 글로 바꿔 `md/<sha>` 와 대 보고 다르거나 없으면 제안에서 `E_INPUT` 이다(승인 전에 걸린다 · 제안 해시에는 들지 않는다).
    - 고칠 항목(`sections`): 이미 있는 항목은 `{ coord, base, edits }`, 아직 없는 항목은 `{ doc, heading, content }`. 새 문서와 자리는 이 글 끝의 생성 룰 R3 · R4 로 정한다(문서 이름에 파일 이름 · 날짜 · 판을 쓰지 않는다).
    - 정해지지 않은 것(묻는 말 · 검토 중 · 초안)은 넣지 않는다. 문서에 들어갈 것이 없는 파일은 제안하지 않고 표에 「넣을 곳 없음」 으로 둔다.
    - `propose` 의 `errors` 가 있으면 입력을 고쳐 다시 propose 한다. 두 번 고쳐도 안 되면 표에 「제안 오류: 까닭」 으로 두고 넣지 않는다.
@@ -49,9 +50,9 @@ description: 이 PC 의 폴더 · 파일(문서 · 회의록 · 오피스 · hwp
    ```
    - 경고가 있는 줄 · 새 문서 · 새 갈래가 서는 줄은 늘 보인다. 표가 길면 나머지는 「그 밖에 n 줄(경고 없음)」 로 줄이고, 사람이 「전체」 라고 하면 다 보인다.
    - 대화로 고친다: 파일 빼기(그 파일은 넣지 않음) · 넣을 곳 바꾸기 · 값 고치기(그 파일 입력을 고쳐 다시 propose 하고 바뀐 줄만 다시 보인다).
-5. **파일마다 넣는다**(승인 뒤 묻지 않고 이어서 · 한 파일씩 차례로): 그 파일의 승인한 `proposal` · `kit` · 원본 첨부를 실어 `save` 한다. 입력을 고치지 않았으면 기록 · 항목 칸은 다시 싣지 않는다: `save { knowledge, proposal, kit, attach }`(kmd 가 propose 때의 입력을 30분 들고 있다 · `E_INPUT` 으로 들고 있지 않다고 하면 그때만 입력 전체를 싣는다).
-   - **원본 첨부**(늘 · 저장은 늘 승인이다): 그 파일 줄의 `atts` 를 `attach: [{ path, ref }]` 로 그대로 같은 저장에 싣는다. base64 를 짓거나 원본 파일을 읽지 않는다(원본은 파서가 이미 올렸다). 팀 서버는 올린 원본을 글로 바꿔 `md/<sha>` 와 맞을 때만 대량 넣기로 받는다. `atts` 가 빈 줄(`attachWhy`)은 첨부 없이 글만 넣는다(`ingest/` · `md/` 표지도 떼고 · 끝에 알린다).
-   - `E_INPUT` 이 「올린 원본이 없다」 면(24시간이 지났다) 그 파일만 파서를 `--upload` 로 다시 돌려 받은 `ref` 로 다시 보낸다.
+5. **파일마다 넣는다**(승인 뒤 묻지 않고 이어서 · 한 파일씩 차례로): 그 파일의 승인한 `proposal` · `kit` · 원본(`attach` 또는 `source`)을 실어 `save` 한다. 입력을 고치지 않았으면 기록 · 항목 칸은 다시 싣지 않는다: `save { knowledge, proposal, kit, attach | source }`(kmd 가 propose 때의 입력을 30분 들고 있다 · `E_INPUT` 으로 들고 있지 않다고 하면 그때만 입력 전체를 싣는다).
+   - **원본**(늘 · 저장은 늘 승인이다): 첨부 원천은 그 줄의 `atts` 를 `attach: [{ path, ref }]` 로, 글 원천은 `source` 를 `source: { path, ref }` 로 propose 때와 같이 그대로 싣는다. base64 를 짓거나 원본 파일을 읽지 않는다(원본은 파서가 이미 올렸다). 팀 서버는 올린 원본을 글로 바꿔 `md/<sha>` 와 맞을 때만 대량 넣기로 받는다(글 원천은 docs/assets 에 두지 않는다). `attachWhy` 가 있는 줄은 원본 없이 글만 넣는다(`ingest/` · `md/` 표지도 떼고 · 끝에 알린다).
+   - `E_INPUT` 이 「올린 원본이 없다」 · 「올린 글 원천이 없다」 면(24시간이 지났다) 그 파일만 파서를 `--upload` 로 다시 돌려 받은 `ref` 로 다시 보낸다.
    - `same: true` 면 「이미 넣음」 이다(앞에서 넣은 파일: 이어 하기). 다음 파일로.
    - `E_APPROVE` · `E_CONFLICT`(앞 파일이 같은 항목을 고쳐 지문이 바뀜): 그 파일만 `section` 으로 다시 읽고 다시 propose 한다. 표의 그 줄과 같고(넣을 곳 · 갈래 같음) 새 경고가 없으면 새 `proposal` 로 **바로** 넣는다: 다시 propose 한 파일은 다른 파일을 save 하기 전에 넣는다(사이에 다른 파일이 들어가면 지문이 또 어긋난다 · 여러 파일을 한꺼번에 다시 propose 하지 않는다). 다르면 넣지 않고 끝에 모아 그 줄들만 다시 보이고 승인받는다.
    - `E_RATE` 면 `details.retryAfter` 초 쉬고 같은 파일을 다시 보낸다.

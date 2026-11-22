@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { save, assetPath } from '../core/save.js'
+import { save, assetPath, slugOf } from '../core/save.js'
 import { begin } from '../core/journal.js'
 import { ensureRepo, tryGit } from '../core/git.js'
 import { loadKnowledge } from '../core/knowledge.js'
@@ -290,4 +290,15 @@ test('단계 시각: stage 에 wait · recover · prepare · check · write · c
   for (const k of ['wait', 'recover', 'prepare', 'check', 'write', 'commit', 'after']) assert.equal(typeof stage[k], 'number', k)
   assert.ok(stage._t0 <= stage._t)
   assert.equal(await status(), '')
+})
+
+// 기록 이름 조각(채널 평가 T19): 대량 넣기 제목 「<파일 이름>: 무엇」 의 원본 확장자는 떼고 · 모르는 점 조각 · 다른 글은 그대로
+test('slugOf: 쌍점 앞 조각의 원본 확장자를 뗀다(.md.md · .docx.md 가 되지 않게)', () => {
+  assert.equal(slugOf('테스트 백업 절차.md: 보관 기간'), '테스트-백업-절차')
+  assert.equal(slugOf('테스트 장비 목록.docx: 장비 수'), '테스트-장비-목록')
+  assert.equal(slugOf('회의/2026-10-21 통화.HWP: 결정'), '회의2026-10-21-통화')
+  assert.equal(slugOf('측정 결과.csv'), '측정-결과')
+  assert.equal(slugOf('판 v0.3: 바뀐 것'), '판-v0.3', '모르는 점 조각은 그대로')
+  assert.equal(slugOf('배포 창: 화요일'), '배포-창')
+  assert.equal(slugOf('.md: 무엇'), '기록', '확장자뿐이면 기본 이름')
 })

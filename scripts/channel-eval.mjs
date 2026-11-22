@@ -1277,7 +1277,7 @@ async function runBulk(E, C) {
       if (!s || !x.mdFile) continue
       const mdFile = `글/${s.n}.md`
       files.push({ name: mdFile, data: await fs.readFile(x.mdFile, 'utf8') })
-      index.push({ rel: x.rel, mdFile, sha: x.sha, tags: x.tags, atts: x.atts || [], ...(x.attachWhy ? { attachWhy: x.attachWhy } : {}) })
+      index.push({ rel: x.rel, mdFile, sha: x.sha, tags: x.tags, atts: x.atts || [], ...(x.source ? { source: x.source } : {}), ...(x.attachWhy ? { attachWhy: x.attachWhy } : {}) })
     }
     files.push({ name: 'index.json', data: JSON.stringify(index, null, 1) })
     const uploaded = index.filter((x) => x.atts.some((a) => a.ref)).length

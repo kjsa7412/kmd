@@ -77,6 +77,8 @@ export const TOOLS = [
         kinds: { type: 'array', items: { type: 'string' }, description: '새 종류(항목의 종류: 영문 소문자 또는 한글)' },
         distinct: { type: 'array', items: { type: 'string' }, description: '있는 것과 이름이 같거나 비슷하지만 다른 것으로 세울 항목 · 문서 · 머리 · 갈래 · 종류' },
         excluded: { type: 'array', items: { type: 'object', properties: { name: str('뺀 항목'), why: str('까닭 한 줄') }, required: ['name'] }, description: '제안서 「뺀다」 줄(기록에는 남지 않는다)' },
+        attach: { type: 'array', items: { type: 'object', properties: { path: str('docs/assets/<경로>'), ref: str('kmd-parse --upload 가 준 sha256:<64자> 그대로') } }, description: '대량 넣기(ingest/ 표지)만: 첨부 원천(오피스 · pdf · hwp · 그림) 파일 줄의 atts 를 { path, ref } 로 그대로. 팀 서버가 원본을 글로 바꿔 md/<지문> 과 대 본다(제안 해시에는 들지 않는다 · save 에도 같이 싣는다)' },
+        source: { type: 'object', properties: { path: str('파서 줄의 source.path 그대로'), ref: str('파서 줄의 source.ref 그대로(sha256:<64자>)') }, description: '대량 넣기(ingest/ 표지)만: 글 원천(md · txt · csv …) 파일 줄의 source 를 그대로. 첨부는 짓지 않고 팀 서버가 올린 원본을 글로 바꿔 md/<지문> 과 대 본다(제안 해시에는 들지 않는다 · save 에도 같이 싣는다)' },
       },
       required: ['knowledge', 'record'],
     },
@@ -101,6 +103,7 @@ export const TOOLS = [
         kinds: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 kinds 그대로' },
         natures: { type: 'array', items: { type: 'object', properties: { doc: str('이 제안이 세우는 새 문서: 예 게이트웨이 설계'), nature: str('으뜸 성격: 대상 · 서술 · 절차 · 시험 · 용어 · 사건 · 보고 · 대장 · 결정 가운데 하나'), summary: str('요약 1 ~ 3문장(한 줄 300자 안): 이 문서가 무엇을 어떤 단위로 적나') }, required: ['doc', 'nature'] }, description: 'propose 에 보낸 natures 그대로. 새 문서의 으뜸 성격과 요약(생성 룰 R3-4 · R7-2): 같은 제안의 sections 가 세우는 새 문서에만 · 갈래 장부의 「## 문서 성격」 표에 선다 · 있는 문서의 성격은 고치지 않는다' },
         attach: { type: 'array', description: '원본 첨부(쓰기 자리부터): 파일마다 { path: docs/assets/ 아래 자리, ref } 또는 { path, b64 } 가운데 하나. ref 는 대량 넣기(kmd-team-import)에서 kmd-parse --upload 가 준 「sha256:<64자>」 그대로: 원본은 파서가 팀 서버에 이미 올렸다(base64 를 짓거나 원본 파일을 읽지 않는다 · ref 는 ingest/ 표지가 있는 저장만 · 합 32MB). b64 는 사람이 원본도 첨부하라고 했을 때 파일 바이트의 base64(save 한 번에 합 8MB). 이 PC 의 파일 경로는 받지 않는다. 그림 · pdf · 오피스 · hwp · txt · zip. 같은 자리에 같은 파일이 있으면 그대로(same) · 다른 파일이 있으면 덮지 않고 E_CONFLICT. 기록 · 항목 글과 한 묶음', items: { type: 'object', properties: { path: str('docs/assets/<경로>'), ref: str('kmd-parse --upload 가 준 sha256:<64자> 그대로(대량 넣기)'), b64: str('파일 바이트의 base64(ref 가 없을 때)') }, required: ['path'] } },
+        source: { type: 'object', properties: { path: str('파서 줄의 source.path 그대로'), ref: str('파서 줄의 source.ref 그대로(sha256:<64자>)') }, description: '대량 넣기(kmd-team-import · ingest/ 표지)의 글 원천(md · txt · csv …)만: kmd-parse --upload 가 그 줄에 준 source { path, ref } 그대로. 팀 서버가 내 올린 자리의 원본을 글로 바꿔 md/<지문> 과 맞을 때만 받는다(docs/assets 에 두지 않는다 · 첨부 원천은 attach)' },
         record: {
           type: 'object',
           properties: {
@@ -336,7 +339,7 @@ export function makeMcp(store) {
 
     // 저장 제안(저장 승인 설계 P-D3 · 2-1 · P2) — 쓰지 않는다 · 자리 · 입력 모양은 hub.propose 가 본다(쓰기 자리 · E_INPUT)
     async propose(args, ctx) {
-      let { knowledge, record, sections, names, forms, natures, kinds, distinct, excluded } = args || {}
+      let { knowledge, record, sections, names, forms, natures, kinds, distinct, excluded, attach, source } = args || {}
       // 읽기만 하는 세션 열쇠(스키마 답 세션 · 보내기 초안)는 제안도 받지 않는다(서버 판정 · 채널 평가 P2 검토)
       if (ctx?.agent?.intake?.ro) throw new KmdError('E_FORBIDDEN', '읽기만 하는 세션 열쇠다: 저장 제안 · 저장 없이 답(스키마)으로 돌려준다')
       // 무인 일감의 세션(넣기 에이전트 · 팀 세션 일감)에는 승인할 사람이 없다 — 저장 제안이 아니라 save 가 무인 저장 문을 지난다(지식 생성 하네스 H-D34)
@@ -349,13 +352,21 @@ export function makeMcp(store) {
       if (typeof knowledge !== 'string' || !knowledge) throw new KmdError('E_INPUT', '지식 id(knowledge)가 없다')
       const input = { record, sections: listOf(sections), names: listOf(names), forms: listOf(forms), natures: listOf(natures), kinds: listOf(kinds), distinct: listOf(distinct), excluded: listOf(excluded), ...oldOf(args) }
       for (const x of Object.keys(input)) if (input[x] === undefined) delete input[x]
-      const p = await store.propose(ctx, knowledge, input, { form: true, path: '이 세션의 작업' })
+      // 대량 넣기 증명(P-D16 · T18): 원본 첨부 · 글 원천은 제안 해시 · 들고 있는 입력에 넣지 않고 증명에만 넘긴다 · b64 는 save 와 같은 8MB
+      attach = listOf(attach)
+      if (typeof source === 'string') try { source = JSON.parse(source) } catch { /* 모양 검사가 거절한다 */ }
+      if (attach != null && !Array.isArray(attach)) throw new KmdError('E_INPUT', 'attach 는 { path, ref } 의 목록이다')
+      if (Array.isArray(attach) && attach.reduce((a, x) => a + Math.floor((String(x?.b64 || '').length * 3) / 4), 0) > MCP_ATTACH_MAX) throw new KmdError('E_TOO_BIG', `첨부는 한 번에 ${MCP_ATTACH_MAX >> 20}MB 까지`)
+      // 채널은 서버가 정한다(S-D3): save 와 같이 ingest/ 표지가 있으면 대량 넣기
+      const channel = (Array.isArray(record?.tags) ? record.tags : []).some((t) => String(t).startsWith('ingest/')) ? 'bulk' : 'session'
+      const proof = { ...(Array.isArray(attach) && attach.length ? { attach } : {}), ...(source != null ? { source } : {}) }
+      const p = await store.propose(ctx, knowledge, { ...input, ...proof }, { form: true, path: '이 세션의 작업', channel })
       if (p?.proposal && !(p.errors || []).length) keepProposed(ctx, knowledge, p.proposal, input)
       return p
     },
 
     async save(args, ctx) {
-      let { knowledge, record, sections, names, forms, natures, kit, attach, proposal, distinct, excluded, kinds } = args || {}
+      let { knowledge, record, sections, names, forms, natures, kit, attach, source, proposal, distinct, excluded, kinds } = args || {}
       // 도구 모양을 배포 전에 받아 둔 세션은 모르는 칸(forms 등)의 목록을 글(JSON)로 보낸다 — 목록 글이면 풀어 받는다
       const listOf = (v) => {
         if (typeof v !== 'string') return v
@@ -370,6 +381,7 @@ export function makeMcp(store) {
         if (!attach.length) attach = null
       }
       if (typeof record === 'string') try { record = JSON.parse(record) } catch { /* 모양 검사가 거절한다 */ }
+      if (typeof source === 'string') try { source = JSON.parse(source) } catch { /* 저장 문 resolveSource 가 거절한다 */ }
       // 승인한 제안의 입력 꺼내기: 기록 · 고칠 항목 · 장부 칸을 하나도 싣지 않고 proposal 만 왔을 때
       let old = oldOf(args)
       const bare = record == null && sections == null && names == null && forms == null && natures == null && kinds == null && distinct == null && excluded == null && !Object.keys(old).length
@@ -394,7 +406,7 @@ export function makeMcp(store) {
       const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}), ...(natures != null ? { natures } : {}), ...old }
       let r
       try {
-        r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}), ...extra }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
+        r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}), ...(source != null ? { source } : {}), ...extra }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
       } catch (e) {
         // 그사이 지식이 바뀌어 새 제안이 왔다(E_APPROVE): 같은 입력을 새 지문으로도 들어 둔다(다시 승인받은 뒤 proposal 만 보내게)
         const np = e?.code === 'E_APPROVE' ? e.details?.propose : null

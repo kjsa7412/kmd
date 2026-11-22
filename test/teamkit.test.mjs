@@ -58,8 +58,8 @@ after(async () => {
 })
 
 // 스킬 판 표(S-D15) — 지금 판의 스킬 글 해시(teamKitParts().ver) 한 줄. 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면
-//   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 줄을 새 판 · 새 해시로 바꾼다(판 18: 생성 룰 5판(R3-5 는 R2-1 로) · 판 20: 승인 뒤 save 는 proposal 만 · 대량 넣기 다시 propose 한 파일은 바로 넣기 · 판 21: 대량 넣기 원본은 kmd-parse --upload 로 올리고 attach 는 { path, ref })
-const KIT_HASH = { 16: '3f2c415c', 17: 'f2c33544', 18: 'ae471e99', 19: '0a0b5125', 20: '939c1e59', 21: 'a18dac7a' }
+//   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 줄을 새 판 · 새 해시로 바꾼다(판 18: 생성 룰 5판(R3-5 는 R2-1 로) · 판 20: 승인 뒤 save 는 proposal 만 · 대량 넣기 다시 propose 한 파일은 바로 넣기 · 판 21: 대량 넣기 원본은 kmd-parse --upload 로 올리고 attach 는 { path, ref } · 판 22: 글 원천은 source { path, ref } · 원본을 propose 에도 싣는다 · 제목은 확장자 없이)
+const KIT_HASH = { 16: '3f2c415c', 17: 'f2c33544', 18: 'ae471e99', 19: '0a0b5125', 20: '939c1e59', 21: 'a18dac7a', 22: '306046f1' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)
@@ -97,6 +97,11 @@ test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 �
   assert.match(imp, /same: true/)
   assert.match(imp, /규칙 표/, '규칙 표 한 번 승인(P-D16)')
   assert.match(imp, /proposal/)
+  // 판 22(채널 평가 T18 · T19): 글 원천은 source 로 증명 · 원본을 propose 에도 싣는다 · 제목은 확장자 없이
+  assert.match(imp, /source: \{ path, ref \}/, '글 원천은 source 로 싣는다')
+  assert.match(imp, /그대로 `propose` 에 싣는다/, '원본을 제안에도 실어 승인 전에 걸리게')
+  assert.match(imp, /<파일 이름\(확장자 없이\)>: 무엇/, '기록 제목에 원본 확장자를 쓰지 않는다')
+  assert.doesNotMatch(imp, /`atts` 가 빈 줄/, '글 원천은 atts 가 비어도 표지를 떼지 않는다')
   assert.doesNotMatch(imp, /ledgers/, 'you.ledgers 조건을 걷었다')
   assert.match(imp, /넣음 n · 이미 넣음 n · 건너뜀 n/)
   assert.doesNotMatch(imp, /넣지 못함/, '넣지 못함 말을 걷었다')

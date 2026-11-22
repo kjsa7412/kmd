@@ -14,7 +14,8 @@
 //              why   못 바꾼 까닭(깨진 파일 · 암호 · 너무 큼 · 없는 파일)
 //              atts  --upload 일 때 [{ path: docs/assets/<경로>, ref: 'sha256:<64자>', bytes }]: 원본은 팀 서버에 올렸다 · save 의 attach 에 그대로 싣는다(base64 를 짓지 않는다)
 //                    --attach 만이면(옛 꼴) [{ path, file: <이 PC 의 파일>, bytes }] · 팀 저장은 file 을 받지 않는다
-//              attachWhy  첨부하지 못한 까닭(32MB 넘음 · 올리기 한도 · 연결): 그 줄은 ingest/ · md/ 표지를 떼고 글만 넣는다
+//              source  --upload 일 때 글 원천(md · txt · csv …)의 { path: <경로>, ref: 'sha256:<64자>' }: 첨부는 짓지 않고 원본을 올려 지문을 증명한다 · propose · save 의 source 에 그대로 싣는다
+//              attachWhy  첨부(글 원천은 올리기)하지 못한 까닭(32MB 넘음 · 올리기 한도 · 연결): 그 줄은 ingest/ · md/ 표지를 떼고 글만 넣는다
 //   --upload   원본을 PUT <주소>/api/k/<지식>/stage/<sha256> 로 올린다(저장승인 설계 P-D47 · 사람 기기 열쇠 · 쓰기 자리 · 32MB 안 · 24시간 둔다)
 //              열쇠는 이 폴더 .mcp.json 의 kmd-team 헤더 도우미(headersHelper)를 불러 메모리에만 둔다: 줄 · index.json · 오류 글에 싣지 않는다 · 주소가 kmd-team 연결과 같을 때만
 //              --auth-env <변수> 는 시험용(그 환경 변수의 열쇠) · 401 · 403 · 404 면 끝 줄 why 로 멈춘다(종료 1)
@@ -27,7 +28,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { fileToMd, cleanPath } from '../../core/importer.js'
+import { fileToMd, cleanPath, ingestFp, ingestTags } from '../../core/importer.js'
 
 export const PARSE_EXT = /\.(md|markdown|txt|log|csv|tsv|html?|json|docx|pptx|xlsx|hwpx|hwp|pdf|png|jpe?g|gif|webp|svg|bmp)$/i
 // 파일 하나 상한 — 팀 화면 파일 넣기(32MB)보다 넉넉히 · 이보다 크면 바꾸지 않고 why
@@ -37,7 +38,6 @@ export const UPLOAD_MAX = 32 << 20
 const skipName = (n) => n.startsWith('.') || n.startsWith('~$') || n === 'node_modules'
 export const wantParse = (rel) => PARSE_EXT.test(rel) && !rel.split('/').some(skipName)
 
-const sha16 = (b) => crypto.createHash('sha256').update(b).digest('hex').slice(0, 16)
 
 // 폴더 안의 파일 — [{ rel, file }] · 이름 차례(같은 폴더는 늘 같은 차례 · 이어 하기)
 export function listFiles(root) {
@@ -105,8 +105,9 @@ export async function parseOne({ rel, file }, { attach = false, upload = null } 
   }
   const fm = await fileToMd(rel, buf)
   const md = fm.md != null ? fm.md : null
-  const sha = md != null ? sha16(md.trim()) : sha16(buf)
-  const line = { rel, md, sha, tags: [`ingest/${rel}`.slice(0, 60), `md/${sha}`] }
+  // 지문 · 표지는 저장 문의 증명과 같은 규칙(core/importer.js ingestFp · ingestTags)
+  const sha = ingestFp(md, buf)
+  const line = { rel, md, sha, tags: ingestTags(rel, sha) }
   if (fm.scan || (fm.blank && fm.kind === 'office')) line.scan = true
   if (fm.kind === 'img') line.img = true
   if (fm.why) line.why = fm.why
@@ -123,6 +124,15 @@ export async function parseOne({ rel, file }, { attach = false, upload = null } 
       const u = await uploadOne(upload, buf)
       if (u.stop) return { ...line, stop: u.stop }
       if (u.ref) line.atts = [{ path: `docs/assets/${rel}`, ref: u.ref, bytes: buf.length }]
+      else line.attachWhy = u.why
+    }
+  } else if (upload && md != null && !line.failed) {
+    // 글 원천(md · txt · csv …): 첨부는 짓지 않고 원본을 올려 source 로 지문을 증명한다(저장 문 · 제안이 내 올린 자리에서 풀어 대 본다)
+    if (buf.length > UPLOAD_MAX) line.attachWhy = `원본이 ${UPLOAD_MAX >> 20}MB 를 넘어 올리지 않는다`
+    else {
+      const u = await uploadOne(upload, buf)
+      if (u.stop) return { ...line, stop: u.stop }
+      if (u.ref) line.source = { path: rel, ref: u.ref }
       else line.attachWhy = u.why
     }
   } else if (attach && fm.attach) line.atts = [{ path: `docs/assets/${rel}`, file: path.resolve(file), bytes: buf.length }]

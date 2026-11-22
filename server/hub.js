@@ -38,7 +38,7 @@ import { stopLine, ageText } from '../core/stopline.js'
 import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
-import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY, TEAM_IMPORT_MAX, fileToMd, cleanPath, seedAsIsDoc, SEED_CHUNK } from '../core/importer.js'
+import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY, TEAM_IMPORT_MAX, fileToMd, cleanPath, seedAsIsDoc, SEED_CHUNK, ingestProofWhy } from '../core/importer.js'
 import { imagesOf } from '../core/ooxml.js'
 import { runAgent, agentAvailable } from '../core/agent.js'
 import { genRulesBlock, GEN_RULES_REV } from '../core/genrules.js'
@@ -400,6 +400,23 @@ ${genRulesBlock({ profile: 'shape' })}`
     }
     via.b64Kb = Math.round(via.b64Kb)
     return { attach: out, used, via }
+  }
+  // 글 원천 풀기(P-D47 · 채널 평가 T18): 대량 넣기의 md · txt · csv 같은 글 원천은 첨부를 짓지 않는다. 파서가 올린 원본의 참조 { path, ref } 를
+  //   내 올린 자리에서만 풀어 { path, b64 } 로(증명 bulkProof 만 읽는다 · docs/assets 에 두지 않는다). 팀 지식의 대량 넣기 채널(bulk)만 · 검사는 resolveAttach 와 같다.
+  //   → { source, used }
+  async function resolveSource(ctx, meta, src, channel) {
+    if (src == null) return { source: null, used: [] }
+    const bad = 'source 는 kmd-parse --upload 가 글 원천(md · txt · csv …) 줄에 준 { path, ref } 그대로다(아무것도 쓰지 않았다)'
+    if (typeof src !== 'object' || Array.isArray(src) || Object.keys(src).some((x) => !['path', 'ref'].includes(x))) throw new KmdError('E_INPUT', bad)
+    if (typeof src.path !== 'string' || !src.path.trim() || src.path.length > 300 || /[\r\n\u0000]/.test(src.path)) throw new KmdError('E_INPUT', bad)
+    const m = /^sha256:([0-9a-f]{64})$/.exec(String(src.ref ?? ''))
+    if (!m) throw new KmdError('E_INPUT', bad)
+    if (mode !== 'team' || channel !== 'bulk') throw new KmdError('E_INPUT', '글 원천(source)은 팀 지식의 대량 넣기(세션의 kmd-team-import · ingest/ 표지)만 싣는다(아무것도 쓰지 않았다)')
+    const mine = path.join(stageHome(meta.id, ctx.user), m[1])
+    const buf = await stageFile(mine, STAGE_DIR, { ttl: STAGE_TTL })
+    if (!buf) throw new KmdError('E_INPUT', `올린 글 원천이 없다(${src.path.slice(0, 120)} · 24시간이 지났거나 올리지 않았다): kmd-parse 를 그 파일만 --upload 로 다시 돌린다(아무것도 쓰지 않았다)`)
+    if (crypto.createHash('sha256').update(buf).digest('hex') !== m[1]) throw new KmdError('E_INPUT', '올린 글 원천이 그 sha256 과 다르다(바뀐 파일 · 아무것도 쓰지 않았다): kmd-parse 를 그 파일만 다시 돌린다')
+    return { source: { path: src.path, b64: buf.toString('base64') }, used: [mine] }
   }
   // 장부 읽기 — 없으면 빈 것 · 읽거나 풀지 못하면 그 파일을 <file>.broken-<때> 로 비켜 두고 빈 것으로 시작한다(깨진 파일을 빈 것으로 덮지 않는다)
   async function readLedger(file, empty, what) {
@@ -1798,19 +1815,11 @@ ${genRulesBlock({ profile: 'shape' })}`
     const code = e.some((x) => x.code === 'format') ? 'E_FORMAT' : e.some((x) => x.code === 'behind') ? 'E_BEHIND' : 'E_INPUT'
     return new KmdError(code, `${one(e[0])}${e.length > 1 ? ` (그 밖에 ${e.length - 1}건)` : ''}. 입력을 고쳐 다시 제안한다(아무것도 쓰지 않았다)`, { details: { errors: e, propose: p } })
   }
-  // 대량 넣기(bulk) 판정(P-D16) — ingest/ 표지는 첨부한 원본을 서버가 글로 바꿔 md/<16자> 지문이 맞을 때만
+  // 대량 넣기(bulk) 판정(P-D16 · P-D47): ingest/ 표지는 서버가 본 원본(첨부 원천은 attach · 글 원천은 source · 풀린 { path, b64 })을 글로 바꿔
+  //   md/<16자> 지문이 맞을 때만. 판정은 파서와 같은 규칙 하나(core/importer.js ingestProofWhy) · 저장 문(approveSave)과 제안(hub.propose)이 같이 부른다
   async function bulkProof(input) {
-    const tags = (Array.isArray(input?.record?.tags) ? input.record.tags : []).map((t) => String(t).trim())
-    const md = tags.find((t) => /^md\/[0-9a-f]{16}$/.test(t))
-    const ing = tags.find((t) => t.startsWith('ingest/'))
-    const why = '대량 넣기(ingest/ 표지)는 원본 파일을 첨부(attach)하고 파서가 준 md/<지문> 을 그대로 달 때만 받는다. 넣은 파일이 아니면 ingest/ 표지를 떼고 저장한다'
-    if (!md || !ing || !Array.isArray(input.attach) || !input.attach.length) throw new KmdError('E_INPUT', why)
-    for (const a of input.attach) {
-      if (!a || typeof a.path !== 'string' || typeof a.b64 !== 'string') continue
-      const fm = await fileToMd(path.posix.basename(a.path), Buffer.from(a.b64, 'base64'), { convert: true })
-      if (fm.md && crypto.createHash('sha256').update(fm.md.trim()).digest('hex').slice(0, 16) === md.slice(3)) return
-    }
-    throw new KmdError('E_INPUT', `${why}(첨부 원본의 글 지문이 ${md} 와 다르다)`)
+    const why = await ingestProofWhy(input?.record?.tags, { attach: input?.attach, source: input?.source })
+    if (why) throw new KmdError('E_INPUT', why)
   }
   // approve 모드 사람 채널 저장 — coreSave(prepare · approve) 결과(r0)를 돌려준다. bag 은 측정 줄 · 응답이 읽는다
   // 메모(기록만)는 남기지 않는다(저장 승인 P11): 저장 문 들머리(hub.save)와 무인 들이기 세션의 save 가 부른다
@@ -1827,7 +1836,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     if ((Array.isArray(rec0?.tags) ? rec0.tags : []).some((t) => String(t).trim().startsWith('ingest/'))) {
       if (channel !== 'bulk') throw new KmdError('E_INPUT', 'ingest/ 표지는 대량 넣기(세션의 kmd-team-import)만 단다')
       await bulkProof(input)
-    }
+    } else if (input.source != null) throw new KmdError('E_INPUT', '글 원천(source)은 대량 넣기(ingest/ 표지)의 저장만 싣는다(아무것도 쓰지 않았다)')
     if (input.sections != null && !Array.isArray(input.sections)) throw new KmdError('E_INPUT', 'sections 는 목록이다')
     sectionShapes(input.sections)
     // 보내기 — 보낸 지문(sent/)은 보내기 채널이 다는 표지라 제안(propose 는 sent/ 를 받지 않는다)과 해시에서 뺀다
@@ -2917,6 +2926,13 @@ ${genRulesBlock({ profile: 'shape' })}`
           took = n
         }
       }
+      // 글 원천(source · T18): 내 올린 자리에서만 풀린 것으로 바꾼다(손님이 보낸 { path, b64 } 는 resolveSource 가 거절 · 증명은 approveSave 의 bulkProof)
+      if (input?.source != null) {
+        if (asIntake || !hub.canSave(ctx, id)) throw new KmdError('E_INPUT', '글 원천(source)은 대량 넣기 세션의 저장만 싣는다(아무것도 쓰지 않았다)')
+        const rs = await resolveSource(ctx, meta, input.source, channel)
+        input = { ...input, source: rs.source }
+        stageUsed = [...stageUsed, ...rs.used]
+      }
       const t0 = Date.now()
       //   kit — 세션 스킬 판(MCP 가 넘긴 수 · 없으면 null · S-D15)
       //   attachVia: 첨부를 어떻게 받았나(b64 항목 수 · ref 항목 수 · b64 글 KB · 채널 평가 attachRaw 는 여기서 읽는다)
@@ -2962,6 +2978,13 @@ ${genRulesBlock({ profile: 'shape' })}`
       const meta = await hub.meta(id, ctx)
       hub.need(ctx, id, 'write')
       input = inputIn(input)
+      // 원본(attach) · 글 원천(source)은 제안 해시에 들지 않는다: 대량 넣기 증명에만 쓰고 떼어 둔다
+      let proofIn = null
+      if (input && typeof input === 'object' && !Array.isArray(input) && (input.attach !== undefined || input.source !== undefined)) {
+        const { attach: _a, source: _s, ...rest } = input
+        proofIn = { attach: _a ?? null, source: _s ?? null }
+        input = rest
+      }
       const bad = proposeInputWhy(input)
       if (bad) throw new KmdError('E_INPUT', bad)
       if (input.sections != null && !Array.isArray(input.sections)) throw new KmdError('E_INPUT', 'sections 는 목록이다')
@@ -2975,10 +2998,21 @@ ${genRulesBlock({ profile: 'shape' })}`
         rec = { ...Object.fromEntries(Object.entries(rec).filter(([x]) => !RECORD_PARTS.some(([p]) => p === x))), body: b.body }
       }
       if ((Array.isArray(rec.tags) ? rec.tags : []).some((t) => String(t).trim().startsWith('sent/'))) throw new KmdError('E_INPUT', 'sent/ 표지는 보내기만 단다')
+      // 대량 넣기(ingest/ 표지 · P-D16 · T18): 채널은 서버 코드가 정한다(opt.channel · MCP 손잡이) · 저장 문과 같은 증명을 승인 전에 지난다(입력 오류를 승인 뒤로 미루지 않는다)
+      const ingest = (Array.isArray(rec.tags) ? rec.tags : []).some((t) => String(t).trim().startsWith('ingest/'))
+      if (ingest) {
+        if (opt.channel !== 'bulk') throw new KmdError('E_INPUT', 'ingest/ 표지는 대량 넣기(세션의 kmd-team-import)만 단다')
+      } else if (proofIn && (proofIn.attach != null || proofIn.source != null)) throw new KmdError('E_INPUT', '원본(attach) · 글 원천(source)은 대량 넣기(ingest/ 표지)의 제안만 싣는다')
       // save 가 거절할 기록 · 항목 글(제목 한 줄 · 길이 · kmd 칸 머리 · touches 모양 …)은 제안서를 내지 않고 같은 E_INPUT(줄 밖에서 먼저)
       checkInput({ record: rec, sections: (input.sections || []).filter((s) => typeof s.content === 'string').map(({ coord, doc, heading, base, content }) => ({ coord, doc, heading, base, content })) })
       // 제안 속도 — 저장과 다른 통(대화 조절로 여러 번 부르므로 저장의 두 배) · 줄 잠금을 오래 잡지 않게
       rateTake(ctx, `${id}\npropose`, 0.5)
+      //   증명은 속도 통 뒤(원본을 글로 바꾸는 값이 든다) · 쓰지 않는다(올린 원본도 지우지 않는다: 저장이 다시 푼다)
+      if (ingest) {
+        const ra = await resolveAttach(ctx, meta, proofIn?.attach ?? null, 'bulk')
+        const rs = await resolveSource(ctx, meta, proofIn?.source ?? null, 'bulk')
+        await bulkProof({ record: rec, attach: ra.attach, source: rs.source })
+      }
       const shut = backup.closed(meta)
       const viewers = viewersOf(id)
       // 저장 문이 줄 안에서 같은 판정을 다시 돌린다(쓰기 자리 새 문서 · memo 오류 · 본문 반영 · 기록 모음 달 항목) · 다시 제안 수를 센다
@@ -6082,7 +6116,10 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (mine + buf.length > cap) throw new KmdError('E_RATE', `이 지식에 올려 둔 원본 합(${Math.round(cap / 1048576)}MB)을 넘는다. 넣은 뒤(저장이 올린 원본을 지운다) 또는 24시간 뒤 다시 올린다`, { details: { retryAfter: 3600 } })
       const capAll = config.stageTotal ?? 2 * 1024 ** 3
       if (all + buf.length > capAll) throw new KmdError('E_RATE', `팀 서버에 올려 둔 원본 합(${Math.round(capAll / 1048576)}MB)을 넘는다. 잠시 뒤 다시 올린다`, { details: { retryAfter: 3600 } })
-      await writeFileAtomic(want, buf, { encoding: null })
+      // 올린 원본은 그 사람 것(넣기 전 원본 · T20): 폴더 700 · 파일 600(Windows 는 모드를 쓰지 않는다 · 이미 있는 폴더도 좁힌다 · 실패는 log)
+      await fs.mkdir(home, { recursive: true, mode: 0o700 })
+      if (process.platform !== 'win32') for (const d of [STAGE_DIR, path.dirname(home), home]) await fs.chmod(d, 0o700).catch((e) => log(`올린 원본 자리 모드를 좁히지 못했다 ${d}: ${e.message}`))
+      await writeFileAtomic(want, buf, { encoding: null, mode: 0o600 })
       return { ref: `sha256:${sha}`, bytes: buf.length }
       })
     },
