@@ -94,7 +94,7 @@ async function cmdCheck(pack, o) {
     if (r.summary) console.log(`문서 ${r.summary.creates} · 글 단위 ${r.summary.writes}`)
     for (const e of r.errors.slice(0, 40)) console.log(`  걸림 ${e.where}: ${e.why}`)
     if (r.errors.length > 40) console.log(`  그 밖 걸림 ${r.errors.length - 40}`)
-        for (const w of r.warnings.slice(0, 20)) console.log(`  경고 ${w.where}: ${w.why}`)
+    for (const w of r.warnings.slice(0, 20)) console.log(`  경고 ${w.where}: ${w.why}`)
     if (r.warnings.length > 20) console.log(`  그 밖 경고 ${r.warnings.length - 20}`)
   }
   if (!r.ok) process.exitCode = 2

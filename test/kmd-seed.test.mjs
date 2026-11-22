@@ -247,8 +247,8 @@ test('kmd-seed 안정화(T14): 구조안에 생성 룰 · 경고 줄 · 카드�
   assert.ok(lines.includes(path.join(P.pack, 'prompts', 'text-보안 서약.md')), all.text)
   assert.equal(fs.readFileSync(path.join(P.pack, 'prompts', 'text-보안 서약.md'), 'utf8'), promptOf(P, 'text', { doc: '보안 서약' }) + '\n')
   await assert.rejects(run('prompt', pack, 'text', '--all'), /--save 와 같이/)
-  // check 머리 줄: 경고가 있으면 「고치지 않는다 · 사람이 본다」
+  // check 머리 줄: 고정 꾸러미는 문서당 항목이 5 아래라 경고가 꼭 난다 · 그 위에서 「고치지 않는다 · 사람이 본다」 를 조건 없이 본다
   const c = await run('check', pack)
-  if (/경고 [1-9]/.test(c.text)) assert.match(c.text.split('\n')[0], /경고 \d+\(고치지 않는다 · 사람이 본다\)/)
-  else assert.match(c.text.split('\n')[0], /경고 0$|경고 0 /)
+  assert.match(c.text, /경고 .+: 항목 \d\(문서당 5~40\)/, c.text)
+  assert.match(c.text.split('\n')[0], /경고 [1-9]\d*\(고치지 않는다 · 사람이 본다\)/, c.text)
 })

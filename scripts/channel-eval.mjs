@@ -1503,7 +1503,7 @@ export function bashCommands(out) {
 }
 // kmd-seed 고쳐 받기(채널 평가 T14 seed): check 부름 가운데 걸려 돌아온 것(tool_result is_error)만 센다.
 //   앞 셈(check 수 - 2)은 정상 부름(구조안 뒤 · 글 초안 뒤 · ./pack 다시 봄)까지 세어 부풀었다(real-5b 9 부름 → 7 · 실제 걸림 3).
-//   거절된 && 명령처럼 check 가 아닌 부름은 세지 않는다. fixWhy 는 걸린 check 의 첫 걸림 줄
+//   결과 글에 걸림 줄(머리 「걸림 n」 · 「  걸림 …」)이 있는 것만 센다: 거절된 복합 명령(cd … && check) · 경로가 틀려 죽은 check 는 세지 않는다. fixWhy 는 걸린 check 의 첫 걸림 줄
 export function seedCheckFix(out) {
   const checks = new Map()
   const why = []
@@ -1515,9 +1515,11 @@ export function seedCheckFix(out) {
     for (const c of j?.message?.content || []) {
       if (j.type === 'assistant' && c?.type === 'tool_use' && c.name === 'Bash' && /kmd-seed\.mjs["']?\s+check\b/.test(String(c.input?.command || ''))) checks.set(c.id, true)
       if (j.type === 'user' && c?.type === 'tool_result' && c.is_error && checks.has(c.tool_use_id)) {
-        fix++
         const txt = typeof c.content === 'string' ? c.content : (Array.isArray(c.content) ? c.content.map((x) => x?.text || '').join('\n') : '')
-        const first = txt.split('\n').find((x) => /^\s+걸림 /.test(x))
+        const ls = txt.split('\n')
+        if (!ls.some((x) => /^걸림 \d+/.test(x) || /^\s+걸림 /.test(x))) continue
+        fix++
+        const first = ls.find((x) => /^\s+걸림 /.test(x))
         if (first) why.push(first.trim().slice(0, 200))
       }
     }

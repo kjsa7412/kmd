@@ -291,7 +291,7 @@ test('바탕 세우기 판단 기준: R3-2 · R7-1 · 짝 없는 새 항목 알�
 // 채널 평가 T14 seed: 쪼갬 걸림(split) · 판단 기준 3 · 5 문구 · 겹침 말
 test('바탕 세우기 쪼갬(T14 seed): 줄기 + 닫힌 겉말 형제 둘 이상은 split · 수집기 · 전송기 · gw_log · 겉말 아님 · 다시 잡기는 통과', async () => {
   const { EMPTY_FILES } = await import('../core/survey.js')
-  const { splitHeads, SPLIT_TAILS } = await import('../core/shape.js')
+  const { splitHeads, SPLIT_TAILS, putErrors } = await import('../core/shape.js')
   const S = readShape(null, EMPTY_FILES())
   const m = 'm:' + 'c'.repeat(16)
   const seed = (heads, extra = {}) => P({ v: 1, kind: 'seed', docs: [{ id: '게이트웨이/설계', was: null, items: heads.map((h) => ({ h, src: [m] })) }], names: [], skip: [], ...extra })
@@ -301,6 +301,9 @@ test('바탕 세우기 쪼갬(T14 seed): 줄기 + 닫힌 겉말 형제 둘 이�
   assert.equal(sp.length, 1, JSON.stringify(bad.errors))
   assert.equal(sp[0].where, '게이트웨이/설계 › 수집기')
   assert.match(sp[0].why, /수집기 역할 · 수집기 동작 설정/)
+  // 넣기 걸음의 재확인(putErrors)은 split 을 뺀다: 이미 승인된 구조안을 판단 규칙이 바뀌었다고 막지 않는다
+  assert.ok(!putErrors(bad).some((e) => e.code === 'split'))
+  assert.equal(putErrors(bad).length, bad.errors.length - 1)
   // src 가 같아도 다른 대상(수집기 · 전송기 · gw_log)은 통과 · 겉말 하나뿐(「권한 설정」) · 겉말이 아닌 짝(「수집기 A · 수집기 B」)도 통과
   assert.ok(!planCheck(null, S, seed(['수집기', '전송기', 'gw_log', '권한 설정'])).errors.some((e) => e.code === 'split'))
   assert.ok(!planCheck(null, S, seed(['수집기 A', '수집기 B'])).errors.some((e) => e.code === 'split'))

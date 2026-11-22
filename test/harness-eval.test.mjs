@@ -456,8 +456,11 @@ test('kmd-seed 고쳐 받기 셈(T14 seed): check tool_use 에 이어진 is_erro
     use('c', 'node C:/k/scripts/kmd-seed.mjs prompt ./pack text 가 --save && node C:/k/scripts/kmd-seed.mjs prompt ./pack text 나 --save'), res('c', 'Permission denied', true),
     use('d', `node "C:/k/scripts/kmd-seed.mjs" check ./pack`), res('d', [{ type: 'text', text: 'Exit code 2\n걸림 2\n  걸림 게이트웨이/설계 › 수집기: 머리가 겹친다' }], true),
     use('e', C), res('e', '걸림 없음 · 경고 0'),
+    // 반례: 거절된 복합 명령(cd … && check) · 경로가 틀려 죽은 check 는 걸림 줄이 없어 세지 않는다
+    use('f', 'cd C:/p/pack && node C:/k/scripts/kmd-seed.mjs check .'), res('f', 'Permission to use Bash with command cd C:/p/pack && node C:/k/scripts/kmd-seed.mjs check . has been denied.', true),
+    use('g', 'node C:/k/scripts/kmd-seed.mjs check "C:/p/없는꾸러미"'), res('g', 'Exit code 1\nE_NOTFOUND 꾸러미가 없다: C:/p/없는꾸러미', true),
   ].join('\n')
-  assert.deepEqual(seedCheckFix(out), { fix: 2, checks: 4, fixWhy: ['걸림 회의/2026-11-10 주간 회의: 날짜', '걸림 게이트웨이/설계 › 수집기: 머리가 겹친다'] })
+  assert.deepEqual(seedCheckFix(out), { fix: 2, checks: 6, fixWhy: ['걸림 회의/2026-11-10 주간 회의: 날짜', '걸림 게이트웨이/설계 › 수집기: 머리가 겹친다'] })
   assert.deepEqual(seedCheckFix(''), { fix: 0, checks: 0 })
   // 옛 결과: 세션 출력이 남아 있으면 다시 센다 · 지금 셈(fixRule)이 있으면 그대로
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-refix-'))

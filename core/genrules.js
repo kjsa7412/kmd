@@ -11,6 +11,8 @@ import { createHash } from 'node:crypto'
 import { FORMS } from './forms.js'
 
 export const GEN_RULES_REV = 5
+// 생성 룰 블록 앞 머리말: 세션 길(survey 구조안 프롬프트)과 팀 일꾼(worker)이 같이 쓴다
+export const GEN_RULES_HEAD = '아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):'
 
 // 성격 아홉(R0 · R4-1) — 차례는 조문의 차례다. 서식 계약의 「기록」 은 성격이 아니다
 export const NATURES = ['대상', '서술', '절차', '시험', '용어', '사건', '보고', '대장', '결정']

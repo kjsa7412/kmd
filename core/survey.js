@@ -27,7 +27,7 @@ import { cleanPlan, readShape, planCheck, SEED_RULES } from './shape.js'
 import { formatProblems } from './docformat.js'
 import { WRITE_RULES } from './writerules.js'
 import { KmdError } from './errors.js'
-import { genRulesBlock } from './genrules.js'
+import { genRulesBlock, GEN_RULES_HEAD } from './genrules.js'
 
 export const PACK_V = 1
 export const PACK_KIND = 'kmd-seed'
@@ -373,7 +373,7 @@ const CALL_LINE = '- 명령은 위 한 줄 그대로 부른다: cd · && · || �
 // 구조안 check 줄(채널 평가 T14 seed): 경고(크기 · base)를 맞추려고 다시 쓰다 한 대상을 쪼갠 판(real-5b 「수집기 역할 · 수집기 동작 설정」)을 막는다
 export const PLAN_CHECK_LINE = 'check 의 걸림만 고친다. 경고(문서당 · 폴더당 크기 · base)는 고치지 않고 둔다(사람이 본다). 항목 수를 맞추려고 한 대상을 역할 · 설정 · 차례로 쪼개거나 합치지 않는다(R1-1 · R1-3 · 절차의 차례는 한 항목의 번호 줄).'
 // 고정 생성 룰을 붙이는 머리말: core/worker.js 화면 길과 같은 말
-export const GEN_RULES_HEAD = '아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):'
+export { GEN_RULES_HEAD }
 const CARD_FORM = '{ "src": "m:<16자>", "path": "<원본 경로>", "topic": "<대상 이름>", "form": "대상|사건|대장|서술", "date": "YYYY-MM-DD|null", "names": ["종류:값"], "facts": ["확정 사실 한 줄(값 글자 그대로)"], "secret": false, "note": "애매한 것 한 줄" }'
 
 // 하위 에이전트 프롬프트(Claude Code 세션이 Agent 에 그대로 넘긴다) — 작성기준 3 ~ 5절(WRITE_RULES · 좋은 예 · 나쁜 예) · 6-1 판단 기준을 싣는다

@@ -271,6 +271,8 @@ export function diffPlan(S, Pl) {
 //   → { ok, stale(base 가 지금과 다름), errors: [{ id, where, why, code? }], warnings: [{ id, where, why }], diff, summary } · id 는 같은 입력이면 같다(P1)
 const norm = (s) => nfc(String(s || '')).toLowerCase().replace(/\s+/g, '')
 // 쪼갬 겉말(닫힌 목록 · 긴 것 먼저): 「값」 처럼 넓은 말은 넣지 않는다. 재료(src)가 같은지는 보지 않는다(real-5b 수집기 · 전송기 · gw_log 도 설계서 한 장이 src 라 판별력이 없다)
+// 넣기 걸음의 재확인(hub 넣기 시작 · frame 걸음) — 짜임 판단 걸림(split)은 빼고 본다: 지식이 바뀐 것이 아니라 판단 규칙이 바뀐 것이라 이미 승인된 일을 막지 않는다
+export const putErrors = (chk) => chk.errors.filter((e) => e.code !== 'split')
 export const SPLIT_TAILS = ['동작 설정', '역할', '설정', '개요', '구성', '기능', '정의', '목적']
 // 같은 줄기에 겉말만 다른 머리가 둘 이상인 묶음: [{ stem, heads }]
 export function splitHeads(hs) {

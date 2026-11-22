@@ -49,7 +49,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
-import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, SEED_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, seedPriorOf, pickOf } from '../core/shape.js'
+import { readShape, cleanPlan, planCheck, putErrors, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, SEED_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, seedPriorOf, pickOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -4013,7 +4013,9 @@ ${genRulesBlock({ profile: 'shape' })}`
         } else {
           plan0 = w.plan
           const chk = planCheck(k0, S0, plan0)
-          if (!chk.ok) throw new KmdError('E_INPUT', `구조안이 지금 지식에 맞지 않는다: ${chk.errors[0].where}: ${chk.errors[0].why}`, { details: chk.errors.slice(0, 50) })
+          // 짜임 판단 걸림(split)은 짓는 단계에서만 건다: 이미 승인된 구조안을 판단 규칙이 바뀌었다고 넣기에서 막지 않는다(바탕 설계 6-1 2)
+          const errs = putErrors(chk)
+          if (errs.length) throw new KmdError('E_INPUT', `구조안이 지금 지식에 맞지 않는다: ${errs[0].where}: ${errs[0].why}`, { details: errs.slice(0, 50) })
           steps = stepsOf(chk.diff, w.off || 0)
           const again = steps.find((s) => s.kind !== 'write' && s.kind !== 'seal' && done.has(s.n))
           if (again) throw new KmdError('E_INPUT', `이미 넣은 걸음(${again.kind})을 다시 한다: 글 걸음만 다시 맞추거나 그만두고 새로 연다`)
@@ -4143,7 +4145,8 @@ ${genRulesBlock({ profile: 'shape' })}`
             if (d.forms) await hub.save(ctx, id, { record: { title: '갈래 장부: 문서 짜임', body: `문서 짜임 일 ${w.work} 의 갈래 장부`, tags: [] }, forms: d.forms }, { channel: 'shape', shape: { tags: ['shape', step] } })
           } else if (s.kind === 'frame') {
             const chk = planCheck(k, S, w.plan)
-            if (!chk.ok) throw new KmdError('E_CONFLICT', `구조안이 지금 지식에 맞지 않는다: ${chk.errors[0].where}: ${chk.errors[0].why}`)
+            const errs = putErrors(chk)
+            if (errs.length) throw new KmdError('E_CONFLICT', `구조안이 지금 지식에 맞지 않는다: ${errs[0].where}: ${errs[0].why}`)
             // 걸음 지문 — 읽은 짜임과 넣는 짜임 사이 누가 이 걸음이 건드리는 것을 바꿨으면 E_CONFLICT
             await hub.restructure(id, ctx, { ops: chk.diff.frame, base: stepFp(files, chk.diff.frame), step })
           } else if (s.kind === 'write') {
