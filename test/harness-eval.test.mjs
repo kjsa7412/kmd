@@ -462,6 +462,16 @@ test('kmd-seed 고쳐 받기 셈(T14 seed): check tool_use 에 이어진 is_erro
   ].join('\n')
   assert.deepEqual(seedCheckFix(out), { fix: 2, checks: 6, fixWhy: ['걸림 회의/2026-11-10 주간 회의: 날짜', '걸림 게이트웨이/설계 › 수집기: 머리가 겹친다'] })
   assert.deepEqual(seedCheckFix(''), { fix: 0, checks: 0 })
+  // real-6s1 · 6c: 같은 걸림을 고치기 전에 하위 에이전트들이 다시 본 check 는 하나 · 걸린 파일을 고친 뒤 또 걸리면 둘째
+  const wr = (id, file_path, name = 'Write') => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input: { file_path } }] } })
+  const E = 'Exit code 2\n걸림 1 · 경고 8\n  걸림 texts/게이트웨이__장애 대응 절차.json › 장애 대응 절차: 10째 줄 머리 줄(## 되돌리기)'
+  const par = [
+    wr('w1', 'C:\\p\\pack\\texts\\게이트웨이__장애 대응 절차.json'), use('h', C), res('h', E, true),
+    use('i', C), res('i', E, true),
+    wr('w2', 'C:\\p\\pack\\texts\\게이트웨이__설계.json'), use('j', C), res('j', E, true),
+  ]
+  assert.equal(seedCheckFix(par.join('\n')).fix, 1, '남의 파일을 쓴 뒤의 같은 걸림도 하나')
+  assert.equal(seedCheckFix([...par, wr('w3', 'C:\\p\\pack\\texts\\게이트웨이__장애 대응 절차.json', 'Edit'), use('k', C), res('k', E, true)].join('\n')).fix, 2, '걸린 파일을 고친 뒤 또 걸리면 센다')
   // 옛 결과: 세션 출력이 남아 있으면 다시 센다 · 지금 셈(fixRule)이 있으면 그대로
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-refix-'))
   const f = path.join(dir, 'session.out.jsonl')

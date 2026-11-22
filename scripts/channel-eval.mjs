@@ -1525,16 +1525,28 @@ export function seedCheckFix(out) {
   const checks = new Map()
   const why = []
   let fix = 0
+  // 같은 걸림을 고치기 전에 다시 본 check 는 세지 않는다: 글 초안 하위 에이전트 여럿이 동시에 check 를 부르면 남의 걸림을 그대로 돌려받는다
+  //   (real-6s1 · 6c: 걸림 1(장애 대응 절차의 ## 되돌리기)을 세 하위 에이전트가 차례로 보고 주 세션이 한 번 고쳤다 · 옛 셈 3 → 1)
+  let lastTxt = null
+  const touched = new Set()
+  const slash = (p) => String(p || '').replace(/\\/g, '/')
   for (const l of String(out || '').split('\n')) {
     if (!l.startsWith('{')) continue
     let j
     try { j = JSON.parse(l) } catch { continue }
     for (const c of j?.message?.content || []) {
+      if (j.type === 'assistant' && c?.type === 'tool_use' && (c.name === 'Write' || c.name === 'Edit')) touched.add(slash(c.input?.file_path))
       if (j.type === 'assistant' && c?.type === 'tool_use' && c.name === 'Bash' && /kmd-seed\.mjs["']?\s+check\b/.test(String(c.input?.command || ''))) checks.set(c.id, true)
       if (j.type === 'user' && c?.type === 'tool_result' && c.is_error && checks.has(c.tool_use_id)) {
         const txt = typeof c.content === 'string' ? c.content : (Array.isArray(c.content) ? c.content.map((x) => x?.text || '').join('\n') : '')
         const ls = txt.split('\n')
         if (!ls.some((x) => /^걸림 \d+/.test(x) || /^\s+걸림 /.test(x))) continue
+        // 걸린 파일(「  걸림 texts/x.json › …」 · plan.json 걸림은 파일 이름이 없어 꾸러미 안 아무 쓰기)이 그사이 고쳐졌나
+        const errFiles = ls.map((x) => /^\s+걸림 (\S[^›]*?\.json) ›/.exec(x)?.[1]).filter(Boolean).map(slash)
+        const fixedSince = errFiles.length ? errFiles.some((e) => [...touched].some((t) => t.endsWith('/' + e) || t === e)) : touched.size > 0
+        if (txt === lastTxt && !fixedSince) continue
+        lastTxt = txt
+        touched.clear()
         fix++
         const first = ls.find((x) => /^\s+걸림 /.test(x))
         if (first) why.push(first.trim().slice(0, 200))
