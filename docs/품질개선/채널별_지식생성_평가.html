@@ -1372,19 +1372,40 @@ footer code{font:12px var(--mono);word-break:break-all}
     </tbody>
   </table></div>
   <div class="left">
-    <div class="card"><span class="tag bad">결함 1</span><div>md · txt · csv 원천은 스킬 순서 그대로 넣을 수 없음(T18). 파서는 첨부 없이 <code>ingest/</code> 표지를 주고 <code>bulkProof</code> 는 첨부가 없으면 E_INPUT · propose 는 받아들여 승인 뒤 save 에서 처음 막힘. 후보: <code>parseOne</code> · <code>bulkProof</code> · 스킬 3 · 5단계 · propose 같은 판정<br>고침: <code>5c496b2</code>(검토 지적은 그다음 커밋 · 188 확인은 배포 뒤)</div></div>
-    <div class="card"><span class="tag warn">결함 2</span><div>기록 id 에 원본 확장자(<code>…백업-절차.md.md</code> · <code>…장비-목록.docx.md</code>) · <code>slugOf</code> 가 쌍점 앞 확장자를 떼지 않음(T19)<br>고침: <code>5c496b2</code>(검토 지적은 그다음 커밋 · 188 확인은 배포 뒤)</div></div>
-    <div class="card"><span class="tag warn">작음 · 알림</span><div>stage 폴더 755 · 파일 644(T20) · 새 지식 guard 「장부에 없는 항목」 1(T21) · 첨부를 가리키는 링크 없음(T22)<br>T20 고침: <code>5c496b2</code>(검토 지적은 그다음 커밋 · 188 확인은 배포 뒤)</div></div>
+    <div class="card"><span class="tag bad">결함 1</span><div>md · txt · csv 원천은 스킬 순서 그대로 넣을 수 없음(T18). 파서는 첨부 없이 <code>ingest/</code> 표지를 주고 <code>bulkProof</code> 는 첨부가 없으면 E_INPUT · propose 는 받아들여 승인 뒤 save 에서 처음 막힘. 후보: <code>parseOne</code> · <code>bulkProof</code> · 스킬 3 · 5단계 · propose 같은 판정<br>고침: <code>5c496b2</code>(검토 지적 <code>98d27ca</code> · 188 확인은 아래 「배포 뒤 다시 확인」)</div></div>
+    <div class="card"><span class="tag warn">결함 2</span><div>기록 id 에 원본 확장자(<code>…백업-절차.md.md</code> · <code>…장비-목록.docx.md</code>) · <code>slugOf</code> 가 쌍점 앞 확장자를 떼지 않음(T19)<br>고침: <code>5c496b2</code>(검토 지적 <code>98d27ca</code> · 188 확인은 아래 「배포 뒤 다시 확인」)</div></div>
+    <div class="card"><span class="tag warn">작음 · 알림</span><div>stage 폴더 755 · 파일 644(T20) · 새 지식 guard 「장부에 없는 항목」 1(T21) · 첨부를 가리키는 링크 없음(T22)<br>T20 고침: <code>5c496b2</code>(검토 지적 <code>98d27ca</code> · 188 확인은 아래 「배포 뒤 다시 확인」)</div></div>
     <div class="card"><span class="tag info">열쇠 회수</span><div>평문은 서버 대리 프로세스 메모리에만 · <code>874bcaac2863</code>(kjsa 임시) · <code>00aebf0b86bd</code>(test-read) 둘 다 revoked 1 · 끊은 뒤 401 · 목록에서 사라짐 · 서버 · PC 평문 0(독립 확인) · <code>347c99efe076</code> 은 손대지 않음(T17)</div></div>
     <div class="card"><span class="tag">독립 확인</span><div>ssh 읽기만 · 보고 사실 모두 맞음 · 들이기 69초(보고) · 77초(로그)는 재는 구간 차 · dpms <code>5c862928694d</code> · gdi <code>471b87aee827</code> 그대로 · 서비스 다시 켜지 않음 · 도는 일 없음</div></div>
     <div class="card"><span class="tag">남긴 것</span><div>지식 <code>/srv/kmd/테스트-대량-넣기</code>(HEAD <code>28419c05c011</code> · 문서 다섯 · 첨부 하나 · 기록 셋 · 장부 항목 셋) · 시험 사람 test-read(읽기 · 기기 0) · 지우기는 사람 확인 뒤</div></div>
   </div>
 
+  <h3>배포 뒤 다시 확인</h3>
+  <p>188 에 <code>98d27ca</code>(build <code>0.1.0-20261122-2135</code> · TEAM_KIT_REV 22)를 배포하고 같은 시험 지식에서 T18 ~ T20 을 다시 돌렸다. 셋 모두 고친 대로 움직였다. 시험 지식 HEAD <code>28419c05c011</code> → <code>aa523c3e5624</code> · 독립 확인 어긋남 없음.</p>
+  <div class="tblwrap"><table>
+    <thead><tr><th>단계</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">T18 md 원천</td><td><span class="tag pri">들어감</span> stage → propose(source) → save · 경고 0 · <code>83ee95c</code></td></tr>
+      <tr><td class="ch">T18 csv 원천</td><td><span class="tag pri">들어감</span> 첫 제안 오류 1 은 시험 입력 탓 · 고쳐 다시 제안 · <code>784a9dd</code></td></tr>
+      <tr><td class="ch">표지</td><td><span class="tag pri">맞음</span> <code>ingest/</code> · <code>md/</code> · <code>put</code> 그대로 · 글 원천은 assets 에 없음</td></tr>
+      <tr><td class="ch">T19 기록 id</td><td><span class="tag pri">맞음</span> 새 기록 셋 끝에 확장자 없음 · 앞 판 이름은 그대로</td></tr>
+      <tr><td class="ch">T20 올린 자리</td><td><span class="tag pri">맞음</span> 폴더 700 · 파일 600 · 남은 755 도 700 으로 · 저장 뒤 지워짐</td></tr>
+      <tr><td class="ch">원본 없는 제안</td><td><span class="tag pri">맞음</span> E_INPUT · 팀 키트 다시 설치 안내</td></tr>
+      <tr><td class="ch">읽기 자리</td><td><span class="tag pri">맞음</span> propose · save E_FORBIDDEN · stage PUT 403</td></tr>
+      <tr><td class="ch">docx 첨부 회귀</td><td><span class="tag pri">들어감</span> sha256 원천과 같음 · <code>aa523c3</code></td></tr>
+      <tr><td class="ch">열쇠</td><td><span class="tag pri">회수</span> <code>847f30a44ece</code> · <code>d5ddfaab330d</code> 끊음 · 401 · 평문 0</td></tr>
+      <tr><td class="ch">운영 지식</td><td><span class="tag pri">그대로</span> dpms <code>5c862928694d</code> · gdi <code>471b87aee827</code> · 서비스 active</td></tr>
+    </tbody>
+  </table></div>
+  <div class="left">
+    <div class="card"><span class="tag warn">작은 결함 T23</span><div>읽기 자리 사람이 proposal 만 실은 save 를 보내면 E_FORBIDDEN 이 아니라 E_INPUT 「제안 입력을 들고 있지 않다」 · <code>server/mcp.js</code> save 가 입력을 쓰기 자리보다 먼저 봄 · 아무것도 쓰이지 않음</div></div>
+  </div>
+
   <h3>남은 것</h3>
   <div class="left">
-    <div class="card"><span class="tag bad">사람 결정</span><div>188 대량 넣기 결함 T18 ~ T22 고칠 길 · 시험 지식 <code>테스트-대량-넣기</code> · test-read 지울지 · 11-17 임시 열쇠 회수(T17) · 옛 일꾼 열쇠 파일 <code>/root/worker.env.before-20261103-1137</code> 지울지</div></div>
+    <div class="card"><span class="tag bad">사람 결정</span><div>T21 · T22 · T23 고칠 길 · 서버 <code>/root/kmdtest</code> 지울지 · 시험 지식 <code>테스트-대량-넣기</code> · test-read 지울지 · 11-17 임시 열쇠 회수(T17) · 옛 일꾼 열쇠 파일 <code>/root/worker.env.before-20261103-1137</code> 지울지</div></div>
     <div class="card"><span class="tag warn">품질</span><div>kmd-seed 첫 초안의 <code>###</code>(네 판 모두 · check 가 막음 · T15) · 회의 항목의 버린 안(까닭 모름 · 옮길지는 사람이 정함)</div></div>
-    <div class="card"><span class="tag">확인</span><div>intake-src · session · pc-intake 한 판 길어짐은 다음 판에서 다시 봄 · C2 판정(하지 않는다) 그대로 · push 안 함 · 188 은 <code>10b30e6</code> 판(4차 고침 배포 전)</div></div>
+    <div class="card"><span class="tag">확인</span><div>intake-src · session · pc-intake 한 판 길어짐은 다음 판에서 다시 봄 · C2 판정(하지 않는다) 그대로 · 188 은 <code>98d27ca</code> 판(T18 ~ T20 고침 배포 · PC 팀 키트 다시 설치)</div></div>
   </div>
 </section>
 
