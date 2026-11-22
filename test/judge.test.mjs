@@ -206,6 +206,19 @@ test('judgeSection: 줄 머리 날짜 · 판 번호 · 굵은 수는 값(invente
   assert.ok(!r.warnings.some((w) => w.code === 'missing'), JSON.stringify(r.warnings))
 })
 
+// 채널 평가 real-6 · 6b: 다듬기가 「`지우고 이름을 남긴다`」 의 백틱을 풀면 저장 문의 값 대조가 lost 로 잡아 다시 불렀다
+test('judgeSection: 묶은 글 값을 맨글로 풀면 lost 아님 · 글자가 바뀌면 lost · 맨 수는 다른 자리에 숨지 않음', () => {
+  const old = '로그는 `지우고 이름을 남긴다`.\n대기 10분, 배포일 2026-11-10'
+  const kk = kOf([['보관', old]])
+  const at = { doc: 'docs/배포절차.md', heading: '보관', base: sha16(old), record: { title: '다듬기', body: '문체를 정돈했다' } }
+  const ok = judgeSection(kk, { ...at, content: old.replace('`지우고 이름을 남긴다`', '지우고 이름을 남긴다') })
+  assert.ok(!ok.warnings.some((w) => w.code === 'lost'), JSON.stringify(ok.warnings))
+  const bad = judgeSection(kk, { ...at, content: old.replace('`지우고 이름을 남긴다`', '지우고 이름을 남겼다') })
+  assert.ok(bad.warnings.some((w) => w.code === 'lost' && w.values.includes('지우고이름을남긴다')), JSON.stringify(bad.warnings))
+  const num = judgeSection(kk, { ...at, content: old.replace('대기 10분, ', '') })
+  assert.ok(num.warnings.some((w) => w.code === 'lost'), JSON.stringify(num.warnings))
+})
+
 test('samePolished: 백틱 안 한국어 문장을 풀어도 같다 · 글자가 바뀌면 잃은 값', () => {
   assert.equal(samePolished('`지우고 이름을 남긴다`', '지우고 이름을 남긴다').same, true)
   assert.equal(samePolished('지우고 이름을 남긴다', '`지우고 이름을 남긴다`').same, true)

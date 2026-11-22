@@ -11,7 +11,7 @@
 import { sha16 } from './text.js'
 import { guardNewDoc } from './guard.js'
 import { formatProblems, lintSection } from './docformat.js'
-import { valuesOf, mustValues, oldValues, namesIn, groundedIn, judgeId, noLevels } from './values.js'
+import { valuesOf, mustValues, oldValues, namesIn, groundedIn, judgeId, noLevels, plainHas } from './values.js'
 
 // 초안 짜임 알림 — 머리 단계 건너뜀 · 5단계 머리(거절하지 않는다 · 결과에 lint 로 싣는다)
 export function draftLint(outs) {
@@ -70,7 +70,9 @@ export function judgeSection(k, { doc, heading, base, content, record, spread = 
   const gone = [...oldV].filter((v) => !now.has(v))
   const came = [...now].filter((v) => !oldV.has(v))
   const told = new Set(oldValues(body).map((v) => v.replace(/\s+/g, '')))
-  const lost = gone.filter((v) => !told.has(v.replace(/\s+/g, '')))
+  // 묶은 글 값(「`지우고 이름을 남긴다`」 · 「…」)을 맨글로 푼 것은 값이 빠진 것이 아니다 — 글자가 새 글에 그대로 있으면(plainHas · 다듬기 samePolished 와 같은 읽기) 빼지 않는다.
+  //   글자(한글 · 영문)가 든 값만: 맨 수(「10」)는 날짜 「-10」 같은 다른 자리에 숨지 않게 그대로 본다(채널 평가 real-6 · 6b polish 다시 부름)
+  const lost = gone.filter((v) => !told.has(v.replace(/\s+/g, '')) && !(/[A-Za-z가-힣]/.test(v) && v.length >= 2 && plainHas(content, v)))
   if (lost.length) warn('lost', lost, `옛 글의 값이 빠졌다: ${lost.slice(0, 3).join(' · ')}. 바꾼 값이면 기록의 바뀐 것에 「옛 값 → 새 값」 으로 적는다`)
   const changed = gone.length && came.length ? [{ from: gone.join(' · '), to: came.join(' · ') }] : []
   return { errors, warnings, changed, ...draftLint([content]) }

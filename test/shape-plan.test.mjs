@@ -323,6 +323,19 @@ test('바탕 세우기 쪼갬(T14 seed): 줄기 + 닫힌 겉말 형제 둘 이�
   assert.match(SEED_RULES, /크기는 다 지은 뒤 보는 참고값이다\(경고 · 사람이 본다\): 맞추려고 한 대상을 쪼개거나 다른 대상을 합치지 않는다/)
 })
 
+// 채널 평가 real-6s1: 패턴 갈래 항목의 값이 머리와 다르면(빈칸 → _) check 가 넘기고 연습 판이 머리 잃은 항목으로 막았다
+test('바탕 세우기: 패턴 갈래(회의:*) 항목은 값 = 머리 · 다르면 names 걸림 · 같으면 통과 · 다시 잡기는 걸지 않음', async () => {
+  const { EMPTY_FILES } = await import('../core/survey.js')
+  const S = readShape(null, EMPTY_FILES())
+  const m = 'm:' + 'd'.repeat(16)
+  const plan = (coord) => P({ v: 1, kind: 'seed', forms: [{ name: '회의록', kind: '사건', folder: '게이트웨이', aliases: ['주간 회의'], pattern: '회의:*' }], docs: [{ id: '게이트웨이/회의록', was: null, items: [{ h: '2026-11-10 주간 회의', src: [m] }] }], names: [{ coord, label: '2026-11-10 주간 회의', doc: '게이트웨이/회의록', h: '2026-11-10 주간 회의' }], skip: [] })
+  const bad = planCheck(null, S, plan('회의:2026-11-10_주간_회의'))
+  const e = bad.errors.filter((x) => x.code === 'names' && /값이 머리와 같아야 한다/.test(x.why))
+  assert.equal(e.length, 1, JSON.stringify(bad.errors))
+  assert.match(e[0].why, /회의:2026-11-10 주간 회의/)
+  assert.ok(!planCheck(null, S, plan('회의:2026-11-10 주간 회의')).errors.some((x) => /값이 머리와 같아야 한다/.test(x.why)))
+})
+
 // 채널 평가 P6 — 구조안의 문서 성격 칸 · 글 짓기의 앞선 값(R2-5)
 test('바탕 세우기: 문서 성격 칸(cleanPlan · 스키마 · 초안) · 앞선 값 재료(R2-5)', () => {
   assert.deepEqual(SEED_PLAN_SCHEMA.properties.docs.items.properties.nature.enum.includes('사건'), true)

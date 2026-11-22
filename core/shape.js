@@ -367,6 +367,11 @@ export function planCheck(k, S, Pl) {
     if (!d || !d.items.some((it) => it.h === x.h)) err(x.coord, `장부 항목 자리가 구조안에 없다: ${x.doc} › ${x.h}`, 'names')
     const cw = coordProblem(x.coord)
     if (cw) err(x.coord, cw, 'names')
+    // 패턴 갈래(「회의:*」 · 「이슈:*」)의 항목은 문서 장부 줄 `## {값}` 으로 머리를 찾는다(core/registry.js locate) — 값이 머리와 글자 그대로 같아야 한다
+    //   (채널 평가 real-6s1: 「회의:2026-11-10_주간_회의」 → 머리 「2026-11-10 주간 회의」 가 check 를 넘고 연습 판에서 머리 잃은 항목으로 막혔다)
+    const ci = x.coord.indexOf(':')
+    const pf = ci > 0 ? (fset.rows || []).find((f) => f.pattern === `${x.coord.slice(0, ci)}:*`) : null
+    if (Pl.kind === 'seed' && pf && x.coord.slice(ci + 1).normalize('NFC') !== String(x.h).normalize('NFC')) err(x.coord, `「${pf.pattern}」 갈래 항목은 값이 머리와 같아야 한다(장부가 값으로 머리를 찾는다): ${x.coord.slice(0, ci)}:${x.h}`, 'names')
   }
   // 바탕 세우기 — 있던 문서는 그대로 가는 문서로만(빈 지식 · 앞 묶음이 세운 문서 · 통합 I2 · 바꾸지 않는다) · 재료 덮임
   if (Pl.kind === 'seed') {
@@ -530,7 +535,7 @@ export const unitFp = (u) => hash16((u.sources || []).map((s) => `${s.doc}\n${s.
 
 // 판단 기준(6-1) — 바탕 세우기(SEED_RULES · core/survey.js 가 같이 쓴다) · 다시 잡기(RESHAPE_RULES). 4(장부)만 둘이 다르다:
 //   바탕 세우기는 세우는 항목마다 짝(gist 포함 · SEED_PLAN_SCHEMA), 다시 잡기는 있는 짝을 옮기기만 한다(SHAPE_PLAN_SCHEMA names 는 { coord, doc, h } · 뜻 한 줄은 장부에 있는 그대로 간다)
-const SEED_NAMES_RULE = '4. 장부(names · 종류:값): 세우는 항목마다 종류와 뜻 한 줄(gist)을 적어 짝을 같이 세운다(생성 룰 R7-1 · 머리만 세우지 않는다 · 사건 · 대장 갈래의 항목도 같다). 올리지 않는 것: 항목 안의 줄 · 표 행 · 짜임 머리(개요). 종류는 같은 것의 하나끼리 같은 낱말(R5-1). 빈 ## 머리 · 「작성 예정」 은 쓰지 않는다.'
+const SEED_NAMES_RULE = '4. 장부(names · 종류:값): 세우는 항목마다 종류와 뜻 한 줄(gist)을 적어 짝을 같이 세운다(생성 룰 R7-1 · 머리만 세우지 않는다 · 사건 · 대장 갈래의 항목도 같다). 패턴 갈래(「회의:*」 · 「이슈:*」)의 항목은 값이 머리와 글자 그대로 같다(「회의:2026-11-10 주간 회의」 · 빈칸을 _ 로 바꾸지 않는다 · 장부가 값으로 머리를 찾는다). 올리지 않는 것: 항목 안의 줄 · 표 행 · 짜임 머리(개요). 종류는 같은 것의 하나끼리 같은 낱말(R5-1). 빈 ## 머리 · 「작성 예정」 은 쓰지 않는다.'
 const RESHAPE_NAMES_RULE = '4. 장부(names · 종류:값): 장부 항목은 옮긴 항목을 따라간다. names 에는 자리가 바뀌는 장부 항목의 새 doc · h 만 적는다(뜻 한 줄은 장부에 있는 그대로 간다 · 새 장부 항목을 세우지 않는다). 합치기는 출처 항목의 장부 항목을 모두 새 항목으로 · 나누기는 장부 항목마다 그 대상을 받는 항목 하나로. 빈 ## 머리 · 「작성 예정」 은 쓰지 않는다.'
 const rulesOf = (r4) => [
   '짜임 판단 기준:',

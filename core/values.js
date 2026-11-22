@@ -65,7 +65,7 @@ const hasAt = (t, v) => {
   }
   return false
 }
-const plainHas = (text, v) => {
+export const plainHas = (text, v) => {
   const t = String(text || '')
   return hasAt(t, v) || (/\s/.test(t) && hasAt(t.replace(/\s+/g, ''), v))
 }
