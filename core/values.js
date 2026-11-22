@@ -43,7 +43,8 @@ export function isoDates(s) {
   }).join('\n')
 }
 //   옛 머리 줄의 장 번호(「### 4.1 설치」)도 같은 짜임이다(머리 줄에서만 점 없는 번호를 뗀다 · 일반 줄의 「3 개소」 는 값)
-const noMarks = (s) => String(s || '').replace(/^(#{1,6}[ \t]+|\*\*)(\d+(?:\.\d+){0,3})\.?[ \t]+(?=\S)/gm, '$1').replace(/^([ \t]*)(\d+(?:\.\d+){0,3})[.)][ \t]+(?=\S)/gm, '$1')
+//   값 대조(core/gate.js judgeSection)도 같은 규칙으로 읽는다(「가.」 → 「1.」 다듬기가 지어낸 값 「1 · 2」 로 잡히지 않게 · 채널 평가 T14)
+export const noMarks = (s) => String(s || '').replace(/^(#{1,6}[ \t]+|\*\*)(\d+(?:\.\d+){0,3})\.?[ \t]+(?=\S)/gm, '$1').replace(/^([ \t]*)(\d+(?:\.\d+){0,3})[.)][ \t]+(?=\S)/gm, '$1')
 export function sameValues(oldText, newText) {
   const a = valuesOf(noMarks(isoDates(oldText)))
   const b = valuesOf(noMarks(isoDates(newText)))
@@ -54,12 +55,16 @@ export function sameValues(oldText, newText) {
 // 다듬기(core/ingest.js polishToSave)의 값 견주기 — sameValues(수준 표시 · 날짜 표기는 짜임) 위에, 백틱으로 감싼 것은 값이 바뀐 것이 아니다:
 //   새 글에만 있는 `코드` 값이 옛 글에 맨글로 이미 있으면(앞뒤가 영문 · 수 · _ 가 아닌 같은 글자) 같은 값으로 친다 · 거꾸로 옛 `코드` 를 맨글로 푼 것도 같다
 //   (다듬기 정돈 거리: 맨글 식별자를 백틱으로 감싼다 · 「가.」 · 「①」 를 1. 2. 로 바꾼다 · 값 글자가 바뀐 것은 그대로 잡힌다)
-const plainHas = (text, v) => {
-  const t = String(text || '')
+//   값 장부는 빈칸을 뺀 값이다(「`지우고 이름을 남긴다`」 → 지우고이름을남긴다): 원문 자리에서 먼저 찾고, 없으면 빈칸을 뺀 글에서 같은 경계로 한 번 더 본다(글자가 바뀐 값은 그대로 잡힌다 · 채널 평가 T14)
+const hasAt = (t, v) => {
   for (let i = t.indexOf(v); i >= 0; i = t.indexOf(v, i + 1)) {
     if (!/[A-Za-z0-9_]/.test(t[i - 1] || '') && !/[A-Za-z0-9_]/.test(t[i + v.length] || '')) return true
   }
   return false
+}
+const plainHas = (text, v) => {
+  const t = String(text || '')
+  return hasAt(t, v) || (/\s/.test(t) && hasAt(t.replace(/\s+/g, ''), v))
 }
 export function samePolished(oldText, newText) {
   const r = sameValues(oldText, newText)

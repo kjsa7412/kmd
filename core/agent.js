@@ -180,6 +180,9 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       const used = [] // 부른 도구 이름(다시 띄울 때 까닭을 가리려고 · 채널 평가 intake-file)
       let retries = 0 // API 다시 시도(system api_retry) — 다시 생성한 몫은 usage 에 없고 modelUsage · 비용에만 든다(채널 평가 T3)
       let lastRes = 0 // 마지막 도구 결과를 받은 때 — 끝 줄의 「꼬리」(마지막 도구 뒤 끝 말까지 · T3)
+      // 생각 글자 수(채널 평가 T14 · 같은 일의 출력 흔들림이 생각 몫인지 가른다): 글은 남기지 않고 수만: 합 · 차례(message id)별 최댓값
+      const think = { sum: 0, by: new Map() }
+      const thinkOf = () => ({ sum: think.sum, max: Math.max(0, ...think.by.values()) })
       let buf = ''
       let se = ''
       let last = null
@@ -202,6 +205,7 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
           line('sys', `첫 차례: 캐시 읽음 ${u.cache_read_input_tokens || 0} · 캐시 씀 ${u.cache_creation_input_tokens || 0} · 입력 ${u.input_tokens || 0}`)
         }
         if (j.type === 'assistant') for (const c of j.message?.content || []) {
+          if (c.type === 'thinking') { const n = String(c.thinking || '').length; think.sum += n; const k = j.message?.id || ''; think.by.set(k, (think.by.get(k) || 0) + n) }
           if (c.type === 'text' && c.text.trim()) line('say', c.text.trim())
           if (c.type === 'tool_use') { line('tool', toolLine(c.name, c.input)); used.push(String(c.name || '')); if (String(c.name || '').startsWith('mcp__kmd')) mcpUsed = true }
         }
@@ -239,8 +243,8 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
         // 보조 모델(주 모델 밖의 modelUsage) · API 다시 시도 · 꼬리 — usage 로 설명되지 않는 비용 · 시간의 출처(채널 평가 T3)
         const mu = Object.entries(last.modelUsage || {}).sort((a, b) => (b[1]?.costUSD || 0) - (a[1]?.costUSD || 0))
         const aux = mu.slice(1).filter(([, x]) => (x?.costUSD || 0) > 0)
-        line('cost', `끝: ${last.num_turns ?? '?'} 차례 · $${(last.total_cost_usd || 0).toFixed(3)} · ${Math.round((Date.now() - t0) / 1000)}초 · 첫 도구 ${used[0] || '없음'}${lastRes ? ` · 꼬리 ${Math.round((Date.now() - lastRes) / 1000)}초` : ''}${retries ? ` · API 다시 시도 ${retries}` : ''}${aux.length ? ` · 보조 모델 ${aux.map(([m, x]) => `${m} $${(x.costUSD || 0).toFixed(3)}`).join(' · ')}` : ''}`)
-        resolve({ ok: true, text: String(last.result || ''), cost: last.total_cost_usd || 0, turns: last.num_turns || 0, model: last.model || null })
+        line('cost', `끝: ${last.num_turns ?? '?'} 차례 · $${(last.total_cost_usd || 0).toFixed(3)} · ${Math.round((Date.now() - t0) / 1000)}초 · 첫 도구 ${used[0] || '없음'}${lastRes ? ` · 꼬리 ${Math.round((Date.now() - lastRes) / 1000)}초` : ''}${retries ? ` · API 다시 시도 ${retries}` : ''}${think.sum ? ` · 생각 ${think.sum}자(차례 최대 ${thinkOf().max}자)` : ''}${aux.length ? ` · 보조 모델 ${aux.map(([m, x]) => `${m} $${(x.costUSD || 0).toFixed(3)}`).join(' · ')}` : ''}`)
+        resolve({ ok: true, text: String(last.result || ''), cost: last.total_cost_usd || 0, turns: last.num_turns || 0, model: last.model || null, thinkChars: thinkOf() })
       })
       p.stdin.end(prompt)
     }) }

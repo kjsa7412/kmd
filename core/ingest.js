@@ -7,7 +7,7 @@ import { sha16 } from './text.js'
 import { kindOf as natureOfDoc } from './forms.js'
 import { weave } from './weave.js'
 import { valuesOf, samePolished, groundedIn, judgeId } from './values.js'
-import { validEdits } from './edits.js'
+import { validEdits, judgeEdits } from './edits.js'
 
 // 문서 경로 — 「폴더/이름」 · 「docs/폴더/이름.md」 를 「docs/폴더/이름.md」 로
 export const docRel = (p) => `docs/${String(p).replace(/^docs\/|\.md$/g, '')}.md`
@@ -260,8 +260,8 @@ export const POLISH_SCHEMA = {
   properties: {
     updates: {
       type: 'array',
-      description: '다듬은 항목마다 하나: 머리는 그대로 · base 는 받은 그대로 · content 는 항목의 새 글 전체(머리 줄 빼고)',
-      items: { type: 'object', properties: { heading: { type: 'string' }, base: { type: 'string' }, content: { type: 'string' } }, required: ['heading', 'base', 'content'] },
+      description: '다듬은 항목마다 하나: 머리는 그대로 · base 는 받은 그대로 · 바뀐 곳만 edits(find 는 받은 글에 꼭 한 번 나오는 글 그대로 → replace) · 글 절반 넘게 바뀌면 edits 대신 content(항목의 새 글 전체 · 머리 줄 빼고)',
+      items: { type: 'object', properties: { heading: { type: 'string' }, base: { type: 'string' }, edits: { type: 'array', items: { type: 'object', properties: { find: { type: 'string' }, replace: { type: 'string' } }, required: ['find', 'replace'] } }, content: { type: 'string' } }, required: ['heading', 'base'] },
     },
     why: { type: 'string', description: '무엇을 다듬었나 한 줄' },
   },
@@ -279,6 +279,7 @@ export function polishPromptOf(g, { writeRules = '' } = {}) {
       '- 값이 든 줄은 값을 글자 그대로(단위까지) 옮긴다. 값을 옮길 자리가 없으면 그 항목은 다듬지 않는다.',
       '- 머리(## 이름)는 바꾸지 않는다. 항목을 나누거나 합치거나 새로 세우지 않는다.',
       '- 고칠 것이 없는 항목은 updates 에 넣지 않는다.',
+      '- 바뀐 곳만 edits 로 보낸다: find 는 받은 글에서 꼭 한 번 나오는 글을 글자 그대로(줄 하나 이상 · 줄 끝까지), replace 는 다듬은 글. 항목 글 절반 넘게 바뀌면 edits 대신 content 에 새 글 전체를 보낸다.',
     ].join('\n'),
     [
       '정돈 거리(값이 아닌 글자 · 모양은 다듬기 몫이다 · 하나라도 보이면 그 항목을 다듬는다):',
@@ -296,24 +297,32 @@ export function polishPromptOf(g, { writeRules = '' } = {}) {
 
 // 다듬기 초안 → 저장 덩이 — { ok: true, input, dropped: [{ heading, why }] } | { ok: false, why }
 //   받은 항목 · 받은 base 만 · 값 장부(samePolished: 수준 표시 · 날짜 표기 · 감싼 백틱은 값이 아니다)가 옛 글과 같은 항목만 넣는다(아니면 그 항목만 빼고 까닭) · 글이 같으면 뺀다
+//   바꿀 곳(edits · 채널 평가 T14 · T10 ②): 서버가 지금 글에 미리 대어 새 글을 짓는다(core/edits.js judgeEdits) · 못 대는 항목은 그 항목만 뺀다(edits: true · 가까운 줄은 일감 줄에만) · 저장 덩이는 늘 content + base(저장 문 길 그대로)
 export function polishToSave(k, g, draft) {
   if (!draft || typeof draft !== 'object' || !Array.isArray(draft.updates)) return { ok: false, why: '초안 모양이 아니다: updates 가 없다' }
   const sections = []
   const dropped = []
   const doc = k.byDocPath?.get(g.doc)
   for (const u of draft.updates.slice(0, 200)) {
-    if (!u || typeof u.heading !== 'string' || typeof u.content !== 'string') return { ok: false, why: '초안 모양이 아니다: updates 의 heading · content' }
+    const hasEdits = Array.isArray(u?.edits) && u.edits.length > 0
+    if (!u || typeof u.heading !== 'string' || (!hasEdits && typeof u.content !== 'string')) return { ok: false, why: '초안 모양이 아니다: updates 의 heading · edits 또는 content' }
     const h = bareHeading(u.heading)
     const seen = (g.sections || []).find((s) => s.h === h)
     if (!seen) { dropped.push({ heading: h, why: '받은 항목이 아니다' }); continue }
     if (String(u.base || '') !== seen.base) { dropped.push({ heading: h, why: 'base 가 받은 것과 다르다' }); continue }
     const cur = doc?.sections.find((x) => x.h === h)
     if (!cur || sha16(cur.body) !== seen.base) { dropped.push({ heading: h, why: '그사이 항목이 바뀌었다' }); continue }
-    if (u.content.trim() === cur.body.trim()) continue
-    if (!u.content.trim()) { dropped.push({ heading: h, why: '빈 글이다' }); continue }
+    let text = u.content
+    if (hasEdits) {
+      const e = judgeEdits(cur.body, u.edits)
+      if (e.errors.length) { const x = e.errors[0]; dropped.push({ heading: h, why: `${x.why}${x.near ? ` · 가까운 줄: ${x.near}` : ''}`, brief: '바꿀 곳을 댈 수 없다', edits: true }); continue }
+      text = e.text
+    }
+    if (text.trim() === cur.body.trim()) continue
+    if (!text.trim()) { dropped.push({ heading: h, why: '빈 글이다' }); continue }
     // 기록 글(brief)에는 바뀐 값을 싣지 않는다 — 실으면 저장 문의 값 검사가 「기록의 값이 글에 없다」 로 다듬기 전체를 막았다(채널 평가 H14 에서 찾음) · 일감 줄(why)에만
-    { const v = samePolished(cur.body, u.content); if (!v.same) { dropped.push({ heading: h, why: `값이 바뀐다(다듬기는 값을 바꾸지 않는다: ${[...v.lost.map((x) => `-${x}`), ...v.added.map((x) => `+${x}`)].slice(0, 6).join(' · ')})`, brief: '값이 바뀐다(다듬기는 값을 바꾸지 않는다)' }); continue } }
-    sections.push({ doc: g.doc, heading: h, base: seen.base, content: u.content })
+    { const v = samePolished(cur.body, text); if (!v.same) { dropped.push({ heading: h, why: `값이 바뀐다(다듬기는 값을 바꾸지 않는다: ${[...v.lost.map((x) => `-${x}`), ...v.added.map((x) => `+${x}`)].slice(0, 6).join(' · ')})`, brief: '값이 바뀐다(다듬기는 값을 바꾸지 않는다)' }); continue } }
+    sections.push({ doc: g.doc, heading: h, base: seen.base, content: text })
   }
   const name = String(g.doc).replace(/^docs\/|\.md$/g, '')
   // 일꾼의 까닭(why)에 값이 들면(바꾼 값 「14일」 같은) 기록 글에 싣지 않는다 — 실으면 저장 문의 값 검사가 다듬기 전체를 막는다(채널 평가 harness 검토 · H14 의 남은 길)

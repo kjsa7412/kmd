@@ -325,7 +325,7 @@
 | 검사 | 지금 | 바뀐 뒤(사람 채널) | 무인 채널 | 근거 |
 |---|---|---|---|---|
 | proposal 없음 · 해시 어긋남 | — | E_APPROVE + propose 결과(+ 옛 키트면 다시 설치 안내) | 해당 없음(서버가 짓고 넣음) | P-D5, mcp.js `save` 손잡이(306-309) |
-| values(빠진 · 지어낸 · 사라진 값, 나뉜 글) | held | 제안서 안 경고(id). 승인하면 받아들임 → 들어감 · `## 받아들인 경고` | **막지 않고 들어감.** `## 값 대조` · savelog `warned` 로 측정만 | `checkSection`(gate.js:136), `gatePrepare`(hub.js:790), P-D2 · P-D37 |
+| values(빠진 · 지어낸 · 사라진 값, 나뉜 글) | held | 제안서 안 경고(id). 승인하면 받아들임 → 들어감 · `## 받아들인 경고` | **막지 않고 들어감.** `## 값 대조` · savelog `warned` 로 측정만 | `checkSection`(gate.js:136), `gatePrepare`(hub.js:790), P-D2 · P-D37 · 값은 줄 머리 수준 표시(1. · 1.1. · 1))를 떼고 읽는다(`noMarks` · 다듬기의 「가.」 → 「1.」 이 지어낸 값으로 잡히던 것 · 채널 평가 T14) |
 | reverts(7일 두 번) | held | 경고 | 들어감 · 측정 | `gatePrepare`(hub.js:778-780) |
 | format | 팀 held · PC E_FORMAT | E_FORMAT(입력 오류) | FIX 고리 → 규칙 길 | `checkSection`(gate.js:143-145), save.js:518-520 |
 | machine(저절로 채우는 표) | held | E_INPUT | FIX 고리 → 규칙 길 | `guardSections`(save.js:165) |

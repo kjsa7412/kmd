@@ -204,7 +204,9 @@ p.stdin.on('error', () => {})
 p.stdout.setEncoding('utf8')
 let buf = ''
 // 진단(T3 · T9): 띄움 → init(kmd 연결 상태) · 뒤늦은 연결 · 첫 차례 캐시 · 첫 도구 · API 다시 시도 · 마지막 도구 결과 뒤 꼬리
-const D = { initMs: null, kmd: null, kmdAt: null, kmdUsed: false, firstTool: null, first: null, retries: 0, tools: 0, toolMs: {}, toolN: {} }
+const D = { initMs: null, kmd: null, kmdAt: null, kmdUsed: false, firstTool: null, first: null, retries: 0, tools: 0, toolMs: {}, toolN: {}, thinkChars: { sum: 0, max: 0 } }
+// 생각 글자 수(T14): 글은 남기지 않고 합 · 차례(message id)별 최댓값만
+const thinkBy = new Map()
 // 도구 시간(T13 · 도구 몫 가르기): tool_use id → 부른 때 · tool_result 가 오면 그 차를 도구 이름별로 더한다(Read · Glob 처리와 kmd MCP 서버 처리를 가른다)
 const openTools = new Map()
 let lastRes = null
@@ -220,6 +222,7 @@ const eat = (l) => {
     if (T.firstAsst == null) T.firstAsst = Date.now() - t0
     const u0 = j.message?.usage
     if (!D.first && u0) D.first = { cacheRead: u0.cache_read_input_tokens || 0, cacheWrite: u0.cache_creation_input_tokens || 0, input: u0.input_tokens || 0 }
+    for (const c of j.message?.content || []) if (c.type === 'thinking') { const n = String(c.thinking || '').length; const k = j.message?.id || ''; thinkBy.set(k, (thinkBy.get(k) || 0) + n); D.thinkChars.sum += n; D.thinkChars.max = Math.max(D.thinkChars.max, thinkBy.get(k)) }
     for (const c of j.message?.content || []) if (c.type === 'tool_use') { D.tools++; D.firstTool ||= String(c.name || ''); if (String(c.name || '').startsWith('mcp__kmd')) D.kmdUsed = true; if (c.id) openTools.set(c.id, { name: String(c.name || '?').slice(0, 40), at: Date.now() }) }
   }
   if (j.type === 'user' && Array.isArray(j.message?.content) && j.message.content.some((c) => c.type === 'tool_result')) {
@@ -499,7 +502,7 @@ export function meterRowOf(row = {}, ml = [], { selfCost = false } = {}) {
     }
     // 진단(T3 · T9 · 감싸개가 프로세스마다 마지막 result 줄에 싣는다) — kmd 를 붙였으나 한 번도 쓰지 않은 프로세스(kmdUnused · 세션 들이기에서는 다시 띄움의 까닭 · 스키마 부름은 안 쓸 수 있다) · API 다시 시도 · init 까지 · 뒤늦은 kmd 연결 · 첫 차례 캐시(C1) · 첫 도구 · 마지막 도구 결과 뒤 꼬리
     const dg = lasts.map((l) => l.diag).filter(Boolean)
-    if (dg.length) meter.diag = { cut: lasts.filter((l) => l.noResult).length, kmdUnused: lasts.filter((l) => !l.noResult && l.diag && l.diag.kmd != null && !l.diag.kmdUsed).length, retries: sum(dg.map((d) => d.retries)), initMs: dg.map((d) => d.initMs), kmd: dg.map((d) => d.kmd), kmdAt: dg.map((d) => d.kmdAt), firstTool: dg.map((d) => d.firstTool), firstCacheRead: dg.map((d) => d.first?.cacheRead ?? null), tailMs: dg.map((d) => d.tailMs), wrapMs: dg.map((d) => d.wrapMs ?? null), firstOutMs: dg.map((d) => d.t?.firstOut ?? null), firstAsstMs: dg.map((d) => d.t?.firstAsst ?? null) }
+    if (dg.length) meter.diag = { cut: lasts.filter((l) => l.noResult).length, kmdUnused: lasts.filter((l) => !l.noResult && l.diag && l.diag.kmd != null && !l.diag.kmdUsed).length, retries: sum(dg.map((d) => d.retries)), initMs: dg.map((d) => d.initMs), kmd: dg.map((d) => d.kmd), kmdAt: dg.map((d) => d.kmdAt), firstTool: dg.map((d) => d.firstTool), firstCacheRead: dg.map((d) => d.first?.cacheRead ?? null), tailMs: dg.map((d) => d.tailMs), wrapMs: dg.map((d) => d.wrapMs ?? null), firstOutMs: dg.map((d) => d.t?.firstOut ?? null), firstAsstMs: dg.map((d) => d.t?.firstAsst ?? null), thinkChars: dg.map((d) => d.thinkChars ?? null) }
     // 감싸개 안 시간 합(procMs) · 시험 도구 몫(preMs · 웃값) · 도구 이름별 시간(toolMs: 도구를 부른 때 → 결과 · Read · Glob 와 kmd MCP 를 가른다)
     meter.procMs = sum(lasts.map((l) => l.ms))
     meter.preMs = dg.some((d) => typeof d.preMs === 'number') ? sum(dg.map((d) => d.preMs || 0)) : null

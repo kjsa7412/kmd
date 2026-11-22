@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { judgeSection, checkSection, judgeShape, checkShape, foldJudge } from '../core/gate.js'
 import { judgeProposal, checkProposal } from '../core/propose.js'
 import { judgeEdits, applyEdits } from '../core/edits.js'
-import { judgeReflect, judgeId, reflectNames } from '../core/values.js'
+import { judgeReflect, judgeId, reflectNames, samePolished } from '../core/values.js'
 import { sha16 } from '../core/text.js'
 
 // 작은 지식 — 문서 하나(docs/배포절차.md) · 항목 둘
@@ -165,4 +165,30 @@ test('judgeReflect(본문 반영): 「바뀐 것」 값이 이은 항목 글 · 
   // judgeId — 차례 · NFC 와 상관없이 같은 재료면 같다
   assert.equal(judgeId('x', 'a', 'b'), judgeId('x', 'a', 'b'))
   assert.notEqual(judgeId('x', 'a', 'b'), judgeId('y', 'a', 'b'))
+})
+
+// 채널 평가 T14: 줄 머리 수준 표시(1. · 1.1. · 1))는 짜임이지 값이 아니다(다듬기의 「가.」 → 「1.」 이 지어낸 값 「1 · 2」 로 잡히던 것) · 수 · 표 칸 · 띄어 쓴 단위는 그대로 잡힌다
+test('judgeSection: 줄 머리 수준 표시는 값이 아니다 · 「3회 → 4회」 · 표 칸 · 「3 개소」 는 그대로', () => {
+  const old = '보관 기간은 14일이다.\n가. 매일 지운다\n나. 주마다 묶는다'
+  const k2 = kOf([['보관', old]])
+  const a2 = { doc: 'docs/배포절차.md', heading: '보관' }
+  const lv = judgeSection(k2, { ...a2, base: sha16(old), content: '보관 기간은 14일이다.\n1. 매일 지운다\n2. 주마다 묶는다\n2.1. 묶음은 하나다', record: { title: '다듬기', body: '문체를 정돈했다' } })
+  assert.deepEqual(lv.warnings, [], JSON.stringify(lv.warnings))
+  const old2 = '재시도는 3회 한다.\n| 칸 | 값 |\n|---|---|\n| 개소 | 3 개소 |'
+  const k3 = kOf([['재시도', old2]])
+  const a3 = { doc: 'docs/배포절차.md', heading: '재시도' }
+  const w1 = judgeSection(k3, { ...a3, base: sha16(old2), content: old2.replace('3회', '4회'), record: { title: '다듬기', body: '문체' } })
+  assert.ok(w1.warnings.some((w) => w.code === 'invented' && w.values.includes('4')), JSON.stringify(w1.warnings))
+  const w2 = judgeSection(k3, { ...a3, base: sha16(old2), content: old2.replace('| 3 개소 |', '| 5 개소 |'), record: { title: '다듬기', body: '문체' } })
+  assert.ok(w2.warnings.some((w) => w.code === 'invented' && w.values.includes('5')), JSON.stringify(w2.warnings))
+  // 줄 머리가 아닌 수는 값이다(「1. 」 이 줄 머리일 때만 뗀다)
+  const w3 = judgeSection(k3, { ...a3, base: sha16(old2), content: old2 + '\n대기는 7 분이다.', record: { title: '다듬기', body: '문체' } })
+  assert.ok(w3.warnings.some((w) => w.code === 'invented'))
+})
+
+test('samePolished: 백틱 안 한국어 문장을 풀어도 같다 · 글자가 바뀌면 잃은 값', () => {
+  assert.equal(samePolished('`지우고 이름을 남긴다`', '지우고 이름을 남긴다').same, true)
+  assert.equal(samePolished('지우고 이름을 남긴다', '`지우고 이름을 남긴다`').same, true)
+  assert.deepEqual(samePolished('`지우고 이름을 남긴다`', '지우고 이름을 남겼다').lost, ['지우고이름을남긴다'])
+  assert.equal(samePolished('설정 send_interval_sec', '설정 `send_interval_sec`').same, true)
 })

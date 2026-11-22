@@ -2078,6 +2078,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       return close(`${INTAKE_FIX + 1}번 지어도 검사를 넘지 못했다: ${p.why}`)
     }
     for (const x of p.dropped) intakeLine(j, 'sys', `뺀 항목: ${x.heading} · ${x.why}`)
+    // 바꿀 곳을 못 대 넣을 것이 없으면 고쳐 받기(찾을 글을 받은 글 그대로 · 또는 content) · 고쳐 받기 한도(INTAKE_FIX) 안에서만
+    if (!p.input.sections.length && !last && p.dropped.some((x) => x.edits)) { const why = `바꿀 곳을 댈 수 없다: ${p.dropped.filter((x) => x.edits).slice(0, 3).map((x) => `${x.heading}(${x.why})`).join(' · ')}. find 를 받은 글 그대로 다시 잡거나 content 로 새 글 전체를 보낸다`; intakeLine(j, 'err', `✗ ${why} · 고쳐 쓴다`); saveJobs(); return { fix: why } }
     if (!p.input.sections.length) return close(p.dropped.length ? `넣을 항목이 없다: ${p.dropped.slice(0, 3).map((x) => `${x.heading}(${x.why})`).join(' · ')}` : '고칠 것이 없다')
     const cost = { usd: Math.round((j.cost || 0) * 1e4) / 1e4, calls: j.calls }
     // 저장 문이 입력 오류로 막으면(꼴 · 값 검사 · 지문) 일감을 도는 채로 두지 않는다 — 마지막이 아니면 고쳐 쓰기 · 마지막이면 까닭과 함께 닫는다(채널 평가 harness 검토)
@@ -2204,7 +2206,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     const meta = await hub.meta(id)
     // 일 줄(run)이 없는 들이기(가져올 곳 · 커밋)도 같은 세션으로 짓는다(H4a-2 · H-D34): 줄만 적지 않는다
     const it = { j, ctx, md, attach, run: run?.id || null, saves: 0, r: null, attached: false, why: null, fix: 0, done: false, chain: Promise.resolve() }
-    const w = { id: null, tags: j.type === 'commit' ? ['code-change'] : [`ingest/${j.src.rel || j.src.file || j.src.title || '넣은 것.md'}`], title: j.type === 'commit' ? `${j.src.title || '커밋'}: ${j.src.src || '저장소'} ${String(j.src.commit || '').slice(0, 7) || '0000000'}` : j.src.title || j.src.rel || '넣은 것', author: j.by, date: localStamp(), body: md }
+    const w = { id: null, tags: j.type === 'commit' ? ['code-change'] : [`ingest/${j.src.rel || j.src.file || j.src.title || '넣은 것.md'}`], title: j.type === 'commit' ? `${j.src.title || '커밋'}: ${j.src.src || '저장소'} ${String(j.src.commit || '').slice(0, 7) || '0000000'}` : j.src.title || j.src.rel || '넣은 것', author: j.by, date: localStamp(), body: md, ...(j.src?.hand ? { hand: true } : {}) }
     if (run) hub.runLine(run, 'sys', `${meta.name} 에 들인다. 기록과 문서를 한 번에 넣는다`)
     const token = hub.agentToken(id, null, run?.id || null, it)
     let r
@@ -4488,7 +4490,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (!(x.heads || []).length) return { ok: true, dropped: true, note: '고친 글이 없다(머리만 지웠다): 항목 지우기는 화면의 문서 고치기에서 한다' }
       const doc = String(x.path).replace(/^docs\/|\.md$/g, '')
       const name = `문서 고치기 ${doc.split('/').pop()}`.replace(/[\\/:*?"<>|#%]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50) + '.md'
-      const r = await hub.importFiles(ctx, id, [{ path: name, data: Buffer.from(collect.handSource(x), 'utf8') }])
+      const r = await hub.importFiles(ctx, id, [{ path: name, data: Buffer.from(collect.handSource(x), 'utf8') }], { hand: true })
       return { ok: true, queued: true, rows: r.rows }
     },
     // 화면의 문서 고치기(글 고침) → 「넣을 것」(H6) — 고친 항목의 새 글을 원천 글로 지어 올린다(쓰기 자리 이상 · 공식 절차와 저장 제안을 탄다)
@@ -4500,7 +4502,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const heads = (Array.isArray(sections) ? sections : []).filter((y) => y && typeof y === 'object' && typeof y.h === 'string' && typeof y.body === 'string' && y.h.trim() && !/[\r\n]/.test(y.h) && y.body.length <= 200_000).slice(0, 60).map((y) => ({ h: y.h.trim(), body: y.body }))
       if (!heads.length) throw new KmdError('E_INPUT', '고친 항목이 없다')
       const name = `문서 고치기 ${String(d.title || doc).split('/').pop()}`.replace(/[\\/:*?"<>|#%]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50) + '.md'
-      const r = await hub.importFiles(ctx, id, [{ path: name, data: Buffer.from(collect.handSource({ path: `docs/${doc}.md`, heads }, { title: d.title, why: String(why || '').replace(/\s+/g, ' ').slice(0, 200) }), 'utf8') }])
+      const r = await hub.importFiles(ctx, id, [{ path: name, data: Buffer.from(collect.handSource({ path: `docs/${doc}.md`, heads }, { title: d.title, why: String(why || '').replace(/\s+/g, ' ').slice(0, 200) }), 'utf8') }], { hand: true })
       return { ok: true, queued: true, rows: r.rows, summary: r.summary }
     },
     // 장부 고침(지식 생성 하네스 H7 · H-O12) — 지식관리자가 항목 장부의 과거 결정을 거둔다: 폐기 · 합치기 · 별칭 빼기 · 라벨 바꾸기.
@@ -5399,7 +5401,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const it = { j, ctx: hub.intakeCtx(j), md, attach: j.src?.attach && bin ? { path: j.src.attach, b64: bin.toString('base64') } : null, run: runOfJob(j)?.id || null, saves: 0, r: null, attached: false, why: null, fix: 0, done: false, chain: Promise.resolve(), team: true }
       const token = hub.agentToken(id, null, it.run, it)
       jobSessions.set(j.id, { token, it })
-      const w = { id: null, tags: j.type === 'commit' ? ['code-change'] : [`ingest/${j.src.rel || j.src.file || j.src.title || '넣은 것.md'}`], title: j.type === 'commit' ? `${j.src.title || '커밋'}: ${j.src.src || '저장소'} ${String(j.src.commit || '').slice(0, 7) || '0000000'}` : j.src.title || j.src.rel || '넣은 것', author: j.by, date: localStamp(), body: md }
+      const w = { id: null, tags: j.type === 'commit' ? ['code-change'] : [`ingest/${j.src.rel || j.src.file || j.src.title || '넣은 것.md'}`], title: j.type === 'commit' ? `${j.src.title || '커밋'}: ${j.src.src || '저장소'} ${String(j.src.commit || '').slice(0, 7) || '0000000'}` : j.src.title || j.src.rel || '넣은 것', author: j.by, date: localStamp(), body: md, ...(j.src?.hand ? { hand: true } : {}) }
       const task = await hub.agentTask(meta, w, null)
       // 걸음 0 의 나머지(H-D16 · H-D17 가) — 같은 줄기의 앞 판을 들인 기록 · 같이 온 것(아직 들이지 않은 형제 원천)을 일 설명에 적어 준다
       const extra = []
@@ -6013,10 +6015,31 @@ ${genRulesBlock({ profile: 'shape' })}`
             `- 자리: ${src} 가 만드는 시스템의 기능 · 설계 문서. brief 로 둘러보고 그 시스템을 다루는 문서가 있으면 거기에: 바뀐 기능의 항목이 있으면 section 으로 읽고 base 와 함께 지금 동작으로 고치고, 없으면 그 기능 이름으로 새 항목을 더한다.`,
             `  그런 문서가 없을 때만 「${src} 기능」 처럼 시스템 이름의 새 문서 하나를 세운다. 커밋 · 판 · 날짜로 문서나 항목을 세우지 않는다.`,
             '- 항목 글은 바뀐 이력 나열이 아니라 「지금 어떻게 동작하나」 로 쓴다. 기능 · 화면 · API · 설정 · 데이터. 차이 · 분석에 없는 것은 지어내지 않는다. 코드 줄 · 차이는 항목에 옮기지 않는다.',
-            '- from · append 는 쓰지 않는다(kmd 가 거절한다). 기록의 「무엇이 바뀌었나 · 바뀐 것 · 영향 · 맞춰 볼 것 · 근거」 는 항목 글이 아니다. 고칠 항목을 section 으로 읽고 그 글을 지금 동작으로 고친 새 글 전체를 content · base 로 보낸다. 경과 줄은 kmd 가 단다.',
+            '- from · append 는 쓰지 않는다(kmd 가 거절한다). 기록의 「무엇이 바뀌었나 · 바뀐 것 · 영향 · 맞춰 볼 것 · 근거」 는 항목 글이 아니다. 고칠 항목을 section 으로 읽고 바뀐 곳만 바꿀 곳(edits: find 는 section 이 준 글에서 꼭 한 번 나오는 줄을 글자 그대로 · replace 는 지금 동작으로 고친 글)과 base 로 보낸다. 항목 글 절반 넘게 바뀌면 새 글 전체를 content · base 로. 경과 줄은 kmd 가 단다.',
             '- 이 지식의 다른 주제(이 저장소와 상관없는 문서)는 고치지 않는다.',
             '- 붙일 항목(R3-5 · R2-1): 차이 · 분석에 그 항목의 이름 · 별칭 · 식별자(파일 · 클래스 · 설정 · 테이블 이름)가 나오거나 뜻이 같아 같은 대상임을 보일 수 있을 때(R2-1 다: 클래스 HealthCheck 와 장부의 「헬스체크」)만 그 항목을 고친다. 뜻이 같은 항목이 있으면 새 항목을 세우지 않는다(R8-2). 어느 것으로도 같은 대상임을 보일 수 없으면 붙이지 않고 그 기능 이름의 새 항목을 세우거나(차이가 통째로 그 기능이면) 뺀다(excluded · R3-5 다).',
             '- 커밋 메시지 · 작성자 · 커밋 시각은 근거다: why 에 옮기지 않고 refs 에 「커밋 <짧은 해시> · <저장소>」 와 「근거 날짜: <커밋 날>」 만 적는다. 까닭은 분석 · 메시지가 「왜」 를 말할 때만 그 뜻을 한국어 한 줄로.',
+            '도구의 knowledge 는 늘 위 id 를 쓴다.',
+          ].join('\n'),
+          system: skill.replace(/^---[\s\S]*?---\s*/, ''),
+          files: [{ name: mdName, data: Buffer.from(w.body.replace(/^# .*\n+/, ''), 'utf8') }],
+        }
+      }
+      // 문서 고치기(화면 고치기의 새 머리 · 손으로 고친 파일 · 서버가 단 w.hand): 사람 글이 정본이고 사람 머리는 힌트다(생성 룰 R3-5 가 앞선다 · 채널 평가 T14)
+      if (w.hand) {
+        return {
+          prompt: [
+            `지식 「${meta.name}」(knowledge id: ${meta.id}) 에 사람이 화면에서 고친 글을 넣는다(문서 고치기). kmd-build 순서를 줄여서.`,
+            `- 원천: 「${mdName}」(일 폴더): 문서 이름 · 사람이 쓴 머리와 글(\`##\` 마다) · 까닭`,
+            '- 사람 글이 정본이다: 값(수 · 날짜 · 이름 · 코드)은 사람 글 그대로 쓰고, 사람 글에 없는 값은 지어내지 않는다.',
+            '- 머리가 그 문서에 있으면: section 한 번으로 읽고 사람 글대로 고친다(base 와 함께 · 바뀐 곳만 edits 로 · 절반 넘게 바뀌면 content).',
+            '- 머리가 그 문서에 없으면: 그 글이 있는 항목의 값 · 동작인지 본다(생성 룰 R2-1 · R3-5: 그 항목의 이름 · 별칭 · 식별자가 사람 글에 나오거나 뜻이 같아 같은 대상임을 보일 수 있어야 한다). 그렇다면 그 항목을 고친다(사람 머리는 힌트다). 같은 대상임을 보일 수 없으면 사람 머리 그대로 그 문서에 새 항목을 세운다(names 에 장부 짝과 gist).',
+            '  반례: 이름도 뜻도 닿지 않는 항목에 붙임 · 있는 항목의 값인데 새 항목과 장부 줄을 또 세움.',
+            '- 「없앤 항목」 의 머리는 지우지 않는다(항목을 지우는 일은 지식관리자가 화면에서 한다).',
+            '- brief · match 를 넓게 돌지 않는다: 그 문서의 머리를 보는 brief 한 번, 머리가 문서에 없을 때 match 한 번이면 된다. 다른 문서는 고치지 않는다.',
+            '- save 는 한 번(propose 는 쓰지 않는다 · 무인 일이다). record.changes 에 어디에 넣었나를 한 줄씩: 사람 머리 X 의 글을 Y 항목에 넣음(따옴표 없이).',
+            '- record.why 는 원천의 까닭만(없으면 비운다). 근거 날짜는 적지 않는다(사람이 고친 때는 kmd 가 남긴다).',
+            w.id ? `- 이 원천의 기록 id: ${w.id}: save 하면 kmd 가 이 기록을 「넣음」 으로 단다` : '- 기록은 아직 없다: 첫 save 가 이 원천의 기록이 된다(kmd 가 기록 끝에 원천을 붙인다).',
             '도구의 knowledge 는 늘 위 id 를 쓴다.',
           ].join('\n'),
           system: skill.replace(/^---[\s\S]*?---\s*/, ''),
@@ -6100,7 +6123,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         await Q.step(run, STAGE_PUT)
         if (approve) {
           const ext = rel.split('.').pop().toLowerCase()
-          const got = await pcIntakeOne(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel }, md, bin: data, run, original: data && PCONLY.includes(ext) ? data : null, ask: true })
+          const got = await pcIntakeOne(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel, ...(run?.spec?.hand ? { hand: true } : {}) }, md, bin: data, run, original: data && PCONLY.includes(ext) ? data : null, ask: true })
           // 승인 대기(H6) — 일 줄은 「확인」 으로 서고 [저장 제안] 에서 [넣기] 해야 들어간다
           if (got.ask) { Object.assign(run, { state: 'check', msg: got.why }); hub.runLine(run, 'ok', `✓ ${got.why}`); return }
           if (got.rec && !got.same) {
@@ -6141,7 +6164,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     //   수집 · 검토는 여기서 닫고 · 짓기 = 팀 일꾼이 집을 때 · 넣기 = 저장 문 한 번 → 파일 하나 = 일 줄 하나 = 저장 하나 = 커밋 하나.
     //   한 번(묶음 누계)에 TEAM_IMPORT_MAX 파일(쓰는 법 안내 · 비용 경계는 openJob 한도) · 정리를 걸지 않는다 ·
     //   원본 첨부는 고를 때만(쓰기 이상 · 하루 합) — 글로 바꾼 파일은 들이기 저장 덩이에 · 그림 · 바꾸기를 끈 파일은 첨부가 유일한 결과라 그대로 첨부
-    async importTeam(ctx, id, meta, files, { group = null, attach = false } = {}) {
+    async importTeam(ctx, id, meta, files, { group = null, attach = false, hand = false } = {}) {
       if (!Array.isArray(files) || !files.length) throw new KmdError('E_INPUT', '넣을 파일이 없다')
       const many = `팀 화면에서는 한 번에 ${TEAM_IMPORT_MAX} 파일까지: 많으면 Claude Code 에서 대량 넣기(kmd-team-import)`
       if (files.length > TEAM_IMPORT_MAX || (group && Number(group.total) > TEAM_IMPORT_MAX)) throw new KmdError('E_INPUT', many)
@@ -6189,7 +6212,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         let took = 0
         try {
           if (useAtt) { await attachTake(id, data.length); took = data.length }
-          r = await hub.openJob(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel, ...(useAtt ? { attach: attRel } : {}) }, md: fm.md, bin: data, ask: uploadAsk() })
+          r = await hub.openJob(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel, ...(useAtt ? { attach: attRel } : {}), ...(hand ? { hand: true } : {}) }, md: fm.md, bin: data, ask: uploadAsk() })
         } catch (e) {
           if (took) await giveBack(id, took)
           if (!(e instanceof KmdError)) throw e
@@ -6247,12 +6270,13 @@ ${genRulesBlock({ profile: 'shape' })}`
     // asDocs — 옛 폴더로 지식을 세울 때(지식 추가)만 바로 문서 · 그 밖은 기록으로 들이고 정리가 문서에 넣는다
     // system — 문서 폴더 가져오기(작성자 kmd · 저장의 시스템 쓰기)
     //   attach — 원본 파일도 첨부로(팀 화면 · 쓰기 이상 · 기본 꺼짐 · S-D30)
-    async importFiles(ctx, id, files, { asDocs = false, group = null, system = false, offset = 0, attach = false } = {}) {
+    //   hand: 문서 고치기에서 온 원천(editAsSource · handEditAct 만 단다 · 사람 입력으로 만들지 않는다) → 일감 src.hand → 일 설명의 문서 고치기 갈래(agentTask)
+    async importFiles(ctx, id, files, { asDocs = false, group = null, system = false, offset = 0, attach = false, hand = false } = {}) {
       // 자리부터 — 묶음(일 줄)을 세우기 전에
       const meta = await hub.meta(id, ctx)
       hub.need(ctx, id, 'write')
       // 팀 화면 파일 넣기(S8) — 파일마다 들이기 일감 · 정리를 걸지 않는다. 지식 추가(asDocs) · 문서 폴더(system)는 아래 길 그대로
-      if (mode === 'team' && !asDocs && !system) return hub.importTeam(ctx, id, meta, files, { group, attach })
+      if (mode === 'team' && !asDocs && !system) return hub.importTeam(ctx, id, meta, files, { group, attach, hand })
       const gj = group ? hub.groupJob(ctx, id, group) : null
       if (gj && isFinal(gj)) return { stopped: true, group: gj.id, summary: summary([]), rows: [] }
       const shut = backup.closed(meta)
@@ -6335,12 +6359,12 @@ ${genRulesBlock({ profile: 'shape' })}`
             const run = hub.newRun(id, { title: rel.split('/').pop(), file: rel, by: ctx.user, quiet: files.length > 1, parent: gj?.id })
             if (gj?.paused) Q.pause(run.id)
             run.stages[0].state = run.stages[1].state = 'done'
-            run.spec = { type: 'ingest', kn: id, rel, user: ctx.user }
+            run.spec = { type: 'ingest', kn: id, rel, user: ctx.user, ...(hand ? { hand: true } : {}) }
             hub.ingestFileLater(ctx, id, { rel, data, md: r.body, sha, run })
             Object.assign(row, { kind: 'run', run: run.id, msg: 'Claude Code 가 들이는 중(기록과 문서를 한 번에): 터미널에서 본다' })
             continue
           }
-          const got = await pcIntakeOne(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel }, md: r.body, bin: data, claude }).catch((e) => ({ why: e.message }))
+          const got = await pcIntakeOne(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel, ...(hand ? { hand: true } : {}) }, md: r.body, bin: data, claude }).catch((e) => ({ why: e.message }))
           if (got.rec && !got.same) {
             const doc = (got.docs[0] || '').split(' › ')[0] || null
             Object.assign(row, { kind: 'doc', rec: got.rec, ...(doc ? { doc } : {}), msg: `기록 · 문서가 됐다: ${meta.name}${doc ? ` › ${doc.split('/').join(' › ')}` : ''}${got.noAttach ? ` · ${got.noAttach}` : ''}` })

@@ -182,3 +182,28 @@ test('다듬기 저장: 백틱 · 수준 표시 정돈은 값이 바뀐 것이 �
   const w2 = polishToSave(k, g, { updates: [{ heading: 'gw_log', base: sha16(old), content: '로그는 `gw_log` 테이블에 쌓인다.\n1. 수집\n2. 전송' }], why: '번호 표기를 맞췄다' })
   assert.match(w2.input.record.body, /번호 표기를 맞췄다/)
 })
+
+// 채널 평가 T14 · T10 ②: 다듬기 초안의 바꿀 곳(edits): 서버가 지금 글에 대어 새 글을 짓고(값 검사 그대로) · 못 대는 항목은 그 항목만 빠진다(가까운 줄) · content 길은 그대로
+test('다듬기 저장: 바꿀 곳(edits)을 대어 새 글 · 못 대는 find 는 그 항목만 빠짐 · content 길 그대로', () => {
+  const old = '로그는 gw_log 테이블에 쌓인다.\n가. 수집\n나. 전송'
+  const old2 = '주기는 send_interval_sec 5초.'
+  const k = { byDocPath: new Map([['docs/게이트웨이 설계.md', { sections: [{ h: 'gw_log', body: old }, { h: 'gw_send', body: old2 }] }]]) }
+  const g = { doc: 'docs/게이트웨이 설계.md', title: '게이트웨이 설계', sections: [{ h: 'gw_log', base: sha16(old), body: old }, { h: 'gw_send', base: sha16(old2), body: old2 }] }
+  const r = polishToSave(k, g, { updates: [
+    { heading: 'gw_log', base: sha16(old), edits: [{ find: '로그는 gw_log 테이블에', replace: '로그는 `gw_log` 테이블에' }, { find: '가. 수집\n나. 전송', replace: '1. 수집\n2. 전송' }] },
+    { heading: 'gw_send', base: sha16(old2), edits: [{ find: '주기는 send_interval 5초', replace: '주기는 `send_interval_sec` 5초' }] },
+  ] })
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.input.sections.map((x) => [x.heading, x.content]), [['gw_log', '로그는 `gw_log` 테이블에 쌓인다.\n1. 수집\n2. 전송']])
+  assert.equal(r.dropped.length, 1)
+  assert.equal(r.dropped[0].edits, true)
+  assert.match(r.dropped[0].why, /댈 수 없다/)
+  assert.doesNotMatch(r.input.record.body, /send_interval/, '가까운 줄(값)은 기록 글에 싣지 않는다')
+  // 바꿀 곳으로 값을 바꾸면 그 항목만 빠진다(값 검사 그대로)
+  const v = polishToSave(k, g, { updates: [{ heading: 'gw_send', base: sha16(old2), edits: [{ find: '5초', replace: '10초' }] }] })
+  assert.match(v.dropped[0].why, /값이 바뀐다/)
+  // content 길 그대로 · 둘 다 없으면 모양 오류
+  assert.equal(polishToSave(k, g, { updates: [{ heading: 'gw_send', base: sha16(old2), content: '주기는 `send_interval_sec` 5초.' }] }).input.sections.length, 1)
+  assert.equal(polishToSave(k, g, { updates: [{ heading: 'gw_send', base: sha16(old2) }] }).ok, false)
+  assert.match(polishPromptOf(g), /edits/)
+})
