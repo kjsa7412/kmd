@@ -226,3 +226,29 @@ test('프롬프트 --save(채널 평가 T10): 꾸러미 prompts/ 에 쓰고 경�
   assert.ok(fs.existsSync(path.join(P.pack, 'prompts', 'card-0.md')), card.text)
   assert.ok(!(await openPack(pack)).problems.some((x) => /prompts/.test(x.where)))
 })
+
+// 채널 평가 T14 seed: 구조안 프롬프트에 화면 길과 같은 생성 룰(R1) · 경고는 고치지 않는다 · 글 초안 --all · check 경고 머리 말
+test('kmd-seed 안정화(T14): 구조안에 생성 룰 · 경고 줄 · 카드에는 룰 없음 · text --all --save · check 경고 머리', async () => {
+  const P = await openPack(pack)
+  const plan = promptOf(P, 'plan')
+  const { genRulesBlock } = await import('../core/genrules.js')
+  assert.ok(plan.includes(genRulesBlock({ profile: 'shape' })), '화면 길(worker shape-plan)과 같은 원본')
+  assert.match(plan, /R1 무엇이 항목 하나인가/)
+  assert.match(plan, /경고\(문서당 · 폴더당 크기 · base\)는 고치지 않/)
+  assert.match(plan, /아래 생성 룰까지가 이 프롬프트다/)
+  assert.ok(!/이 프롬프트가 전부다/.test(plan))
+  const card = promptOf(P, 'card', { n: 50 })
+  assert.ok(!/R1 무엇이 항목 하나인가/.test(card), '카드에는 생성 룰을 싣지 않는다')
+  // text --all --save: 새 문서마다 경로 한 줄 · 빈칸 든 문서 id(「보안 서약」)도
+  const all = await run('prompt', pack, 'text', '--all', '--save')
+  assert.equal(all.code, 0, all.text)
+  const lines = all.text.trim().split('\n')
+  assert.equal(lines.length, P.plan.docs.filter((d) => !d.was).length)
+  assert.ok(lines.includes(path.join(P.pack, 'prompts', 'text-보안 서약.md')), all.text)
+  assert.equal(fs.readFileSync(path.join(P.pack, 'prompts', 'text-보안 서약.md'), 'utf8'), promptOf(P, 'text', { doc: '보안 서약' }) + '\n')
+  await assert.rejects(run('prompt', pack, 'text', '--all'), /--save 와 같이/)
+  // check 머리 줄: 경고가 있으면 「고치지 않는다 · 사람이 본다」
+  const c = await run('check', pack)
+  if (/경고 [1-9]/.test(c.text)) assert.match(c.text.split('\n')[0], /경고 \d+\(고치지 않는다 · 사람이 본다\)/)
+  else assert.match(c.text.split('\n')[0], /경고 0$|경고 0 /)
+})

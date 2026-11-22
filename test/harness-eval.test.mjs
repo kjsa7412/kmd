@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadKnowledge } from '../core/knowledge.js'
 import { scoreKnowledge, gateOf, itemsOf, factText, natureOf } from '../scripts/harness-eval.mjs'
-import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf, launchOf, meterStatsOf, probeLoad, LOAD_NODE_MS, refitMeterRows, mcpSliceOf } from '../scripts/channel-eval.mjs'
+import { goldScope, compareOf, polishScoreOf, goldStep, httpInputOf, bashCommands, modelsOf, editSourceScoreOf, saveJudgeOf, meterRowOf, jobPutOf, totalsOf, recountRun, RULES, subAllow, withCodes, fixOf, feedDocsCost, shapeLogFix, whyOf, launchOf, meterStatsOf, probeLoad, LOAD_NODE_MS, refitMeterRows, mcpSliceOf, seedCheckFix, refixSeed } from '../scripts/channel-eval.mjs'
 
 const FIX = path.resolve('test/fixture/harness/빈지식')
 const gold = JSON.parse(fs.readFileSync(path.join(FIX, 'gold.json'), 'utf8'))
@@ -443,4 +443,32 @@ test('T13 MCP 부름 줄: 행 도중 calls.jsonl 이 .1 로 돌면 .1 의 꼬리
   assert.deepEqual(mcpSliceOf({ n: 2, head: 't1' }, [L('t4')], () => [L('t1'), L('t2'), L('t3')]), { lines: [L('t3'), L('t4')], rotated: 'joined' })
   assert.deepEqual(mcpSliceOf({ n: 2, head: 't1' }, [L('t9')], () => [L('t5')]), { lines: [L('t9')], rotated: 'partial' })
   assert.deepEqual(mcpSliceOf(null, [L('t1')]), { lines: [], rotated: null })
+})
+
+// 채널 평가 T14 seed: kmd-seed 고쳐 받기는 걸려 돌아온 check 수(앞 셈 check 수 - 2 는 정상 부름까지 세었다) · 거절된 && 명령은 세지 않는다
+test('kmd-seed 고쳐 받기 셈(T14 seed): check tool_use 에 이어진 is_error 만 · fixWhy 는 첫 걸림 줄 · 옛 결과 다시 셈', () => {
+  const use = (id, command) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'Bash', input: { command } }] } })
+  const res = (id, content, is_error = false) => JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, is_error, content }] } })
+  const C = 'node C:/k/scripts/kmd-seed.mjs check "C:/p/pack"'
+  const out = [
+    use('a', C), res('a', 'Exit code 2\n걸림 1 · 경고 9\n  걸림 회의/2026-11-10 주간 회의: 날짜', true),
+    use('b', C), res('b', '걸림 없음 · 경고 7(고치지 않는다 · 사람이 본다)'),
+    use('c', 'node C:/k/scripts/kmd-seed.mjs prompt ./pack text 가 --save && node C:/k/scripts/kmd-seed.mjs prompt ./pack text 나 --save'), res('c', 'Permission denied', true),
+    use('d', `node "C:/k/scripts/kmd-seed.mjs" check ./pack`), res('d', [{ type: 'text', text: 'Exit code 2\n걸림 2\n  걸림 게이트웨이/설계 › 수집기: 머리가 겹친다' }], true),
+    use('e', C), res('e', '걸림 없음 · 경고 0'),
+  ].join('\n')
+  assert.deepEqual(seedCheckFix(out), { fix: 2, checks: 4, fixWhy: ['걸림 회의/2026-11-10 주간 회의: 날짜', '걸림 게이트웨이/설계 › 수집기: 머리가 겹친다'] })
+  assert.deepEqual(seedCheckFix(''), { fix: 0, checks: 0 })
+  // 옛 결과: 세션 출력이 남아 있으면 다시 센다 · 지금 셈(fixRule)이 있으면 그대로
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-refix-'))
+  const f = path.join(dir, 'session.out.jsonl')
+  fs.writeFileSync(f, out)
+  const J = { channels: { 'kmd-seed': { rows: [{ channel: 'kmd-seed', step: '꾸러미 짓기', aux: true, ms: 1000, cost: 1, calls: 0, fix: 7, session: { out: f } }], total: {} } } }
+  const R = refixSeed(J)
+  assert.equal(R.refixed, 1)
+  assert.equal(R.channels['kmd-seed'].rows[0].fix, 2)
+  assert.equal(R.channels['kmd-seed'].rows[0].fixRule, 'check-error (recounted)')
+  assert.equal(refixSeed(R), R, '이미 셈이 있으면 그대로')
+  assert.equal(J.channels['kmd-seed'].rows[0].fix, 7, '원본은 그대로')
+  fs.rmSync(dir, { recursive: true, force: true })
 })

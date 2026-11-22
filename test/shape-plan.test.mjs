@@ -288,6 +288,38 @@ test('바탕 세우기 판단 기준: R3-2 · R7-1 · 짝 없는 새 항목 알�
   assert.deepEqual(c.warnings.filter((w) => w.code === 'pair').map((w) => w.where), ['회의록 › 2026-11-17 주간 회의'])
 })
 
+// 채널 평가 T14 seed: 쪼갬 걸림(split) · 판단 기준 3 · 5 문구 · 겹침 말
+test('바탕 세우기 쪼갬(T14 seed): 줄기 + 닫힌 겉말 형제 둘 이상은 split · 수집기 · 전송기 · gw_log · 겉말 아님 · 다시 잡기는 통과', async () => {
+  const { EMPTY_FILES } = await import('../core/survey.js')
+  const { splitHeads, SPLIT_TAILS } = await import('../core/shape.js')
+  const S = readShape(null, EMPTY_FILES())
+  const m = 'm:' + 'c'.repeat(16)
+  const seed = (heads, extra = {}) => P({ v: 1, kind: 'seed', docs: [{ id: '게이트웨이/설계', was: null, items: heads.map((h) => ({ h, src: [m] })) }], names: [], skip: [], ...extra })
+  // real-5b 꼴: 같은 설계서 한 장(src 같음)에서 수집기를 역할 · 동작 설정으로 쪼갰다
+  const bad = planCheck(null, S, seed(['수집기 역할', '수집기 동작 설정', '전송기', 'gw_log']))
+  const sp = bad.errors.filter((e) => e.code === 'split')
+  assert.equal(sp.length, 1, JSON.stringify(bad.errors))
+  assert.equal(sp[0].where, '게이트웨이/설계 › 수집기')
+  assert.match(sp[0].why, /수집기 역할 · 수집기 동작 설정/)
+  // src 가 같아도 다른 대상(수집기 · 전송기 · gw_log)은 통과 · 겉말 하나뿐(「권한 설정」) · 겉말이 아닌 짝(「수집기 A · 수집기 B」)도 통과
+  assert.ok(!planCheck(null, S, seed(['수집기', '전송기', 'gw_log', '권한 설정'])).errors.some((e) => e.code === 'split'))
+  assert.ok(!planCheck(null, S, seed(['수집기 A', '수집기 B'])).errors.some((e) => e.code === 'split'))
+  assert.deepEqual(splitHeads(['수집기 역할', '수집기 동작 설정']), [{ stem: '수집기', heads: ['수집기 역할', '수집기 동작 설정'] }], '「동작 설정」 은 「설정」 보다 먼저 집는다')
+  assert.ok(!SPLIT_TAILS.includes('값'), '「값」 은 넓어 뺐다')
+  // 다시 잡기(kind reshape)에는 걸지 않는다
+  const dir = make({ ...BASE })
+  const { k, S: S2 } = await load(dir)
+  const r = same(S2)
+  r.docs.push({ id: '새 문서', was: null, items: [{ h: '수집기 역할', from: [{ doc: '배포 절차', h: '배포 창' }] }, { h: '수집기 설정', from: [{ doc: '배포 절차', h: '배포 창' }] }] })
+  assert.ok(!planCheck(k, S2, P(r)).errors.some((e) => e.code === 'split'))
+  fs.rmSync(dir, { recursive: true, force: true })
+  // 머리 겹침 말: 이름을 바꿔 피하지 않고 합친다
+  assert.ok(planCheck(null, S, seed(['수집기', '수집기 설정'])).errors.some((e) => /머리가 겹친다: .*한 대상이면 한 항목으로 합친다/.test(e.why)))
+  // 판단 기준 3 · 5 문구
+  assert.match(SEED_RULES, /사건 갈래\(문서 이름은 갈래 이름 「회의록」 처럼 날짜 없이 · 건마다 그 문서의 항목 머리 「YYYY-MM-DD 무엇」\)/)
+  assert.match(SEED_RULES, /크기는 다 지은 뒤 보는 참고값이다\(경고 · 사람이 본다\): 맞추려고 한 대상을 쪼개거나 다른 대상을 합치지 않는다/)
+})
+
 // 채널 평가 P6 — 구조안의 문서 성격 칸 · 글 짓기의 앞선 값(R2-5)
 test('바탕 세우기: 문서 성격 칸(cleanPlan · 스키마 · 초안) · 앞선 값 재료(R2-5)', () => {
   assert.deepEqual(SEED_PLAN_SCHEMA.properties.docs.items.properties.nature.enum.includes('사건'), true)

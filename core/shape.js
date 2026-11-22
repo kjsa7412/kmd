@@ -270,6 +270,22 @@ export function diffPlan(S, Pl) {
 //   k — 지금 지식(loadKnowledge) · S — readShape(k, files) · Pl — cleanPlan 의 plan
 //   → { ok, stale(base 가 지금과 다름), errors: [{ id, where, why, code? }], warnings: [{ id, where, why }], diff, summary } · id 는 같은 입력이면 같다(P1)
 const norm = (s) => nfc(String(s || '')).toLowerCase().replace(/\s+/g, '')
+// 쪼갬 겉말(닫힌 목록 · 긴 것 먼저): 「값」 처럼 넓은 말은 넣지 않는다. 재료(src)가 같은지는 보지 않는다(real-5b 수집기 · 전송기 · gw_log 도 설계서 한 장이 src 라 판별력이 없다)
+export const SPLIT_TAILS = ['동작 설정', '역할', '설정', '개요', '구성', '기능', '정의', '목적']
+// 같은 줄기에 겉말만 다른 머리가 둘 이상인 묶음: [{ stem, heads }]
+export function splitHeads(hs) {
+  const by = new Map()
+  for (const h of hs) {
+    const t = String(h).normalize('NFC').trim()
+    const tail = SPLIT_TAILS.find((x) => t.endsWith(' ' + x))
+    if (!tail) continue
+    const stem = t.slice(0, -tail.length - 1).trim()
+    if (!stem) continue
+    if (!by.has(stem)) by.set(stem, [])
+    by.get(stem).push(h)
+  }
+  return [...by].filter(([, v]) => v.length >= 2).map(([stem, heads]) => ({ stem, heads }))
+}
 export function planCheck(k, S, Pl) {
   const errors = []
   const warnings = []
@@ -302,12 +318,14 @@ export function planCheck(k, S, Pl) {
     const hs = d.items.map((it) => it.h)
     for (const [i, h] of hs.entries()) {
       const o = hs.find((x, j) => j !== i && (x === h || headingMatches(x, h)))
-      if (o) err(`${d.id} › ${h}`, `머리가 겹친다: ${o}`)
+      if (o) err(`${d.id} › ${h}`, `머리가 겹친다: ${o}(한 대상이면 한 항목으로 합친다 · 머리 이름만 바꿔 피하지 않는다 · R1-1)`)
       const it = d.items[i]
       const kept = d.was && it.from.length === 1 && it.from[0].doc === d.was && it.from[0].h === h // 그대로인 항목은 지금 머리를 그대로 둔다
       if (!kept && f && !headingFits(f, h)) err(`${d.id} › ${h}`, `「${f.name}」 의 항목 머리 꼴이 아니다: ${formHeadRule(f)}`)
     }
     if (d.items.length && (d.items.length < 5 || d.items.length > 40)) warn(d.id, `항목 ${d.items.length}(문서당 5~40)`)
+    // 쪼갬(채널 평가 T14 seed · 바탕 설계 6-1 2): 바탕 세우기 새 문서에서 한 대상을 「줄기 + 닫힌 겉말」 형제 둘 이상으로 쪼갠 꼴
+    if (Pl.kind === 'seed' && !d.was) for (const x of splitHeads(hs)) err(`${d.id} › ${x.stem}`, `한 대상(${x.stem})을 ${x.heads.join(' · ')} 로 쪼갰다: 한 항목으로 합친다(R1-1 · R1-3 · 역할 · 설정은 그 항목 안의 줄)`, 'split')
   }
   // 폴더당 문서 수
   const perDir = new Map()
@@ -516,9 +534,9 @@ const rulesOf = (r4) => [
   '짜임 판단 기준:',
   '1. 문서는 주제 · 대상 하나 · 사건 갈래 하나 · 대장 하나. 파일 경계 · 원본 폴더 나무는 참고만. 문서 이름에 날짜 · 판 · 최종 · 확장자를 쓰지 않는다.',
   '2. 항목은 대상 하나의 「지금」. 같은 대상의 여러 파일은 모으고 늦은 판이 이긴다. 옛 판은 빼기가 기본.',
-  '3. 갈래: 날짜 사건(회의 · 장애 · 주간보고)은 사건 갈래 「YYYY-MM-DD 무엇」, ID 가 붙어 되풀이되는 것은 대장 갈래(pattern 「이슈:*」), 나머지는 대상. 모으는 문서는 되풀이되는 꼴(종류 낱말)마다 하나이고 처음 한 건으로도 선다(생성 룰 R3-2): 같은 종류를 모으는 문서가 있으면 새 문서를 세우지 않고 그 문서의 항목으로 넣는다. 갈래의 별칭은 계획한 문서 이름과 부분 문자열로 겹치지 않게. 준비 글(안건 · 스크립트 · 체크리스트)은 문서로 만들지 않고 그 안의 확정 사실만 옮긴다.',
+  '3. 갈래: 날짜 사건(회의 · 장애 · 주간보고)은 사건 갈래(문서 이름은 갈래 이름 「회의록」 처럼 날짜 없이 · 건마다 그 문서의 항목 머리 「YYYY-MM-DD 무엇」), ID 가 붙어 되풀이되는 것은 대장 갈래(pattern 「이슈:*」), 나머지는 대상. 모으는 문서는 되풀이되는 꼴(종류 낱말)마다 하나이고 처음 한 건으로도 선다(생성 룰 R3-2): 같은 종류를 모으는 문서가 있으면 새 문서를 세우지 않고 그 문서의 항목으로 넣는다. 갈래의 별칭은 계획한 문서 이름과 부분 문자열로 겹치지 않게. 준비 글(안건 · 스크립트 · 체크리스트)은 문서로 만들지 않고 그 안의 확정 사실만 옮긴다.',
   r4,
-  '5. 크기: 폴더 깊이 2단 · 폴더당 문서 3~12 · 문서당 항목 5~40 · 항목 300줄 안.',
+  '5. 크기: 폴더 깊이 2단 · 폴더당 문서 3~12 · 문서당 항목 5~40 · 항목 300줄 안. 크기는 다 지은 뒤 보는 참고값이다(경고 · 사람이 본다): 맞추려고 한 대상을 쪼개거나 다른 대상을 합치지 않는다.',
   '6. 차례: 업무 흐름 순서. 숫자 앞붙임은 원본에 그 체계가 있을 때만. 폴더 안에서는 개요 문서가 먼저. 문서 요약 1~3문장은 # 제목 아래(intro · 「## 개요」 항목으로 두지 않는다).',
 ]
 export const SEED_RULES = [...rulesOf(SEED_NAMES_RULE), '7. 덮임: 넣음으로 고른 재료는 모두 어느 항목의 src 이거나 skip 에 까닭과 함께. 비밀이 든 재료는 쓰지 않는다.'].join('\n')

@@ -1501,6 +1501,29 @@ export function bashCommands(out) {
   }
   return cmds
 }
+// kmd-seed 고쳐 받기(채널 평가 T14 seed): check 부름 가운데 걸려 돌아온 것(tool_result is_error)만 센다.
+//   앞 셈(check 수 - 2)은 정상 부름(구조안 뒤 · 글 초안 뒤 · ./pack 다시 봄)까지 세어 부풀었다(real-5b 9 부름 → 7 · 실제 걸림 3).
+//   거절된 && 명령처럼 check 가 아닌 부름은 세지 않는다. fixWhy 는 걸린 check 의 첫 걸림 줄
+export function seedCheckFix(out) {
+  const checks = new Map()
+  const why = []
+  let fix = 0
+  for (const l of String(out || '').split('\n')) {
+    if (!l.startsWith('{')) continue
+    let j
+    try { j = JSON.parse(l) } catch { continue }
+    for (const c of j?.message?.content || []) {
+      if (j.type === 'assistant' && c?.type === 'tool_use' && c.name === 'Bash' && /kmd-seed\.mjs["']?\s+check\b/.test(String(c.input?.command || ''))) checks.set(c.id, true)
+      if (j.type === 'user' && c?.type === 'tool_result' && c.is_error && checks.has(c.tool_use_id)) {
+        fix++
+        const txt = typeof c.content === 'string' ? c.content : (Array.isArray(c.content) ? c.content.map((x) => x?.text || '').join('\n') : '')
+        const first = txt.split('\n').find((x) => /^\s+걸림 /.test(x))
+        if (first) why.push(first.trim().slice(0, 200))
+      }
+    }
+  }
+  return { fix, checks: checks.size, ...(why.length ? { fixWhy: why } : {}) }
+}
 // 세션 스킬(kmd-migrate · kmd-seed)의 허락 — 하위 명령마다 한 줄(채널 평가 H9 · 「node <스크립트>:*」 하나로는 거절이 났다)
 //   스크립트 경로를 따옴표로 감싼 꼴도 같은 명령이다(real-2 kmd-seed: `node "C:/…/kmd-seed.mjs" check` 가 거절됐다)
 export const subAllow = (script, subs) => subs.flatMap((c) => [`Bash(node ${script} ${c}:*)`, `Bash(node "${script}" ${c}:*)`])
@@ -1555,7 +1578,7 @@ async function runSeedPack(E, C) {
       }
       const SEED = fwd(path.join(ROOT, 'scripts', 'kmd-seed.mjs'))
       const SKILL = fwd(path.join(ROOT, '.claude', 'skills', 'kmd-seed', 'SKILL.md'))
-      const prompt = `kmd-seed 스킬(${SKILL})을 먼저 Read 하고 따른다. 사람이 미리 정한 것: 원본 폴더는 ./src · 꾸러미는 ./pack(빈 폴더 · 이 cwd 안). 명령은 반드시 \`node ${SEED} <명령> …\` 꼴로만 부른다(다른 셸 명령 없음). ${CALL_RULE} 순서: survey ./src --out ./pack → 카드(prompt card --save 가 찍은 파일 경로를 하위 에이전트에 「<경로> 를 Read 하고 그대로 따른다」 한 줄로) → 구조안(prompt plan --save 를 같은 꼴로 · plan.json) → check ./pack 걸림 0 까지(최대 3번) → 문서마다 글 초안(prompt text <문서 id> --save 를 같은 꼴로 · 글 초안 하위 에이전트들은 한 답에 함께 낸다 · texts/<문서>.json) → check. 프롬프트 글을 하위 에이전트 입력으로 다시 옮겨 쓰지 않는다(T10). 쓰기는 ./pack 안에만. 화면 넘기기 안내는 하지 않는다. 끝에 요약 한 단락만.`
+      const prompt = `kmd-seed 스킬(${SKILL})을 먼저 Read 하고 따른다. 사람이 미리 정한 것: 원본 폴더는 ./src · 꾸러미는 ./pack(빈 폴더 · 이 cwd 안). 명령은 반드시 \`node ${SEED} <명령> …\` 꼴로만 부른다(다른 셸 명령 없음). ${CALL_RULE} 순서: survey ./src --out ./pack → 카드(prompt card --save 가 찍은 파일 경로를 하위 에이전트에 「<경로> 를 Read 하고 그대로 따른다」 한 줄로) → 구조안(prompt plan --save 를 같은 꼴로 · plan.json) → check ./pack 걸림 0 까지(최대 3번 · 경고는 고치지 않는다) → 글 초안(prompt text --all --save 한 번 · 찍힌 경로마다 하위 에이전트 하나를 같은 꼴로 · 글 초안 하위 에이전트들은 한 답에 함께 낸다 · texts/<문서>.json) → check. 프롬프트 글을 하위 에이전트 입력으로 다시 옮겨 쓰지 않는다(T10). 쓰기는 ./pack 안에만. 화면 넘기기 안내는 하지 않는다. 끝에 요약 한 단락만.`
       const allowed = [...subAllow(SEED, ['rules', 'survey', 'prompt', 'check', 'text', 'status']), 'Read', 'Glob', 'Grep', 'Edit(./pack/**)', 'Write(./pack/**)', 'Agent']
       const r = await runNode([process.env.KMD_CLAUDE, ...sessionArgs({ tools: 'Bash,Read,Write,Edit,Glob,Grep,Agent', allowed, budget: 6, model: E.model || SESSION_MODEL })], { cwd: base, input: prompt, env: await safeEnv(), timeoutMs: 40 * 60_000 })
       // 세션 출력을 남긴다(H9 · 앞 판은 r.out 이 없어 거절 원인을 확정하지 못했다)
@@ -1564,12 +1587,14 @@ async function runSeedPack(E, C) {
       const res = lastResult(r.out)
       const cmds = bashCommands(r.out)
       const checks = cmds.filter((c) => /kmd-seed\.mjs["']?\s+check\b/.test(c)).length
+      const cf = seedCheckFix(r.out)
       const denied = Array.isArray(res?.permission_denials) ? res.permission_denials.map((d) => ({ tool: d.tool_name || d.tool || null, input: JSON.stringify(d.tool_input ?? d.input ?? null).slice(0, 300) })) : []
       const session = { exit: r.code, ok: !!res && !res.is_error, turns: res?.num_turns ?? null, checks, bash: cmds.length, agents: (r.out.match(/"name":"(Agent|Task)"/g) || []).length, denied, out: path.relative(ROOT, outFile), result: String(res?.result || r.err).slice(0, 800) }
       const perm = denied.length ? ['PERM_DENIED'] : []
       if (!fss.existsSync(path.join(pack, 'manifest.json'))) return { put: false, session, codes: [...perm, 'NO_PACK'], why: [`세션이 꾸러미를 짓지 못했다${denied.length ? `(거절 ${denied.length}: ${denied[0].tool} ${denied[0].input.slice(0, 120)})` : ''}`] }
       const c = await packCheck(pack, {})
-      return { put: false, session, fix: Math.max(0, checks - 2), check: { ok: c.ok, errors: (c.errors || []).slice(0, 5), warnings: (c.warnings || []).length }, codes: [...perm, ...(c.ok ? [] : ['PACK_CHECK'])] }
+      // fix 셈 바뀜(T14 seed): 걸려 돌아온 check 수 · 앞 결과(check 수 - 2)와 견줄 때 비교 표에 밝힌다
+      return { put: false, session, fix: cf.fix, fixRule: 'check-error', ...(cf.fixWhy ? { fixWhy: cf.fixWhy } : {}), check: { ok: c.ok, errors: (c.errors || []).slice(0, 5), warnings: (c.warnings || []).length }, codes: [...perm, ...(c.ok ? [] : ['PACK_CHECK'])] }
     }))
     if (!rows[0].check?.ok) rows.push({ channel: 'kmd-seed', step: '꾸러미 넣기', ran: false, why: ['꾸러미 check 를 넘지 못해 넣지 않았다'], codes: ['PACK_CHECK'] })
     else rows.push(await measure(E, t, { channel: 'kmd-seed', step: '꾸러미 넣기(seedSurvey dir → 짓기 남은 것 → 연습 판 → 넣기)', expectCh: 'shape' }, async () => {
@@ -1827,6 +1852,22 @@ export function recountRun(J) {
   }
   return { ...J, channels, rowRule: `${RULES.rows} (recounted)` }
 }
+// 옛 kmd-seed 결과의 고쳐 받기를 지금 셈(seedCheckFix · 걸려 돌아온 check 수)으로 다시 센다: 세션 출력(session.out)이 남아 있을 때만 · 없으면 그대로(옛 셈 check 수 - 2)
+export function refixSeed(J) {
+  const c = J?.channels?.['kmd-seed']
+  if (!c?.rows) return J
+  let n = 0
+  const rows = c.rows.map((r) => {
+    if (r.fixRule || !r.session?.out) return r
+    const f = path.resolve(ROOT, r.session.out)
+    if (!fss.existsSync(f)) return r
+    const cf = seedCheckFix(fss.readFileSync(f, 'utf8'))
+    n++
+    return { ...r, fix: cf.fix, fixRule: 'check-error (recounted)', ...(cf.fixWhy ? { fixWhy: cf.fixWhy } : {}) }
+  })
+  if (!n) return J
+  return { ...J, refixed: n, channels: { ...J.channels, 'kmd-seed': { ...c, rows, total: totalsOf(rows.filter((r) => !r.base && r.ran !== false)), base: totalsOf(rows.filter((r) => r.base)) } } }
+}
 // 옛 결과의 품질을 지금 채점(scoreOf · 지금 gold.json · 범위 판정)으로 다시 매긴다 — 채널의 지식 폴더(dirs.kn)가 남아 있을 때만 · 없으면 그 채널은 rescored 없음
 export async function rescoreRun(J, rev = null) {
   rev ||= await goldRev()
@@ -1912,7 +1953,7 @@ export function compareOf(A, B) {
   const head = (j) => `${j.tag} · ${j.day} · ${j.fake ? '가짜' : '실제'} · ${j.head || '-'}${j.model ? ` · --model ${j.model}` : ''}${j.modelCommit ? ` · --model-commit ${j.modelCommit}` : ''}`
   const sumTxt = (t) => `$${t.usd[0].toFixed(3)} → $${t.usd[1].toFixed(3)} (${pct(t.usd[0], t.usd[1])}) · 바탕 포함 $${t.usdWithBase[0].toFixed(3)} → $${t.usdWithBase[1].toFixed(3)} (${pct(...t.usdWithBase)}) · ${t.sec[0]}초 → ${t.sec[1]}초 (${pct(t.sec[0], t.sec[1])}) · 차례 ${t.turns[0]} → ${t.turns[1]}`
   md.push(`## 견주기: ${head(A)} → ${head(B)}`, '')
-  const fix = [A.rowRule?.endsWith('(recounted)') ? '앞 결과의 건 수는 지금 규칙으로 다시 셌다' : '', A.rescored ? `앞 결과의 채점은 지금 채점으로 다시 매겼다(채널 ${A.rescored})` : ''].filter(Boolean)
+  const fix = [A.rowRule?.endsWith('(recounted)') ? '앞 결과의 건 수는 지금 규칙으로 다시 셌다' : '', A.rescored ? `앞 결과의 채점은 지금 채점으로 다시 매겼다(채널 ${A.rescored})` : '', A.refixed || B.refixed ? 'kmd-seed 고쳐 받기는 fix 셈 바뀜(걸려 돌아온 check 수 · 세션 출력이 남은 옛 결과는 다시 셌다)' : ''].filter(Boolean)
   if (fix.length) md.push(`맞춤: ${fix.join(' · ')}`, '')
   if (total.rules.length) md.push(`셈 규칙이 다르다: ${total.rules.map((k) => `${k}(앞 ${ruleOf(A, RULE_FIELD[k]) || '없음'} · 뒤 ${ruleOf(B, RULE_FIELD[k]) || '없음'})`).join(' · ')}`, '')
   md.push(`양쪽에 돈 채널 ${total.channels} · 합 ${sumTxt(total)}`)
@@ -1972,7 +2013,7 @@ async function report() {
     if (!fa || !fb) { console.error('쓰는 법: channel-eval.mjs report --compare <before.json> <after.json> [--no-rescore]'); process.exit(2) }
     const [A0, B0] = await Promise.all([fa, fb].map(async (f) => JSON.parse(await fs.readFile(path.resolve(f), 'utf8'))))
     // 셈 규칙이 다른 옛 결과는 저장된 rows 로 다시 세고(recountRun) · 지식 폴더가 남아 있으면 지금 채점으로 다시 매긴다(rescoreRun · --no-rescore 로 끈다)
-    const fit = async (J) => (process.argv.includes('--no-rescore') ? recountRun(J) : rescoreRun(recountRun(J)))
+    const fit = async (J) => (process.argv.includes('--no-rescore') ? refixSeed(recountRun(J)) : rescoreRun(refixSeed(recountRun(J))))
     const [A, B] = [await fit(A0), await fit(B0)]
     // 계측 통째(T13): 결과가 가리키는 계측 파일(meters)이 남아 있으면 모든 프로세스의 띄움 · 비 API 를 같은 셈으로
     for (const J of [A, B]) {

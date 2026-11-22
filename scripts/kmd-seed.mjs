@@ -4,7 +4,7 @@
 //
 //   node scripts/kmd-seed.mjs survey <원본 폴더> --out <꾸러미>          조사: 파일마다 글로 바꿈(fileToMd) · 판 · 같은 글 · 스캔 · 비밀 의심 · 기본 고르기
 //   node scripts/kmd-seed.mjs text   <꾸러미> <원본 경로> <글 파일.md>     스캔 글 넣기: 세션이 원본을 읽어 지은 글을 그 파일의 재료로(scan: true)
-//   node scripts/kmd-seed.mjs prompt <꾸러미> card [--from n] [--n 10] | plan | text <문서 id>   하위 에이전트 프롬프트(작성기준 3 ~ 5절 · 6-1 판단 기준)
+//   node scripts/kmd-seed.mjs prompt <꾸러미> card [--from n] [--n 10] | plan | text <문서 id> | text --all --save   하위 에이전트 프롬프트(작성기준 3 ~ 5절 · 6-1 판단 기준)
 //   node scripts/kmd-seed.mjs check  <꾸러미> [--kn <지식 폴더>] [--json]  마른 검사: 구조안 planCheck(빈 지식 · 또는 그 지식을 읽기만) · 재료 · 덮임 · 비밀 의심 · 글 초안 꼴
 //   node scripts/kmd-seed.mjs status <꾸러미> [--json]                    꾸러미 요약: 판 · 고르기 · 스캔 글 · 카드 · 구조안 · 글 초안
 //
@@ -24,7 +24,7 @@ function args(argv) {
     const a = argv[i]
     if (a.startsWith('--')) {
       const key = a.slice(2)
-      if (['json', 'save'].includes(key)) o[key] = true
+      if (['json', 'save', 'all'].includes(key)) o[key] = true
       else o[key] = argv[++i]
     } else pos.push(a)
   }
@@ -54,18 +54,30 @@ async function cmdText(pack, rel, file) {
 
 // --save(채널 평가 T10): 프롬프트를 꾸러미 prompts/<card-N | plan | text-문서>.md 에 쓰고 경로 한 줄만 찍는다.
 //   메인 세션이 수천 자 프롬프트를 하위 에이전트 입력으로 다시 생성하던 몫(real-2b 다섯 번 1.46만 자 · 약 150초)을 걷는다
+//   text --all --save(채널 평가 T14 seed): 구조안의 문서마다 prompts/text-<문서>.md 를 쓰고 경로를 한 줄씩: 문서 id 에 빈칸이 들어
+//   따옴표 없이 부르다 「구조안에 없는 문서다: 게이트웨이/장애」 로 걸리던 것(real-5)과 문서마다 부르던 몫을 걷는다
 async function cmdPrompt(pack, kind, a, o) {
   const P = await openPack(pack)
   const from = Number(o.from || 0)
+  if (kind === 'text' && o.all) {
+    if (!o.save) throw new Error('text --all 은 --save 와 같이 쓴다(문서마다 프롬프트 파일)')
+    if (!P.plan) throw new Error('구조안(plan.json)이 먼저다')
+    for (const d of P.plan.docs) if (!d.was) console.log(await savePrompt(P, `text-${d.id.replace(/[\\/:*?"<>|]/g, '__')}`, promptOf(P, 'text', { doc: d.id })))
+    return
+  }
   const text = promptOf(P, kind, { from, n: Number(o.n || 10), doc: a || null })
   if (!o.save) return console.log(text)
   const name = kind === 'card' ? `card-${from}` : kind === 'plan' ? 'plan' : `text-${String(a).replace(/[\\/:*?"<>|]/g, '__')}`
+  console.log(await savePrompt(P, name, text))
+}
+async function savePrompt(P, name, text) {
   const file = path.join(P.pack, 'prompts', `${name}.md`)
   await fs.mkdir(path.dirname(file), { recursive: true })
   await fs.writeFile(file, `${text}\n`)
-  console.log(file)
+  return file
 }
 
+// 경고는 고치지 않는다(채널 평가 T14 seed · 크기를 맞추려고 한 대상을 쪼갠 판이 있었다): 머리 줄에 말로 막는다(크기 경고는 접지 않는다 · 신호는 그대로)
 async function cmdCheck(pack, o) {
   let k = null
   let files = null
@@ -78,11 +90,11 @@ async function cmdCheck(pack, o) {
   const r = await packCheck(pack, { k, files })
   if (o.json) console.log(JSON.stringify(r, null, 1))
   else {
-    console.log(`${r.ok ? '걸림 없음' : `걸림 ${r.errors.length}`} · 경고 ${r.warnings.length}${r.stale ? ' · 지문(base)이 지금 지식과 다르다: 화면이 다시 견준다' : ''}`)
+    console.log(`${r.ok ? '걸림 없음' : `걸림 ${r.errors.length}`} · 경고 ${r.warnings.length}${r.warnings.length ? '(고치지 않는다 · 사람이 본다)' : ''}${r.stale ? ' · 지문(base)이 지금 지식과 다르다: 화면이 다시 견준다' : ''}`)
     if (r.summary) console.log(`문서 ${r.summary.creates} · 글 단위 ${r.summary.writes}`)
     for (const e of r.errors.slice(0, 40)) console.log(`  걸림 ${e.where}: ${e.why}`)
     if (r.errors.length > 40) console.log(`  그 밖 걸림 ${r.errors.length - 40}`)
-    for (const w of r.warnings.slice(0, 20)) console.log(`  경고 ${w.where}: ${w.why}`)
+        for (const w of r.warnings.slice(0, 20)) console.log(`  경고 ${w.where}: ${w.why}`)
     if (r.warnings.length > 20) console.log(`  그 밖 경고 ${r.warnings.length - 20}`)
   }
   if (!r.ok) process.exitCode = 2
@@ -108,7 +120,7 @@ export async function main(argv) {
   if (cmd === 'prompt' && a && b) return cmdPrompt(a, b, c, o)
   if (cmd === 'check' && a) return cmdCheck(a, o)
   if (cmd === 'status' && a) return cmdStatus(a, o)
-  console.error('쓰기: kmd-seed.mjs survey <원본 폴더> --out <꾸러미> | text <꾸러미> <원본 경로> <글 파일.md> | prompt <꾸러미> card|plan|text <문서 id> [--save] | check <꾸러미> [--kn <지식 폴더>] | status <꾸러미>')
+  console.error('쓰기: kmd-seed.mjs survey <원본 폴더> --out <꾸러미> | text <꾸러미> <원본 경로> <글 파일.md> | prompt <꾸러미> card|plan|text <문서 id> [--save] | prompt <꾸러미> text --all --save | check <꾸러미> [--kn <지식 폴더>] | status <꾸러미>')
   process.exitCode = 1
 }
 

@@ -27,6 +27,7 @@ import { cleanPlan, readShape, planCheck, SEED_RULES } from './shape.js'
 import { formatProblems } from './docformat.js'
 import { WRITE_RULES } from './writerules.js'
 import { KmdError } from './errors.js'
+import { genRulesBlock } from './genrules.js'
 
 export const PACK_V = 1
 export const PACK_KIND = 'kmd-seed'
@@ -369,6 +370,10 @@ export const seedCheckCmd = (pack, script = SEED_SCRIPT) => `node ${/\s/.test(sc
 const checkCmd = (pack) => seedCheckCmd(pack)
 const CALL_LINE = '- 명령은 위 한 줄 그대로 부른다: cd · && · || · 파이프 · 2>&1 · ls · mkdir 을 쓰지 않는다. cards/ · texts/ · prompts/ 폴더는 이미 있다(파일은 Write 로 바로 쓴다).'
 
+// 구조안 check 줄(채널 평가 T14 seed): 경고(크기 · base)를 맞추려고 다시 쓰다 한 대상을 쪼갠 판(real-5b 「수집기 역할 · 수집기 동작 설정」)을 막는다
+export const PLAN_CHECK_LINE = 'check 의 걸림만 고친다. 경고(문서당 · 폴더당 크기 · base)는 고치지 않고 둔다(사람이 본다). 항목 수를 맞추려고 한 대상을 역할 · 설정 · 차례로 쪼개거나 합치지 않는다(R1-1 · R1-3 · 절차의 차례는 한 항목의 번호 줄).'
+// 고정 생성 룰을 붙이는 머리말: core/worker.js 화면 길과 같은 말
+export const GEN_RULES_HEAD = '아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):'
 const CARD_FORM = '{ "src": "m:<16자>", "path": "<원본 경로>", "topic": "<대상 이름>", "form": "대상|사건|대장|서술", "date": "YYYY-MM-DD|null", "names": ["종류:값"], "facts": ["확정 사실 한 줄(값 글자 그대로)"], "secret": false, "note": "애매한 것 한 줄" }'
 
 // 하위 에이전트 프롬프트(Claude Code 세션이 Agent 에 그대로 넘긴다) — 작성기준 3 ~ 5절(WRITE_RULES · 좋은 예 · 나쁜 예) · 6-1 판단 기준을 싣는다
@@ -391,14 +396,16 @@ export function promptOf(P, kind, { from = 0, n = 10, doc = null } = {}) {
   }
   if (kind === 'plan') {
     return [
-      `너는 kmd 바탕 세우기의 구조안을 짓는다. 꾸러미: ${pack}. 카드(${path.join(pack, 'cards')})를 모두 읽고 구조안 하나를 ${path.join(pack, 'plan.json')} 에 쓴다. 쓸 것은 plan.json 하나다(texts/ 는 아직 비었다 · 꾸러미 폴더를 둘러보거나 스킬 글 · 도움말을 읽지 않는다: 이 프롬프트가 전부다).`,
+      `너는 kmd 바탕 세우기의 구조안을 짓는다. 꾸러미: ${pack}. 카드(${path.join(pack, 'cards')})를 모두 읽고 구조안 하나를 ${path.join(pack, 'plan.json')} 에 쓴다. 쓸 것은 plan.json 하나다(texts/ 는 아직 비었다 · 꾸러미 폴더를 둘러보거나 스킬 글 · 도움말을 읽지 않는다: 아래 생성 룰까지가 이 프롬프트다).`,
       '구조안 꼴(바탕 세우기 설계 3-3): { "v": 1, "kind": "seed", "forms": [{ "name", "kind", "folder", "aliases", "pattern?" }], "dirs": [], "docs": [{ "id": "폴더/문서", "was": null, "nature": "대상|서술|절차|시험|용어|사건|보고|대장|결정", "intro": { "ask": "…" } | { "text": "…" }, "items": [{ "h": "항목 머리", "src": ["m:<16자>"] }] }], "names": [{ "coord": "종류:값", "label", "gist": "뜻 한 줄", "doc", "h" }], "order": { "": ["폴더/"], "폴더": ["문서"] }, "skip": [{ "src": "m:<16자>", "why": "…" }] }',
       '- 문서마다 was: null · 항목마다 src(재료) · 넣음으로 고른 재료는 모두 src 이거나 skip. secret: true 카드의 재료는 쓰지 않고 skip(까닭 「비밀 의심」).',
       '- 문서마다 nature(으뜸 성격 · 생성 룰 R4-1: 그 문서를 찾으러 오는 사람의 물음 하나 · 못 고르면 서술) · 세우는 항목마다 names 에 짝(종류:값 · gist 뜻 한 줄 15 ~ 60자 · 생성 룰 R7-1 · 머리만 세우지 않는다).',
       '- 항목 머리는 대상 이름(사건 갈래만 「YYYY-MM-DD 주제」 · 대장은 「값: 설명」). 머리끼리 같거나 앞부분이 겹치지 않게.',
       SEED_RULES,
-      `다 쓰면 ${checkCmd(pack)} 로 검사하고 걸림이 0 이 될 때까지 고친다.`,
+      `다 쓰면 ${checkCmd(pack)} 로 검사한다. ${PLAN_CHECK_LINE}`,
       CALL_LINE,
+      // 화면 길(core/worker.js shape-plan · seed)과 같은 원본 · 같은 머리말(채널 평가 T14 seed · 세션 길만 R1 본문이 빠져 한 대상을 역할 · 설정으로 쪼갰다 · 카드는 항목 판단을 하지 않아 싣지 않는다)
+      `\n${GEN_RULES_HEAD}\n${genRulesBlock({ profile: 'shape' })}`,
     ].join('\n')
   }
   if (kind === 'text') {
