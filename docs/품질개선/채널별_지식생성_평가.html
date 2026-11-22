@@ -162,7 +162,7 @@ footer code{font:12px var(--mono);word-break:break-all}
 <header class="top">
   <div class="eyebrow">KMD 품질 개선 · 평가 real-1</div>
   <h1>채널별 지식 생성 평가</h1>
-  <p class="lead">지식 생성 채널 19개를 실제 Claude 로 돌려 들어감 · 품질 · 비용 · 시간을 잰 결과. 읽기만 했고 고친 것은 없음. 고친 뒤 다시 잰 결과는 「개선 뒤」 절, 시간을 줄인 뒤 같은 HEAD 로 두 번 잰 결과는 「시간 줄이기 뒤」 절.</p>
+  <p class="lead">지식 생성 채널 19개를 실제 Claude 로 돌려 들어감 · 품질 · 비용 · 시간을 잰 결과. 읽기만 했고 고친 것은 없음. 고친 뒤 다시 잰 결과는 「개선 뒤」 절, 시간을 줄인 뒤 같은 HEAD 로 두 번 잰 결과는 「시간 줄이기 뒤」 절, 조용한 PC 에서 17 채널을 두 번 잰 결과는 「시간 줄이기 2차 뒤」 절.</p>
   <div class="cond" aria-label="측정 조건">
     <span><b>커밋</b>c20efc1</span>
     <span><b>모델</b>sonnet 4.6</span>
@@ -174,7 +174,7 @@ footer code{font:12px var(--mono);word-break:break-all}
 </header>
 
 <nav class="toc" aria-label="차례">
-  <a href="#s1">1 요약</a><a href="#s2">2 채널</a><a href="#cost">비용 · 시간</a><a href="#s3">3 제품 결함</a><a href="#s4">4 시험 도구</a><a href="#s5">5 품질 묶음</a><a href="#s6">6 줄일 거리</a><a href="#s7">7 다음 측정</a><a href="#after">개선 뒤</a><a href="#after2">시간 줄이기 뒤</a><a href="#left">남은 것</a>
+  <a href="#s1">1 요약</a><a href="#s2">2 채널</a><a href="#cost">비용 · 시간</a><a href="#s3">3 제품 결함</a><a href="#s4">4 시험 도구</a><a href="#s5">5 품질 묶음</a><a href="#s6">6 줄일 거리</a><a href="#s7">7 다음 측정</a><a href="#after">개선 뒤</a><a href="#after2">시간 줄이기 뒤</a><a href="#after3">시간 줄이기 2차</a><a href="#left">남은 것</a>
 </nav>
 
 <!-- 1 -->
@@ -891,6 +891,180 @@ footer code{font:12px var(--mono);word-break:break-all}
     <div class="card"><span class="tag info">다시 재기</span><div>T9 pending 끊기 · T4 구조안 medium 은 <code>e738978</code> 뒤 실측 없음. 다시 띄움 0 · cut 수 · 구조안 시간 · shape F1 을 두 번</div></div>
     <div class="card"><span class="tag warn">T10</span><div>시간 합이 real-1 안팎이 아님(평균 +16.8% · 어림 +6.7%). 남은 거리 ① ~ ⑨ · T12 대량 넣기 첨부(제품) · T13 init 13 ~ 19초 · 커밋 길 시간 두 배</div></div>
     <div class="card"><span class="tag">흔들림</span><div>여러 프로세스 채널 38 ~ 59%. 결론은 합과 곧은 채널로만</div></div>
+  </div>
+</section>
+
+<section id="after3">
+  <h2>시간 줄이기 2차 뒤 (real-5 · real-5b)</h2>
+  <p class="h2sub">채널 몫 시간은 두 판 평균 2474초로 개선 전 real-1 2849초보다 -13.2%, 지난 판(real-4 · 4b 평균 3328초)보다 -25.7%. 비용은 real-1 대비 -12.8%, 지난 판 평균 대비 +4.6%. T10 의 시간 기준(real-1 안팎)에 닿았다.</p>
+  <p class="note">같은 HEAD <code>c75f44d</code> · sonnet · 17 채널 두 번(n=2). 두 판 모두 조용한 PC(부하 표시 행 0 · node 빈 띄움 약 90ms). $ · 초는 바탕 행을 뺀 채널 몫. 지난 판 대비 준 시간의 거의 다는 PC 부하가 빠진 몫이고, real-1 대비 준 몫은 API 시간이 준 것.</p>
+
+  <div class="grid kpi">
+    <div class="card k pri"><div class="l">채널 몫 시간 (평균)</div><div class="n">47.5 → 41.2분</div><div class="d">real-1 대비 -13.2% · 지난 판 55.5분 대비 -25.7%</div></div>
+    <div class="card k pri"><div class="l">채널 몫 $ (평균)</div><div class="n">8.61 → 7.50</div><div class="d">real-1 대비 -12.8% · 지난 판 7.18 대비 +4.6%</div></div>
+    <div class="card k pri"><div class="l">바탕 포함 (평균)</div><div class="n">75.3 → 70.1분</div><div class="d">$12.32 → $11.52(-6.5%) · real-4 92.3분 대비 -24.1%</div></div>
+    <div class="card k warn"><div class="l">F1 평균 (16 채널)</div><div class="n">0.946 · 0.931</div><div class="d">지난 판 0.964 · 차이는 거의 kmd-seed 5b 0.4 몫</div></div>
+  </div>
+
+  <h3>원인 → 고친 것</h3>
+  <div class="fixrow">
+    <div class="card"><span class="tag warn">원인</span><ul class="tight">
+      <li>지난 판이 길었던 것은 PC 부하: API 밖 시간 real-4 773초 → 이번 104초(real-1 104초)</li>
+      <li>real-4 → 이번 API 는 거의 그대로(2410 → 2380초 · -1%)</li>
+      <li>real-1 → 이번 API 2738 → 2380초(-13%): 차례 · 생성 길이 · 모델 몫</li>
+      <li>pending 헛걸음은 조용한 PC 에서 생기지 않음(init 1.8초)</li>
+      <li>사용자 훅 끄기 몫은 따로 가르지 못함 · 실제로 막는지도 미확인</li></ul></div>
+    <div class="card"><span class="tag pri">고친 것</span><ul class="tight">
+      <li><code>e738978</code> pendingCut · 구조안 effort medium 되돌림</li>
+      <li><code>3a5cab2</code> 부하 탐침 · 프로세스 밖 시간 절 · 사용자 훅 끔 · 작은 재료 첫 말(T10 ⑤) · <code>stageMs</code>(T10 ⑧)</li>
+      <li><code>f3175ef</code> · <code>c75f44d</code> 검토 지적 고침</li>
+      <li><code>cb4684d</code> 판 읽기 비동기 · 도구 시간 계측 · kmd-seed check 절대 경로(T10 ⑦) · summary 필수 스키마(T10 ⑩)</li>
+      <li><code>be1990c</code> 계측: init 첫 것만 · result 여럿인 프로세스 따로</li></ul></div>
+  </div>
+
+  <h3>API 와 API 밖 (17 채널 · 초)</h3>
+  <div class="card">
+    <div class="legend"><span><i class="sw" style="background:var(--bar2)"></i>API</span><span><i class="sw" style="background:var(--bad)"></i>API 밖(띄움 · init · 도구 응답 · 저장)</span></div>
+    <div class="wf" role="img" aria-label="API 와 API 밖 시간: real-1 2738 과 104초, real-4 2410 과 773초, real-5 두 판 평균 2380 과 104초">
+      <div class="wr"><span>real-1</span><div class="tr"><i class="w-mod" style="left:0;width:71.2%"></i><i class="w-up" style="left:71.2%;width:2.7%"></i></div><span class="v">2842초</span></div>
+      <div class="wr"><span>real-4</span><div class="tr"><i class="w-mod" style="left:0;width:62.7%"></i><i class="w-up" style="left:62.7%;width:20.1%"></i></div><span class="v">3183초</span></div>
+      <div class="wr"><span>real-5 · 5b 평균</span><div class="tr"><i class="w-mod" style="left:0;width:61.9%"></i><i class="w-up" style="left:61.9%;width:2.7%"></i></div><span class="v">2484초</span></div>
+    </div>
+    <ul class="tight note">
+      <li>init 중앙값 real-4 10.4초 → 1.7 · 1.8초 · 프로세스당 띄움(result 하나인 것만) real-1 1.4 · real-4 9.9 → 1.5 · 1.6초</li>
+      <li>API 밖은 제품 절감으로 세지 않는다. 행 합과 조금 다른 것은 하위 에이전트가 나란히 돈 API 몫</li>
+    </ul>
+  </div>
+
+  <h3>채널별 시간 (초)</h3>
+  <div class="card">
+    <div class="legend"><span><i class="sw" style="background:var(--bar3)"></i>real-1</span><span><i class="sw" style="background:var(--bar2)"></i>real-4 평균</span><span><i class="sw" style="background:var(--bar1)"></i>real-5 · 5b 평균</span><span>오른쪽 수: real-1 대비</span></div>
+    <div class="cmpb" role="img" aria-label="채널별 시간 real-1, real-4 평균, real-5 두 판 평균 막대 비교">
+      <div class="cr"><span class="nm">edit-source</span><div class="two"><div class="bt a"><i style="width:44.3%"></i><span>210</span></div><div class="bt t2"><i style="width:41.6%"></i><span>197</span></div><div class="bt b"><i style="width:65.4%"></i><span>310</span></div></div><span class="dl up">+48%</span></div>
+      <div class="cr"><span class="nm">intake-src</span><div class="two"><div class="bt a"><i style="width:67.1%"></i><span>318</span></div><div class="bt t2"><i style="width:91.6%"></i><span>434</span></div><div class="bt b"><i style="width:62.2%"></i><span>295</span></div></div><span class="dl dn">-7%</span></div>
+      <div class="cr"><span class="nm">intake-file</span><div class="two"><div class="bt a"><i style="width:64.1%"></i><span>304</span></div><div class="bt t2"><i style="width:100.0%"></i><span>474</span></div><div class="bt b"><i style="width:53.8%"></i><span>255</span></div></div><span class="dl dn">-16%</span></div>
+      <div class="cr"><span class="nm">shape</span><div class="two"><div class="bt a"><i style="width:46.2%"></i><span>219</span></div><div class="bt t2"><i style="width:65.0%"></i><span>308</span></div><div class="bt b"><i style="width:53.0%"></i><span>251</span></div></div><span class="dl up">+15%</span></div>
+      <div class="cr"><span class="nm">bulk</span><div class="two"><div class="bt a"><i style="width:81.4%"></i><span>386</span></div><div class="bt t2"><i style="width:36.1%"></i><span>171</span></div><div class="bt b"><i style="width:45.1%"></i><span>214</span></div></div><span class="dl dn">-45%</span></div>
+      <div class="cr"><span class="nm">kmd-seed</span><div class="two"><div class="bt a"><i style="width:5.7%"></i><span>27</span></div><div class="bt t2"><i style="width:55.1%"></i><span>261</span></div><div class="bt b"><i style="width:44.3%"></i><span>210</span></div></div><span class="dl up">+678%</span></div>
+      <div class="cr"><span class="nm">shape-pc</span><div class="two"><div class="bt a"><i style="width:30.2%"></i><span>143</span></div><div class="bt t2"><i style="width:77.6%"></i><span>368</span></div><div class="bt b"><i style="width:40.9%"></i><span>194</span></div></div><span class="dl up">+36%</span></div>
+      <div class="cr"><span class="nm">kmd-migrate</span><div class="two"><div class="bt a"><i style="width:25.3%"></i><span>120</span></div><div class="bt t2"><i style="width:30.0%"></i><span>142</span></div><div class="bt b"><i style="width:33.3%"></i><span>158</span></div></div><span class="dl up">+32%</span></div>
+      <div class="cr"><span class="nm">pc-intake</span><div class="two"><div class="bt a"><i style="width:59.5%"></i><span>282</span></div><div class="bt t2"><i style="width:24.7%"></i><span>117</span></div><div class="bt b"><i style="width:27.4%"></i><span>130</span></div></div><span class="dl dn">-54%</span></div>
+      <div class="cr"><span class="nm">session</span><div class="two"><div class="bt a"><i style="width:55.1%"></i><span>261</span></div><div class="bt t2"><i style="width:57.4%"></i><span>272</span></div><div class="bt b"><i style="width:26.2%"></i><span>124</span></div></div><span class="dl dn">-52%</span></div>
+      <div class="cr"><span class="nm">polish</span><div class="two"><div class="bt a"><i style="width:8.2%"></i><span>39</span></div><div class="bt t2"><i style="width:33.5%"></i><span>159</span></div><div class="bt b"><i style="width:20.0%"></i><span>95</span></div></div><span class="dl up">+144%</span></div>
+      <div class="cr"><span class="nm">send</span><div class="two"><div class="bt a"><i style="width:82.1%"></i><span>389</span></div><div class="bt t2"><i style="width:32.3%"></i><span>153</span></div><div class="bt b"><i style="width:19.8%"></i><span>94</span></div></div><span class="dl dn">-76%</span></div>
+      <div class="cr"><span class="nm">intake-commit</span><div class="two"><div class="bt a"><i style="width:14.1%"></i><span>67</span></div><div class="bt t2"><i style="width:41.1%"></i><span>195</span></div><div class="bt b"><i style="width:16.5%"></i><span>78</span></div></div><span class="dl up">+16%</span></div>
+      <div class="cr"><span class="nm">shape-restructure</span><div class="two"><div class="bt a"><i style="width:17.1%"></i><span>81</span></div><div class="bt t2"><i style="width:12.9%"></i><span>61</span></div><div class="bt b"><i style="width:13.1%"></i><span>62</span></div></div><span class="dl dn">-23%</span></div>
+    </div>
+    <p class="note" style="margin:12px 0 0">shape-folder · http · edit 는 LLM 이 없어 1 ~ 4초. real-1 의 session · bulk · kmd-migrate · kmd-seed 는 opus</p>
+  </div>
+
+  <h3>합계 (채널 몫 시간)</h3>
+  <div class="card">
+    <div class="wf" role="img" aria-label="채널 몫 시간 real-1 2849초, real-4 3268초, real-4 평균 3328초, real-5 2595초, real-5b 2352초, 두 판 평균 2474초">
+      <div class="wr"><span>real-1</span><div class="tr"><i class="w-tot" style="left:0;width:74.1%"></i></div><span class="v">2849초</span></div>
+      <div class="wr"><span>real-4</span><div class="tr"><i class="w-up" style="left:0;width:85.0%"></i></div><span class="v">3268초</span></div>
+      <div class="wr"><span>real-4 평균</span><div class="tr"><i class="w-up" style="left:0;width:86.6%"></i></div><span class="v">3328초</span></div>
+      <div class="wr"><span>real-5</span><div class="tr"><i class="w-mod" style="left:0;width:67.5%"></i></div><span class="v">2595초</span></div>
+      <div class="wr"><span>real-5b</span><div class="tr"><i class="w-mod" style="left:0;width:61.2%"></i></div><span class="v">2352초</span></div>
+      <div class="wr"><span>두 판 평균</span><div class="tr"><i class="w-dn" style="left:0;width:64.3%"></i></div><span class="v">2474초</span></div>
+    </div>
+    <ul class="tight note">
+      <li>채널 몫 $: 8.608 → real-4 7.537(평균 7.177) → 7.720 · 7.287(평균 7.504)</li>
+      <li>바탕 포함: 75.3분 · $12.32 → real-4 92.3분 · $11.90 → 70.8 · 69.3분 · $11.65 · $11.40</li>
+      <li>차례 145 → 158 → 133 · 148 · F1 평균 0.832 → 0.964 → 0.946 · 0.931</li>
+      <li>$ 가 지난 판 평균보다 +4.6% 인 몫: kmd-seed +0.18 · bulk +0.14 · edit-source +0.14(생성 길이 흔들림) · shape · shape-restructure 각 +0.07(구조안 medium)</li>
+    </ul>
+  </div>
+
+  <h3>채널 표</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>채널</th><th>초 real-1 → 4평균</th><th>real-5 · 5b</th><th>평균</th><th>Δ real-1 · 4평균</th><th>$ real-1 → 4평균</th><th>real-5 · 5b</th><th>평균</th><th>Δ$ real-1 · 4평균</th><th>들어감 5 · 5b</th><th>F1 real-1 → 4평균 → 5 · 5b</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">intake-file</td><td class="num">304 → 474</td><td class="num">207 · 302</td><td class="num"><b>255</b></td><td class="num">-16% · -46%</td><td class="num">0.658 → 0.893</td><td class="num">0.624 · 0.701</td><td class="num">0.663</td><td class="num">+1% · -26%</td><td>2/2 · 2/2</td><td class="num">1 → 0.952 → 1 · 1</td></tr>
+      <tr><td class="ch">intake-commit</td><td class="num">67 → 195</td><td class="num">80 · 75</td><td class="num"><b>78</b></td><td class="num">+16% · -60%</td><td class="num">0.385 → 0.497</td><td class="num">0.444 · 0.424</td><td class="num">0.434</td><td class="num">+13% · -13%</td><td>2/2 · 2/2</td><td class="num">1 → 1 → 1 · 1</td></tr>
+      <tr><td class="ch">intake-src</td><td class="num">318 → 434</td><td class="num">244 · 346</td><td class="num"><b>295</b></td><td class="num">-7% · -32%</td><td class="num">0.849 → 0.935</td><td class="num">0.857 · 0.976</td><td class="num">0.917</td><td class="num">+8% · -2%</td><td>3/4 · 3/4</td><td class="num">1 → 0.976 → 0.952 · 1</td></tr>
+      <tr><td class="ch">polish</td><td class="num">39 → 159</td><td class="num">119 · 70</td><td class="num"><b>95</b></td><td class="num">+144% · -40%</td><td class="num">0.148 → 0.320</td><td class="num">0.409 · 0.275</td><td class="num">0.342</td><td class="num">+131% · +7%</td><td>1/2 · 1/2</td><td class="num">1 → 1 → 1 · 1</td></tr>
+      <tr><td class="ch">shape</td><td class="num">219 → 308</td><td class="num">244 · 258</td><td class="num"><b>251</b></td><td class="num">+15% · -18%</td><td class="num">0.479 → 0.621</td><td class="num">0.671 · 0.702</td><td class="num">0.687</td><td class="num">+43% · +11%</td><td>1/1 · 1/1</td><td class="num">0 → 0.94 → 0.88 · 1</td></tr>
+      <tr><td class="ch">shape-folder</td><td class="num">3 → 11</td><td class="num">4 · 4</td><td class="num"><b>4</b></td><td class="num">+1초 · -7초</td><td class="num">0 → 0</td><td class="num">0 · 0</td><td class="num">0</td><td class="num">-</td><td>1/1 · 1/1</td><td class="num">0.696 → 0.696 → 0.696 · 0.696</td></tr>
+      <tr><td class="ch">shape-pc</td><td class="num">143 → 368</td><td class="num">194 · 194</td><td class="num"><b>194</b></td><td class="num">+36% · -47%</td><td class="num">0.479 → 0.548</td><td class="num">0.532 · 0.600</td><td class="num">0.566</td><td class="num">+18% · +3%</td><td>1/1 · 1/1</td><td class="num">0.963 → 0.963 → 0.88 · 0.963</td></tr>
+      <tr><td class="ch">shape-restructure</td><td class="num">81 → 61</td><td class="num">68 · 55</td><td class="num"><b>62</b></td><td class="num">-23% · +2%</td><td class="num">0.201 → 0.155</td><td class="num">0.274 · 0.179</td><td class="num">0.227</td><td class="num">+13% · +46%</td><td>1/1 · 1/1</td><td class="num">1 → 0.957 → 0.957 · 0.88</td></tr>
+      <tr><td class="ch">send</td><td class="num">389 → 153</td><td class="num">105 · 83</td><td class="num"><b>94</b></td><td class="num">-76% · -39%</td><td class="num">0.737 → 0.324</td><td class="num">0.289 · 0.279</td><td class="num">0.284</td><td class="num">-61% · -12%</td><td>2/2 · 2/2</td><td class="num">1 → 1 → 1 · 1</td></tr>
+      <tr><td class="ch">session</td><td class="num">261 → 272</td><td class="num">123 · 124</td><td class="num"><b>124</b></td><td class="num">-52% · -54%</td><td class="num">1.591(opus) → 0.601</td><td class="num">0.527 · 0.547</td><td class="num">0.537</td><td class="num">-66% · -11%</td><td>2/2 · 2/2</td><td class="num">0.952 → 0.952 → 0.952 · 0.952</td></tr>
+      <tr><td class="ch">bulk</td><td class="num">386 → 171</td><td class="num">277 · 150</td><td class="num"><b>214</b></td><td class="num">-45% · +25%</td><td class="num">1.337(opus) → 0.375</td><td class="num">0.613 · 0.422</td><td class="num">0.518</td><td class="num">-61% · +38%</td><td>1/1 · 1/1</td><td class="num">1 → 1 → 1 · 1</td></tr>
+      <tr><td class="ch">http</td><td class="num">1 → 2</td><td class="num">1 · 1</td><td class="num"><b>1</b></td><td class="num">0초 · -1초</td><td class="num">0 → 0</td><td class="num">0 · 0</td><td class="num">0</td><td class="num">-</td><td>2/2 · 2/2</td><td class="num">0.870 → 1 → 1 · 1</td></tr>
+      <tr><td class="ch">edit</td><td class="num">1 → 4</td><td class="num">1 · 1</td><td class="num"><b>1</b></td><td class="num">0초 · -3초</td><td class="num">0 → 0</td><td class="num">0 · 0</td><td class="num">0</td><td class="num">-</td><td>3/7 · 3/7(거절 4 기대)</td><td class="num">0.824 → 1 → 0.824 · 1</td></tr>
+      <tr><td class="ch">edit-source</td><td class="num">210 → 197</td><td class="num">425 · 195</td><td class="num"><b>310</b></td><td class="num">+48% · +57%</td><td class="num">0.389 → 0.367</td><td class="num">0.611 · 0.398</td><td class="num">0.505</td><td class="num">+30% · +38%</td><td>1/1 · 1/1</td><td class="num">1 → 1 → 1 · 1</td></tr>
+      <tr><td class="ch">pc-intake</td><td class="num">282 → 117</td><td class="num">136 · 123</td><td class="num"><b>130</b></td><td class="num">-54% · +11%</td><td class="num">0.471 → 0.267</td><td class="num">0.311 · 0.280</td><td class="num">0.296</td><td class="num">-37% · +11%</td><td>1/1 · 1/1</td><td class="num">1 → 1 → 1 · 1</td></tr>
+      <tr><td class="ch">kmd-migrate</td><td class="num">120 → 142</td><td class="num">167 · 149</td><td class="num"><b>158</b></td><td class="num">+32% · +11%</td><td class="num">0.648(opus) → 0.383</td><td class="num">0.458 · 0.453</td><td class="num">0.456</td><td class="num">-30% · +19%</td><td>0/1 · 0/1</td><td class="num">-</td></tr>
+      <tr><td class="ch">kmd-seed</td><td class="num">27 → 261</td><td class="num">199 · 221</td><td class="num"><b>210</b></td><td class="num">+678% · -20%</td><td class="num">0.237(opus) → 0.892</td><td class="num">1.100 · 1.051</td><td class="num">1.076</td><td class="num">+354% · +21%</td><td>1/1 · 1/1</td><td class="num">0 → 0.982 → 1 · <b>0.4</b></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">real-4 평균은 앞 절 값(4b 를 재지 않은 다섯 채널은 real-4 한 값). polish 1/2 는 결함 없는 문서에 「고칠 것이 없다」 · kmd-migrate 0/1 은 DROP_REVIEW 가 맞게 막음(4b 와 같음).</p>
+
+  <h3>준 곳 · 아직 긴 곳</h3>
+  <div class="cards compact">
+    <div class="def low"><div class="hd"><span class="id">intake-file · intake-commit · session · send</span><span class="tag pri">부하 빠짐</span></div><div class="t">474 → 255 · 195 → 78 · 272 → 124 · 153 → 94초</div><dl><dd>real-4 pending 224 · 92초와 4b init 48초가 생기지 않음. 차례 수는 거의 같아 제품 절감으로 세지 않는다. 커밋 길 건당 0.67 · 0.63분</dd></dl></div>
+    <div class="def low"><div class="hd"><span class="id">shape-pc · kmd-seed</span><span class="tag pri">줄임</span></div><div class="t">368 → 194 · 261 → 210초</div><dl><dd>shape-pc: 부하 빠짐 + 작은 재료 첫 말(T10 ⑤) · summary 필수(T10 ⑩) · 차례 24 · 23 → 17 · 21. kmd-seed: check 절대 경로 한 줄(T10 ⑦) · real-5 거절 0</dd></dl></div>
+    <div class="def med"><div class="hd"><span class="id">kmd-seed · shape · polish · shape-pc · intake-commit</span><span class="tag info">필요한 일</span></div><div class="t">real-1 이 하지 못한 일 · 더한 문서 · gist 짝 · 원천 다름</div><dl><dd>kmd-seed 27 → 210(앞은 NO_PACK) · shape 219 → 251(앞은 0/1 · 구조안 medium) · polish 39 → 95(문서 더함) · shape-pc 143 → 194(R7-1) · intake-commit 67 → 78(운영 길 원천)</dd></dl></div>
+    <div class="def med"><div class="hd"><span class="id">edit-source · bulk · kmd-migrate</span><span class="tag">잡음</span></div><div class="t">생성 길이 흔들림 · 모델 몫</div><dl><dd>edit-source real-5 425초(출력 2.29만) · 5b 195초는 real-1 아래. bulk 출력 1.60만 · 0.84만. kmd-migrate real-1 opus · 차례는 11 → 8 · 9</dd></dl></div>
+    <div class="def low"><div class="hd"><span class="id">프로세스 밖 시간</span><span class="tag pri">real-1 수준</span></div><div class="t">API 밖 104초 · 채널 몫의 4%</div><dl><dd>더 줄일 몫이 작다. 남은 군더더기는 kmd-seed 5b 의 거절 한 번 · 고쳐 받기 일곱 번과 운영의 대량 넣기 첨부(T12 · 시험 도구가 갈아 끼워 합에는 없음)</dd></dl></div>
+  </div>
+
+  <h3>흔들림 (두 번 잰 차이)</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>채널</th><th>real-5 · 5b</th><th>차이</th><th>차이 / 평균</th><th>까닭</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">edit-source</td><td class="num">425 · 195</td><td class="num">230초</td><td class="num">74%</td><td>출력 2.29만 · 1.15만 · 차례 7 같음</td></tr>
+      <tr><td class="ch">bulk</td><td class="num">277 · 150</td><td class="num">127초</td><td class="num">59%</td><td>출력 1.60만 · 0.84만 · 차례 15 · 13</td></tr>
+      <tr><td class="ch">polish</td><td class="num">119 · 70</td><td class="num">49초</td><td class="num">52%</td><td>real-5 결함 문서 고쳐 받기 한 번</td></tr>
+      <tr><td class="ch">intake-file</td><td class="num">207 · 302</td><td class="num">95초</td><td class="num">37%</td><td>출력 1.33만 · 1.86만</td></tr>
+      <tr><td class="ch">intake-src</td><td class="num">244 · 346</td><td class="num">102초</td><td class="num">35%</td><td>5b 첫 실행 고쳐 받기 한 번(89 · 192초)</td></tr>
+      <tr><td class="ch">send · shape-restructure</td><td class="num">105 · 83 / 68 · 55</td><td class="num">22 · 13초</td><td class="num">21 ~ 23%</td><td></td></tr>
+      <tr><td class="ch">kmd-migrate · pc-intake · kmd-seed</td><td class="num">167 · 149 / 136 · 123 / 199 · 221</td><td class="num">18 · 13 · 22초</td><td class="num">10 ~ 11%</td><td>kmd-seed 는 품질이 갈림</td></tr>
+      <tr><td class="ch">shape · intake-commit · shape-pc · session</td><td class="num">244 · 258 / 80 · 75 / 194 · 194 / 123 · 124</td><td class="num">14 · 5 · 0 · 1초</td><td class="num">0 ~ 6%</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">지난 판 흔들림은 pending · init 지연이 만들었고, 이번은 생성 길이와 고쳐 받기 한 번이 만든다. 17 채널 합은 2595 · 2352초(차이 10%)로 곧다.</p>
+
+  <h3>품질</h3>
+  <div class="left">
+    <div class="card"><span class="tag pri">들어감</span><div>모든 채널이 앞 판과 같음. 구조안 medium(T4)은 F1 0.88 · 1(평균 0.94) · 고쳐 받기 0</div></div>
+    <div class="card"><span class="tag bad">kmd-seed 5b</span><div>F1 0.4: 항목을 대상이 아니라 「수집기 역할 · 수집기 동작 설정」 처럼 쪽으로 쪼개 수집기 · 전송기 · 장애 대응 절차가 빠짐으로 채점. 주 세션의 <code>&&</code> 거절 한 번 · 고쳐 받기 일곱 번. real-5 는 1</div></div>
+    <div class="card"><span class="tag warn">흔들림</span><div>shape · shape-pc · shape-restructure · edit 의 알갱이 자리가 판마다 0.88 과 0.96 ~ 1 사이를 엇갈려 오감. intake-file 5b 는 F1 1 이나 성격 1 → 0.25</div></div>
+  </div>
+
+  <h3>판정</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>번호</th><th>판정</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td class="ch">T4 구조안</td><td><span class="tag pri">끝남</span></td><td>medium 137 · 115초(원래 321초) · F1 평균 0.94 · 고쳐 받기 0</td></tr>
+      <tr><td class="ch">T9 다시 띄움</td><td><span class="tag pri">끝남</span></td><td>pending 0 · 다시 띄움 0 · 끊긴 프로세스 0 · 첫 차례 캐시 읽음 31/43 · 30/41. 끊기 길은 시험으로만</td></tr>
+      <tr><td class="ch">T13 init · 커밋 길</td><td><span class="tag pri">끝남</span></td><td>init 1.7 · 1.8초 · 띄움 1.5 · 1.6초 · API 밖 110 · 98초(real-1 104) · 커밋 건당 0.67 · 0.63분. 늘었던 시간은 PC 부하</td></tr>
+      <tr><td class="ch">T10 시간 줄이기</td><td><span class="tag warn">[ ] 그대로</span></td><td>시간 기준은 닿음(-13.2%). kmd-seed 5b F1 0.4 판정 · edit-source 흔들림이 남음</td></tr>
+      <tr><td class="ch">T12 대량 넣기 첨부</td><td><span class="tag warn">[ ] 그대로</span></td><td>저장 문 설계 · 권한이 끼는 제품 고침</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>운영 어림 다시 셈 (섞임 · 보정 ×1.2 는 앞과 같음)</h3>
+  <div class="tblwrap"><table>
+    <thead><tr><th>길</th><th>건당 $ 지난 → 지금</th><th>건당 분</th><th>100건 몫 $</th><th>100건 몫 분</th></tr></thead>
+    <tbody>
+      <tr><td>문서 들이기 55%</td><td class="num">0.381(0.329) → 0.335</td><td class="num">3.4(2.7) → 2.4</td><td class="num">20.9 → 18.4</td><td class="num">188 → 132</td></tr>
+      <tr><td>커밋 25%</td><td class="num">0.248(0.214) → 0.217</td><td class="num">1.6(1.3) → 0.65</td><td class="num">6.2 → 5.4</td><td class="num">41 → 16</td></tr>
+      <tr><td>사람 세션 저장 10%</td><td class="num">0.301 → 0.269</td><td class="num">2.3 → 1.0</td><td class="num">3.0 → 2.7</td><td class="num">23 → 10</td></tr>
+      <tr><td>새 항목 · 개인 들이기 5%</td><td class="num">0.317 → 0.400</td><td class="num">2.6 → 3.7</td><td class="num">1.6 → 2.0</td><td class="num">13 → 18</td></tr>
+      <tr><td>보내기 5%</td><td class="num">0.162 → 0.142</td><td class="num">1.3 → 0.8</td><td class="num">0.8 → 0.7</td><td class="num">6 → 4</td></tr>
+      <tr><td><b>100건/월</b></td><td></td><td></td><td class="num"><b>$32.5 → $29.2</b> (보정 $39.0 → $35.1)</td><td class="num"><b>4.5 → 3.0시간</b></td></tr>
+      <tr><td><b>1000건/월</b></td><td></td><td></td><td class="num"><b>$325 → $292</b> (보정 $390 → $351)</td><td class="num"><b>45 → 30시간</b></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">real-1 어림 $35.4 · 3.5시간 대비 비용 -18% · 시간 -14%. 새 항목 길만 는 것은 edit-source real-5 한 행 몫(5b 만 보면 $0.339 · 2.7분). 시간 어림은 조용한 PC 기준.</p>
+
+  <h3>남은 것</h3>
+  <div class="left">
+    <div class="card"><span class="tag warn">T10</span><div>kmd-seed 5b F1 0.4 가 흔들림인지 깎임인지 · edit-source 생성 길이 흔들림. kmd-seed 를 두세 번 더 재어 가른다</div></div>
+    <div class="card"><span class="tag info">T12</span><div>대량 넣기 첨부를 모델 출력에서 빼기. 저장승인 설계 · 권한 모델 7절에 안을 올린 뒤</div></div>
+    <div class="card"><span class="tag">확인</span><div>disableAllHooks 가 실제 <code>claude -p</code> 에서 사용자 훅을 막는지 아직 보지 못함 · push 와 188 배포는 하지 않음</div></div>
   </div>
 </section>
 
