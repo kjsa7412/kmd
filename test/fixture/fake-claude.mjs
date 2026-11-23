@@ -31,9 +31,11 @@ const SESSION = args.includes('--input-format') && val('--input-format') === 'st
 const out = (o) => process.stdout.write(JSON.stringify(o) + '\n')
 function session() {
   if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
-  const tools = 'Read,Glob,Grep'
   const files = fs.readdirSync(process.cwd())
-  const ok = args.includes('-p') && val('--tools') === tools && val('--allowedTools') === tools && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && noHooks() && files.includes('md') && files.every((x) => ['재료.tsv', 'md', 'cards'].includes(x))
+  // 스캔 글 바꾸기(바탕 설계 Z11) — 도구는 Read 하나 · 세션 폴더에는 원본 사본(원본.<확장자>) 하나만
+  const scanDir = files.length === 1 && /^원본\.[a-z]+$/.test(files[0])
+  const tools = scanDir ? 'Read' : 'Read,Glob,Grep'
+  const ok = args.includes('-p') && val('--tools') === tools && val('--allowedTools') === tools && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && noHooks() && (scanDir || (files.includes('md') && files.every((x) => ['재료.tsv', 'md', 'cards'].includes(x))))
   out({ type: 'system', subtype: 'init', model: 'fake-claude', tools: ['Glob', 'Grep', 'Read', 'StructuredOutput'], cwd: process.cwd() })
   let buf = ''
   let turn = 0
@@ -58,6 +60,19 @@ function session() {
     const lim = process.env.FAKE_CLAUDE_LIMIT_FILE
     if (lim && fs.existsSync(lim)) { fs.rmSync(lim); return say({ is_error: true, subtype: 'error', result: 'Claude usage limit reached · resets 3pm' }) }
     const fixing = text.startsWith('지난 초안이 kmd 검사에 걸렸다')
+    const scanFix = text.startsWith('받은 글이 걸렸다')
+    if (scanDir && (text.startsWith('이 폴더의 「') || scanFix)) {
+      // FAKE_CLAUDE_MODE=scanbad → 첫 턴은 `# 제목` 없이(같은 세션에 고쳐 받기) · scanbadall → 고쳐도 · scansecret → 비밀번호 꼴 줄
+      if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `seed-scan${scanFix ? ' fix' : ''}\n`)
+      const title = (session.scanTitle ||= (text.match(/^- 첫 줄은 `# (.+)`/m) || [])[1] || '스캔')
+      const mode = process.env.FAKE_CLAUDE_MODE || ''
+      const head = mode === 'scanbadall' || (mode === 'scanbad' && !scanFix) ? '' : `# ${title}\n\n`
+      const o = { text: `${head}스캔에서 옮긴 글 ${files[0]} ${fs.statSync(files[0]).size} 바이트.\n${mode === 'scansecret' ? '비밀번호: hunter2abc\n' : ''}`, unsure: ['둘째 쪽 도장'] }
+      out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 't' + turn, name: 'Read', input: { file_path: `${process.cwd()}\\${files[0]}`, pages: '1-20' } }] } })
+      out({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't' + turn, content: '(쪽 그림)' }] } })
+      out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 's' + turn, name: 'StructuredOutput', input: o }] } })
+      return say({ structured_output: o, num_turns: 2, duration_ms: 800 })
+    }
     if (!fixing) kind = text.startsWith('바탕 세우기 뼈대를') ? 'frame' : text.startsWith('바탕 세우기 구조안의 한 묶음') ? 'batch' : text.startsWith('바탕 세우기 항목 글을') ? 'write' : 'other'
     if (!fixing) m.first = text
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `seed-${kind}${fixing ? ' fix' : ''}\n`)

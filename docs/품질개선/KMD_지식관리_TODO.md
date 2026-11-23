@@ -97,7 +97,7 @@
 | P11 | H 걷기 | held 걷기 | 모든 지식이 approve 가 된 뒤: held 모드 · `/held` 길 · hub held 함수(b12) · held 손잡이 · 넣지 못함 탭 · partial · review · legacy-mix · 넣지 못함 화면 걷기(b14 grep 0) · **`heldRv` · `heldRvMine`(c53580d) · held 모드용 「넣지 못함」 탭(P10) 걷기** · held 단언 시험 고쳐 쓰기 · 루트 CLAUDE.md held 문장 걷기(7절 P11) | 6-5 「고쳐 쓸 것」 · screen-kmd · menupath · access-ui · 네 폭 | [x] | (기록) |
 | PC6 | H(짝 P11) | 바로 넣기 걷기 | `curatePending` · `placeGroup` · `material` · `planSave` · `DRAFT_SCHEMA` `left` · `curates keep` · 개인 받기 갈래 · `recordState` pend · kept 옛 기록 읽기만 · 이행 못한 개인 지식은 저장 닫음(7-1 PC6) | 6-5 「개인 프로그램 쪽 고쳐 쓸 시험」 · screen-kmd · 네 폭 | [x] | (기록) |
 | P12 | H | 옛 칸 | 옛 칸 읽기 · isLegacy · 옛 `<data>/held/` 지우기(사람 확인) · site 문구(7절 P12) | 걸린 시험 | [x] | (기록) |
-| Z11 | E(뒤) | 개인 기초 세우기 한도 걷기 · 스캔 글 바꾸기 | 2026-11-23 사용자 결정: survey 한도 검사 걷기 · 안전 상한 20,000 · 큰 원본 경고 · 앞 꾸러미 재료 글 다시 쓰기 · 거르기 「글로 바꾸기」 · `POST /api/shape/scan` · 바꾸기 세션 · 개인 화면 문구에서 kmd-seed 걷기 · 권한 모델 7절 · 설명서 · docs_ops(바탕 설계 Z11 · 메뉴개편 8-1 b · c) | `test/shape-seed.test.mjs` · 기초 세우기 화면 테스트 네 폭 | [ ] | |
+| Z11 | E(뒤) | 개인 기초 세우기 한도 걷기 · 스캔 글 바꾸기 | 2026-11-23 사용자 결정: survey 한도 검사 걷기 · 안전 상한 20,000 · 큰 원본 경고 · 앞 꾸러미 재료 글 다시 쓰기 · 거르기 「글로 바꾸기」 · `POST /api/shape/scan` · 바꾸기 세션 · 개인 화면 문구에서 kmd-seed 걷기 · 권한 모델 7절 · 설명서 · docs_ops(바탕 설계 Z11 · 메뉴개편 8-1 b · c) | `test/shape-seed.test.mjs` · 기초 세우기 화면 테스트 네 폭 | [x] | (기록) |
 
 나란히 돌릴 수 있는 곳(파일이 안 겹침): 묶음 B(스킬 · 문서) ↔ 묶음 C 의 2(화면 · gitlab) · 묶음 D 의 8(일꾼 · shape) ↔ PC4(pcplace · ingest) 는 hub.js 를 같이 고치므로 **차례로**. 그 밖은 표 차례.
 

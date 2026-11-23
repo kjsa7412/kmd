@@ -328,6 +328,81 @@ test('이어 하기 · 거절 — 다시 켠 hub 에서 만들던 것(구조안 
   } finally { s.done() }
 })
 
+test('Z11 한도 걷기 · 스캔 글 바꾸기 — 300 파일 넘는 원본 · 안전 상한 · 다시 조사는 글을 다시 쓴다 · 스캔 세션(고쳐 받기 · 못 바꿈 · 비밀 의심) · 자리', LONG, async () => {
+  const s = await setup()
+  const keepCap = process.env.KMD_SEED_FILE_CAP
+  try {
+    for (let i = 0; i < 305; i++) fs.writeFileSync(path.join(s.src, `메모 ${String(i).padStart(3, '0')}.md`), `# 메모 ${i}\n\n## 내용\n값 ${i}.\n`)
+    fs.mkdirSync(path.join(s.src, '스캔'))
+    for (const n of ['계약서.pdf', '도면.pdf', '열쇠.pdf']) fs.writeFileSync(path.join(s.src, '스캔', n), `%PDF-1.4\n% 글 층 없는 스캔 ${n}\n`)
+    const id = await s.make('큰 원본')
+    // 300 파일 · 200MB 한도는 없다
+    await s.hub.seedSurvey(s.ctx, id, { dir: s.src })
+    let v = await settle(s.hub, s.ctx, id)
+    assert.equal(v.run.state, 'done', JSON.stringify(v.run))
+    assert.ok(v.work.rows.length > 300, '300 파일 넘는 원본도 조사한다')
+    assert.equal(v.run.big.files, v.work.rows.length)
+    assert.equal(v.limit.cap, 20000)
+    assert.deepEqual(v.limit.big, { files: 1000, bytes: 1 << 30 })
+    const row = (p) => v.work.rows.find((r) => r.path === p)
+    assert.equal(row('스캔/계약서.pdf').scanNeed, true, JSON.stringify(row('스캔/계약서.pdf')))
+    assert.equal(row('스캔/계약서.pdf').scanWhy, undefined)
+    assert.equal(row('스캔/계약서.pdf').pick, '보류')
+    // 자리 · 입력
+    assert.equal(await code(s.hub.seedScan(s.ctx, id, { paths: ['입사 안내.md'] })), 'E_INPUT', '스캔이 아닌 줄')
+    assert.equal(await code(s.hub.seedScan(s.ctx, id, { paths: [] })), 'E_INPUT')
+    assert.equal(await code(s.hub.seedScan({ user: 'park' }, id, { paths: ['스캔/계약서.pdf'] })), 'E_CONFLICT', '일을 연 사람만')
+    // 고쳐 받기(첫 답에 # 제목 없음) → 넣음 · scan
+    process.env.FAKE_CLAUDE_MODE = 'scanbad'
+    await s.hub.seedScan(s.ctx, id, { paths: ['스캔/계약서.pdf'] })
+    v = await settle(s.hub, s.ctx, id)
+    assert.equal(v.run.kind, 'scan')
+    assert.equal(v.run.state, 'done', JSON.stringify(v.run))
+    assert.ok(v.run.tries >= 2, '걸리면 같은 세션에 고쳐 받는다')
+    const r1 = row('스캔/계약서.pdf')
+    assert.ok(r1.src && r1.scan, JSON.stringify(r1))
+    assert.equal(r1.pick, '넣음')
+    assert.equal(r1.role, '스캔')
+    const fd = await s.hub.seedFeed(s.ctx, id)
+    assert.equal(fd.title, '스캔 글')
+    assert.ok(fd.rows.some((r) => r.k === 'kmd' && /같은 세션에서 고쳐 받는다/.test(r.text)))
+    assert.ok(fd.rows.some((r) => r.k === 'kmd' && r.tone === 'ok' && /글로 바꿨다/.test(r.text)))
+    assert.ok(fd.rows.some((r) => r.k === 'tool' && r.name === 'Read'))
+    // 고쳐도 걸림 → 못 바꿈(보류 그대로 · 까닭)
+    process.env.FAKE_CLAUDE_MODE = 'scanbadall'
+    await s.hub.seedScan(s.ctx, id, { paths: ['스캔/도면.pdf'] })
+    v = await settle(s.hub, s.ctx, id)
+    assert.equal(v.run.state, 'fail')
+    assert.ok(!row('스캔/도면.pdf').src)
+    assert.match(row('스캔/도면.pdf').scanFail, /제목/)
+    // 비밀번호 꼴 줄 → 비밀 의심 보류
+    process.env.FAKE_CLAUDE_MODE = 'scansecret'
+    await s.hub.seedScan(s.ctx, id, { paths: ['스캔/열쇠.pdf'] })
+    v = await settle(s.hub, s.ctx, id)
+    delete process.env.FAKE_CLAUDE_MODE
+    assert.equal(row('스캔/열쇠.pdf').role, '비밀 의심')
+    assert.equal(row('스캔/열쇠.pdf').pick, '보류')
+    assert.ok(!JSON.stringify(v).includes('hunter2abc'))
+    // 다시 조사 — 바뀌지 않은 파일은 앞 꾸러미 글을 다시 쓴다(스캔 글도)
+    await s.hub.seedSurvey(s.ctx, id, { dir: s.src })
+    v = await settle(s.hub, s.ctx, id)
+    assert.equal(v.run.state, 'done', JSON.stringify(v.run))
+    assert.ok(v.run.reused >= 300, `다시 씀 ${v.run.reused}`)
+    assert.ok(row('스캔/계약서.pdf').src && row('스캔/계약서.pdf').scan, '스캔 글이 남는다')
+    // 안전 상한
+    process.env.KMD_SEED_FILE_CAP = '100'
+    const hub2 = await makeHub({ root: s.root, dataDir: s.dataDir, mode: 'pc', pcUser: 'me', log: () => {} })
+    const e = await hub2.seedSurvey(s.ctx, id, { dir: s.src }).catch((x) => x)
+    assert.equal(e.code, 'E_INPUT')
+    assert.match(e.message, /하위 폴더/)
+  } finally {
+    if (keepCap == null) delete process.env.KMD_SEED_FILE_CAP
+    else process.env.KMD_SEED_FILE_CAP = keepCap
+    delete process.env.FAKE_CLAUDE_MODE
+    s.done()
+  }
+})
+
 test('kmd-seed 꾸러미 경로 — 꾸러미를 열고(한도 없음 · 읽기만) plan.json 이 처음 구조안 · 꾸러미 글 초안은 지음으로', LONG, async () => {
   const s = await setup()
   try {

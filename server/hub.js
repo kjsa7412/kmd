@@ -58,7 +58,7 @@ import { existsSync, readFileSync, statSync, watch as fsWatch } from 'node:fs'
 import * as sendLib from '../core/send.js'
 import * as keystore from '../core/keystore.js'
 import { sha16 } from '../core/text.js'
-import { survey, isPack, openPack, readManifest, countsOf, rowsOfUpload, PICKS, srcOf as srcOfMd } from '../core/survey.js'
+import { survey, isPack, openPack, readManifest, countsOf, rowsOfUpload, PICKS, srcOf as srcOfMd, addText, scanBlock, scanPromptOf, scanTextProblems, SEED_SCAN_SCHEMA } from '../core/survey.js'
 import { isSystemRecord, labelOf } from '../core/knowledge.js'
 import { isReservedTag } from '../core/names.js' // 예약 접두사(job/)까지 본다(S3)
 import { isoOfStamp, logKind, atTag } from './views.js'
@@ -958,7 +958,10 @@ ${genRulesBlock({ profile: 'shape' })}`
     return a
   }
   // ── 개인 기초 세우기 도는 일(Z7) — 원본 조사 · Claude 구조안 · Claude 짓기. 지식마다 하나 · 이 PC 의 메모리(다시 켜면 그 일만 사라지고 장부는 남는다) ──
-  const seedRuns = new Map() // 지식 → { kind: survey | plan | write, state: running | done | fail | cancelled, i, n, by, at, work?, doc?, why?, tries }
+  const SEED_RUN_WORD = { survey: '조사하는', plan: '구조안을 짓는', write: '글을 짓는', scan: '스캔을 글로 바꾸는' }
+  const SEED_FILE_CAP = Number(process.env.KMD_SEED_FILE_CAP) > 0 ? Number(process.env.KMD_SEED_FILE_CAP) : 20_000 // 개인 기초 세우기 원본의 안전 상한(바탕 설계 Z11 · 한도가 아니다 · 시험은 환경 변수로)
+  const SEED_BIG = { files: 1000, bytes: 1 << 30 } // 큰 원본 경고(막지 않는다)
+  const seedRuns = new Map() // 지식 → { kind: survey | plan | write | scan, state: running | done | fail | cancelled, i, n, by, at, work?, doc?, why?, tries }
   // 단계 띠에서 다다를 수 있는 단계(0 지식 · 1 재료 · 2 거르기 · 3 구조안 · 4 짓기 · 5 진단 · 6 넣기)
   const seedReach = (w) => {
     if (['putting', 'stopped', 'rebase', 'done'].includes(w.stage)) return 6
@@ -1087,7 +1090,7 @@ ${genRulesBlock({ profile: 'shape' })}`
   const seedCostLine = (id, run) => {
     const made = (run.made || []).filter((x) => x.started)
     run.made = []
-    return costLine(id, { ch: 'shape', kind: run.kind === 'plan' ? 'seed-plan' : 'seed-write', by: run.by || null, usd: made.reduce((a, x) => a + (Number(x.cost) || 0), 0), calls: made.length, turns: made.reduce((a, x) => a + (Number(x.turns) || 0), 0) })
+    return costLine(id, { ch: 'shape', kind: run.kind === 'plan' ? 'seed-plan' : run.kind === 'scan' ? 'seed-scan' : 'seed-write', by: run.by || null, usd: made.reduce((a, x) => a + (Number(x.cost) || 0), 0), calls: made.length, turns: made.reduce((a, x) => a + (Number(x.turns) || 0), 0) })
   }
   const SEED_SESSION_BUDGET = () => (Number(process.env.KMD_SEED_BUDGET) > 0 ? Number(process.env.KMD_SEED_BUDGET) : 5)
   // 세션 폴더 — 재료.tsv · md/<16자>.md(쓰는 재료의 사본) · cards/<16자>.json(카드가 있으면). 꾸러미 · 장부 · 지식 폴더는 넣지 않는다
@@ -1335,6 +1338,93 @@ ${genRulesBlock({ profile: 'shape' })}`
     } finally {
       if (s) { run.sessions?.delete(s); await s.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message)) }
       await fs.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch((e) => log('기초 세우기 세션 폴더 지우기', dir, e.message))
+    }
+  }
+  // ── 스캔 글 바꾸기(바탕 설계 Z11) — 개인 · 이 PC 가 조사한 꾸러미의 글 없는 스캔만. 세션 하나 = 원본 하나(세션 폴더에 원본 사본만 · 도구 Read 하나) ·
+  //   동시에 SEED_POOL · 받은 글은 scanTextProblems 로 보고 같은 세션에 고쳐 받기(INTAKE_FIX 번) → core/survey.js addText(kmd-seed text 와 같은 함수 · scan: true · 넣음)
+  const scanOff = (w, r) => (mode === 'team' ? '팀은 스캔을 글로 바꾸지 않는다' : !w?.seed?.own ? '꾸러미의 스캔은 kmd-seed text 로 글을 넣는다' : scanBlock(r))
+  async function pcSeedScan(ctx, id, run, { w, rows }) {
+    const f = feedNew(id, '스캔 글')
+    const say = (text, tone = '', tag = '') => feedPush(id, { k: 'kmd', text, tone }, tag)
+    const sessions = new Set()
+    run.kill = (why) => { for (const s of sessions) s.kill(why) }
+    let chain = Promise.resolve()
+    const put = (rel, text) => (chain = chain.then(() => addText(w.seed.pack, rel, text)))
+    const done = []
+    const fails = []
+    try {
+      say(`스캔 ${rows.length} 을 글로 바꾼다(동시에 ${Math.min(SEED_POOL, rows.length)})`)
+      await pool(rows, SEED_POOL, async (r) => {
+        if (run.state !== 'running') return
+        const tag = path.posix.basename(r.path).slice(0, 24)
+        const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'kmd-scan-'))
+        f.dirs = [...new Set([...f.dirs, dir, await fs.realpath(dir).catch(() => dir)])].sort((a, b) => b.length - a.length)
+        let s = null
+        try {
+          const abs = path.resolve(w.seed.src, ...r.path.split('/'))
+          const rel0 = path.relative(path.resolve(w.seed.src), abs)
+          if (!rel0 || rel0.startsWith('..') || path.isAbsolute(rel0)) throw new KmdError('E_INPUT', '원본 폴더 밖 경로다')
+          const buf = await fs.readFile(abs).catch((e) => { throw new KmdError('E_NOTFOUND', e.code === 'ENOENT' ? '원본이 없어졌다: 다시 조사한다' : e.message) })
+          if (crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16) !== r.orig) throw new KmdError('E_CONFLICT', '원본이 바뀌었다: 다시 조사한다')
+          const file = `원본${path.extname(r.path).toLowerCase()}`
+          await fs.writeFile(path.join(dir, file), buf)
+          s = steadySession(id, run, async () => claudeSession({ cwd: dir, schema: SEED_SCAN_SCHEMA, tools: ['Read'], budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
+          sessions.add(s)
+          say(`읽는다: ${r.path} · ${(r.size / 1048576).toFixed(1)}MB`, '', tag)
+          let msg = scanPromptOf({ file, path: r.path })
+          for (let n = 0; n <= INTAKE_FIX; n++) {
+            const x = await s.ask(msg)
+            run.tries = (run.tries || 0) + 1
+            if (run.state !== 'running') return
+            if (x.error === 'shape' && n < INTAKE_FIX) { say('답이 JSON 이 아니다 · 같은 세션에 JSON 으로 내게 한다', 'warn', tag); msg = '답은 글이 아니라 JSON 하나다. StructuredOutput 도구로 { text, unsure } 를 낸다.'; continue }
+            if (x.error) throw new KmdError('E_CONFLICT', await seedClaudeWhy(x))
+            const text = String(x.value?.text || '').replace(/\r\n/g, '\n')
+            const ps = scanTextProblems(text)
+            if (!ps.length) {
+              const row = await put(r.path, text)
+              const unsure = Array.isArray(x.value?.unsure) ? x.value.unsure.length : 0
+              done.push(r.path)
+              run.i = done.length + fails.length
+              say(`글로 바꿨다: ${text.length.toLocaleString()} 자${unsure ? ` · 읽지 못한 자리 ${unsure}` : ''}${row.role === '비밀 의심' ? ' · 비밀 의심이라 보류' : ''}`, row.role === '비밀 의심' ? 'warn' : 'ok', tag)
+              return
+            }
+            if (n === INTAKE_FIX) throw new KmdError('E_INPUT', ps.join(' · '))
+            say(`걸렸다 · 같은 세션에서 고쳐 받는다: ${ps.join(' · ')}`, 'warn', tag)
+            msg = `받은 글이 걸렸다: ${ps.join(' · ')}. 고쳐서 text 전체를 다시 낸다.`
+          }
+        } catch (e) {
+          fails.push({ path: r.path, why: e.message })
+          run.i = done.length + fails.length
+          say(`글로 바꾸지 못했다: ${e.message}`, 'bad', tag)
+        } finally {
+          if (s) { sessions.delete(s); await s.end().catch((e) => log('스캔 세션 닫기', id, e.message)) }
+          await fs.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch((e) => log('스캔 세션 폴더 지우기', dir, e.message))
+        }
+      })
+      await chain
+      // 장부 — 바꾼 줄의 고르기를 처음 값(넣음 · 비밀 의심이면 보류)으로 · 수 · 구조안이 있으면 다시 검사
+      if (done.length) {
+        const meta = await hub.meta(id, ctx)
+        const all = (await readManifest(w.seed.pack)).rows
+        const k = await hub.get(id, ctx)
+        const S = readShape(k, await readStructure(meta.dir))
+        await hub.seedEdit(id, run.work, (w0) => {
+          const picks = { ...(w0.seed.picks || {}) }
+          for (const p of done) delete picks[p]
+          const chk = w0.plan ? hub.seedCheckOf(k, S, w0.plan, all, picks) : null
+          const { tried, ...rest } = w0
+          return { ...rest, stage: 'plan', at: new Date().toISOString(), seed: { ...w0.seed, picks, counts: countsOf(all), scanFail: { ...Object.fromEntries(Object.entries(w0.seed.scanFail || {}).filter(([p]) => !done.includes(p))), ...Object.fromEntries(fails.map((x) => [x.path, x.why.slice(0, 200)])) } }, ...(chk ? { check: { ok: chk.ok, stale: chk.stale, fp: S.fp, errors: chk.errors, warnings: chk.warnings, summary: chk.summary } } : {}) }
+        })
+      } else if (fails.length) {
+        await hub.seedEdit(id, run.work, (w0) => ({ ...w0, seed: { ...w0.seed, scanFail: { ...(w0.seed.scanFail || {}), ...Object.fromEntries(fails.map((x) => [x.path, x.why.slice(0, 200)])) } } }))
+      }
+      if (run.state === 'running') Object.assign(run, { state: fails.length && !done.length ? 'fail' : 'done', i: rows.length, ...(fails.length ? { why: `글로 바꾸지 못함 ${fails.length}: ${fails[0].path} · ${fails[0].why}`.slice(0, 300) } : {}) })
+      say(`끝: 바꿈 ${done.length}${fails.length ? ` · 못 바꿈 ${fails.length}` : ''}`, fails.length ? 'warn' : 'ok')
+    } finally {
+      run.kill = null
+      await Promise.all([...sessions].map((s) => s.end().catch((e) => log('스캔 세션 닫기', id, e.message))))
+      if (run.state === 'cancelled') say('그만뒀다', 'warn')
+      await seedCostLine(id, run)
     }
   }
   // 글이 바뀌면 연습 판 결과(tried) · 실은 글(texts)을 걷는다 — 넣기는 다시 해 본 글만 넣는다
@@ -3662,17 +3752,20 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (inside(full, path.resolve(root)) || inside(path.resolve(root), full)) throw new KmdError('E_INPUT', '지식 폴더(또는 그것을 품은 폴더)는 재료로 쓰지 않는다')
       if (inside(full, path.resolve(dataDir)) || inside(path.resolve(dataDir), full)) throw new KmdError('E_INPUT', 'kmd 살림 폴더는 재료로 쓰지 않는다')
       const openOk = (w0) => seedOpenOk(ctx, w0)
-      openOk(await hub.shapeWork(id))
+      const wPrev = await hub.shapeWork(id)
+      openOk(wPrev)
+      // 앞 조사의 이 PC 꾸러미 — 지문이 같은 파일의 재료 글을 다시 쓴다(바탕 설계 Z11)
+      const reuse = wPrev && !wPrev.broken && wPrev.kind === 'seed' && wPrev.seed?.own && wPrev.seed.pack ? wPrev.seed.pack : null
       // 도는 일 자리 — 확인과 자리 잡기 사이에 await 를 두지 않는다(같은 때 온 두 조사가 같은 꾸러미에 쓰지 않게)
       const run0 = seedRuns.get(id)
-      if (run0?.state === 'running') throw new KmdError('E_CONFLICT', `${{ survey: '조사하는', plan: '구조안을 짓는', write: '글을 짓는' }[run0.kind]} 중이다: 끝난 뒤에 다시 건다`)
+      if (run0?.state === 'running') throw new KmdError('E_CONFLICT', `${SEED_RUN_WORD[run0.kind] || '도는'} 중이다: 끝난 뒤에 다시 건다`)
       const run = { kind: 'survey', state: 'running', i: 0, n: 0, by: ctx.user, at: new Date().toISOString(), dir: full, packed: false }
       seedRuns.set(id, run)
       let packed
       try {
         packed = await isPack(full)
         run.packed = packed
-        // 한도(메뉴개편 8-1 b · 폴더 들이기와 같음) — 꾸러미는 한도가 없다(세션 스킬이 이미 글로 바꿨다)
+        // 한도 없음(바탕 설계 Z11 · 2026-11-23) — 미리 세어 칩 · 큰 원본 경고에 쓴다. 안전 상한(SEED_FILE_CAP)만 막는다
         if (!packed) {
           let n = 0
           let bytes = 0
@@ -3681,16 +3774,17 @@ ${genRulesBlock({ profile: 'shape' })}`
               if (/^(\.|~\$)|^(node_modules|Thumbs\.db|desktop\.ini)$/i.test(e.name)) continue
               if (e.isDirectory()) await walk(path.join(d, e.name))
               else if (e.isFile()) { n++; bytes += (await fs.stat(path.join(d, e.name))).size }
-              if (n > MAX_FILES || bytes > MAX_BYTES) return
+              if (n > SEED_FILE_CAP) return
             }
           }
           await walk(full)
-          if (n > MAX_FILES || bytes > MAX_BYTES) throw new KmdError('E_INPUT', `파일이 많다: 이 화면은 ${MAX_FILES} 파일 · 200MB 까지 연다. Claude Code 에서 kmd-seed 스킬로 짜임 꾸러미를 만든 뒤 그 꾸러미 폴더 경로를 넣는다`, { details: { big: true, files: n, bytes } })
+          if (n > SEED_FILE_CAP) throw new KmdError('E_INPUT', `파일이 ${SEED_FILE_CAP.toLocaleString()} 개를 넘는다: 하위 폴더를 고른다`, { details: { cap: true, files: n } })
           if (!n) throw new KmdError('E_INPUT', '빈 폴더다')
           run.n = n
+          run.big = { files: n, bytes, warn: n > SEED_BIG.files || bytes > SEED_BIG.bytes }
         }
       } catch (e) {
-        Object.assign(run, { state: 'fail', why: e.message, ...(e.details?.big ? { big: e.details } : {}) })
+        Object.assign(run, { state: 'fail', why: e.message, ...(e.details?.cap ? { cap: e.details } : {}) })
         throw e
       }
       const work = crypto.randomBytes(6).toString('hex')
@@ -3711,7 +3805,7 @@ ${genRulesBlock({ profile: 'shape' })}`
           } else {
             pack = mine
             await fs.mkdir(pack, { recursive: true })
-            const r = await survey(full, { out: pack, log: (m) => { const x = /(\d+)\/(\d+)/.exec(String(m)); if (x) run.i = Number(x[1]) } })
+            const r = await survey(full, { out: pack, reuse, stop: () => run.state !== 'running', log: (m) => { const x = /(\d+)\/(\d+)/.exec(String(m)); if (x) run.i = Number(x[1]); const y = /다시 씀 (\d+)/.exec(String(m)); if (y) run.reused = Number(y[1]) } })
             rows = r.rows
           }
           run.i = run.n
@@ -3873,12 +3967,35 @@ ${genRulesBlock({ profile: 'shape' })}`
       })
       return hub.seedView(ctx, id)
     },
+    // 스캔 글 바꾸기(POST seed/scan { paths[] } · 바탕 설계 Z11) — 개인 · 일을 연 지식관리자 · 이 PC 가 조사한 꾸러미의 글 없는 스캔 줄만 · 도는 일 하나
+    async seedScan(ctx, id, { paths } = {}) {
+      if (mode === 'team') throw new KmdError('E_FORBIDDEN', '팀은 스캔을 글로 바꾸지 않는다')
+      const { w } = await hub.seedOwn(ctx, id)
+      if (!Array.isArray(paths) || !paths.length || paths.length > 5000 || paths.some((p) => typeof p !== 'string' || p.length > 1000)) throw new KmdError('E_INPUT', 'paths 는 스캔 파일 경로 목록이다')
+      const st = hub.shapeClaudeState(id, { seed: true })
+      if (!st.ok) throw new KmdError('E_FORBIDDEN', st.why)
+      const byPath = new Map((await hub.seedRowsOf(w)).map((r) => [r.path, r]))
+      const rows = []
+      for (const p of new Set(paths)) {
+        const r = byPath.get(p)
+        const why = scanOff(w, r)
+        if (why) throw new KmdError('E_INPUT', `${String(p).slice(0, 80)}: ${why}`)
+        rows.push(r)
+      }
+      if (seedTeamBusy(w)) throw new KmdError('E_CONFLICT', '팀 일꾼이 짓는 중이다')
+      const run0 = seedRuns.get(id)
+      if (run0?.state === 'running') throw new KmdError('E_CONFLICT', `${SEED_RUN_WORD[run0.kind] || '도는'} 중이다: 끝나거나 그만둔 뒤에 다시 건다`)
+      const run = { kind: 'scan', state: 'running', i: 0, n: rows.length, by: ctx.user, at: new Date().toISOString(), work: w.work, tries: 0, paths: rows.map((r) => r.path).slice(0, 5000) }
+      seedRuns.set(id, run)
+      pcSeedScan(ctx, id, run, { w, rows }).catch((e) => { log('기초 세우기 스캔', id, e.message); if (run.state === 'running') Object.assign(run, { state: 'fail', why: e.message }) })
+      return { started: true, view: await hub.seedView(ctx, id) }
+    },
     // 구조안(POST seed/plan { mode: claude · folder · hand, plan?, note? }) — claude 는 이 PC 의 claude -p(도는 일 · GET seed 로 본다)
     async seedPlan(ctx, id, { mode: how, plan = null, note = '' } = {}) {
       const { meta, w } = await hub.seedOwn(ctx, id)
       if (!['claude', 'folder', 'hand'].includes(how)) throw new KmdError('E_INPUT', 'mode 는 claude · folder · hand')
       const run0 = seedRuns.get(id)
-      if (run0?.state === 'running') throw new KmdError('E_CONFLICT', `${{ survey: '조사하는', plan: '구조안을 짓는', write: '글을 짓는' }[run0.kind]} 중이다: 끝나거나 그만둔 뒤에 다시 건다`)
+      if (run0?.state === 'running') throw new KmdError('E_CONFLICT', `${SEED_RUN_WORD[run0.kind] || '도는'} 중이다: 끝나거나 그만둔 뒤에 다시 건다`)
       if (seedTeamBusy(w)) throw new KmdError('E_CONFLICT', '팀 일꾼이 짓는 중이다: 끝나거나 그만둔 뒤에 다시 건다')
       const rows = await hub.seedRowsOf(w)
       if (!rows.some((r) => r.src && pickOf(r, w.seed.picks) === '넣음' && r.role !== '비밀 의심')) throw new KmdError('E_INPUT', '넣음으로 고른 파일이 없다')
@@ -3960,7 +4077,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const st = hub.shapeClaudeState(id, { seed: true })
       if (!st.ok) throw new KmdError('E_FORBIDDEN', st.why)
       if (st.old) throw new KmdError('E_CONFLICT', '팀 일꾼 판이 옛것이다: 손으로 쓰거나 일꾼을 다시 설치한다')
-      if (run0?.state === 'running') throw new KmdError('E_CONFLICT', `${{ survey: '조사하는', plan: '구조안을 짓는', write: '글을 짓는' }[run0.kind]} 중이다`)
+      if (run0?.state === 'running') throw new KmdError('E_CONFLICT', `${SEED_RUN_WORD[run0.kind] || '도는'} 중이다`)
       if (seedTeamBusy(w)) throw new KmdError('E_CONFLICT', '팀 일꾼이 짓는 중이다: 끝나거나 그만둔 뒤에 다시 건다')
       let list
       if (all) {
@@ -4039,7 +4156,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const k = await hub.get(id, ctx)
       const own = k.docs.filter((d) => d.id !== RECORDS_DOC).length
       const r0 = mode === 'team' ? null : seedRuns.get(id)
-      let run = r0 ? { kind: r0.kind, state: r0.state, i: r0.i, n: r0.n, by: r0.by, at: r0.at, ...(r0.doc ? { doc: r0.doc } : {}), ...(r0.why ? { why: r0.why } : {}), ...(r0.big ? { big: r0.big } : {}), ...(r0.tries ? { tries: r0.tries } : {}), ...(r0.hold ? { hold: r0.hold } : {}) } : null
+      let run = r0 ? { kind: r0.kind, state: r0.state, i: r0.i, n: r0.n, by: r0.by, at: r0.at, ...(r0.doc ? { doc: r0.doc } : {}), ...(r0.why ? { why: r0.why } : {}), ...(r0.big ? { big: r0.big } : {}), ...(r0.cap ? { cap: r0.cap } : {}), ...(r0.reused ? { reused: r0.reused } : {}), ...(r0.paths ? { paths: r0.paths } : {}), ...(r0.tries ? { tries: r0.tries } : {}), ...(r0.hold ? { hold: r0.hold } : {}) } : null
       const w = await hub.shapeWork(id)
       let work = null
       if (w?.broken) work = { broken: true }
@@ -4056,7 +4173,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         work = {
           work: w.work, by: w.by, mine: w.by === ctx.user, stage: w.stage, ui: w.seed.ui, top: seedReach(w), src: w.seed.src, packed: !!w.seed.packed, at: w.at, opened: w.opened,
           counts: w.seed.counts, mode: w.seed.mode,
-          rows: rows ? rows.slice(0, 5000).map((r) => ({ path: r.path, size: r.size, role: r.role, pick: pickOf(r, picks), auto: r.pick, src: r.src || null, chars: r.chars || 0, form: r.form || null, date: r.date || null, group: r.group || null, ...(r.same ? { same: r.same } : {}), ...(r.secret ? { secret: r.secret.map((x) => x.why) } : {}), ...(r.why ? { why: r.why } : {}) })) : null,
+          rows: rows ? rows.slice(0, 5000).map((r) => ({ path: r.path, size: r.size, role: r.role, pick: pickOf(r, picks), auto: r.pick, src: r.src || null, chars: r.chars || 0, form: r.form || null, date: r.date || null, group: r.group || null, ...(r.same ? { same: r.same } : {}), ...(r.secret ? { secret: r.secret.map((x) => x.why) } : {}), ...(r.why ? { why: r.why } : {}), ...(r.scan ? { scan: true } : {}), ...(r.scanNeed ? { scanNeed: true, ...(scanOff(w, r) ? { scanWhy: scanOff(w, r) } : {}), ...(w.seed.scanFail?.[r.path] ? { scanFail: w.seed.scanFail[r.path] } : {}) } : {}) })) : null,
           ...(rowsErr ? { rowsErr } : {}),
           plan: w.plan ? { docs: w.plan.docs.filter((d) => !d.was).map((d) => ({ id: d.id, items: d.items.map((it) => ({ h: it.h, src: it.src || [], ...(typeof it.text === 'string' ? { text: true } : {}) })) })), names: w.plan.names, skip: w.plan.skip } : null,
           check: w.check ? { ok: w.check.ok, errors: w.check.errors || [], warnings: w.check.warnings || [] } : null,
@@ -4091,7 +4208,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         const ser = await hub.seedSeries(id).catch((e) => { log('기초 세우기: 이어 올리기 장부', id, e.message); return null })
         team = { day, cost, upload, series: ser ? ser.groups.length : 0 }
       }
-      return { kn: id, name: meta.name, own, claude: hub.shapeClaudeState(id, { seed: true }), run, work, limit: { files: MAX_FILES, bytes: MAX_BYTES }, ...(team ? { team } : {}) }
+      return { kn: id, name: meta.name, own, claude: hub.shapeClaudeState(id, { seed: true }), run, work, limit: mode === 'team' ? { files: MAX_FILES, bytes: MAX_BYTES } : { cap: SEED_FILE_CAP, big: SEED_BIG }, ...(team ? { team } : {}) }
     },
     // 만들던 것(GET /api/seed/open) — 내가 지식관리자인 지식의 열린 기초 세우기(조사 중 포함)
     async seedOpen(ctx) {

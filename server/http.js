@@ -1150,7 +1150,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     // 기초 세우기(TODO 9 · 10 · Z7 · Z8 · 바탕 설계 5-3 · 메뉴개편 8-2 · 권한 모델 7절) — 그 지식의 지식관리자
     //   POST /api/shape/survey { kn, dir } 원본 조사(또는 kmd-seed 꾸러미 열기) · 팀은 { kn, group } 닫힌 올리기 묶음으로 일을 연다(경로를 받지 않는다) · GET /api/seed/open 만들던 것 · GET /api/k/:id/seed 보기 ·
-    //   POST seed/pick { picks } · seed/plan { mode, plan?, note? } · seed/write { doc?, all?, items?, approve?, stop? } · seed/try · seed/step { ui } ·
+    //   POST seed/pick { picks } · seed/scan { paths }(스캔 글 바꾸기 · 개인 · Z11) · seed/plan { mode, plan?, note? } · seed/write { doc?, all?, items?, approve?, stop? } · seed/try · seed/step { ui } ·
     //   GET seed/feed?after=<번호>&sid=<일> 동작 내역(Z9 · Claude 세션 흐름 · 개인 프로그램) ·
     //   넣기 · 그만두기는 짜임 길(shape/put · shape/stop) 그대로. 걸음 내용은 받지 않는다(서버가 장부의 구조안 · 글로 짓는다)
     if (p === '/api/shape/survey') {
@@ -1162,7 +1162,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.seedSurvey(ctx, b.kn, { dir: b.dir, group: b.group ?? null }))
     }
     if (p === '/api/seed/open') { need(ctx); return out(200, await hub.seedOpen(ctx)) }
-    const sdm = p.match(/^\/api\/k\/([^/]+)\/seed(?:\/(pick|plan|write|try|step|feed))?$/)
+    const sdm = p.match(/^\/api\/k\/([^/]+)\/seed(?:\/(pick|scan|plan|write|try|step|feed))?$/)
     if (sdm) {
       need(ctx)
       const kn = dec(sdm[1])
@@ -1184,6 +1184,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const b = await readBody(req)
       if (!b || typeof b !== 'object' || Array.isArray(b)) throw new KmdError('E_INPUT', '몸은 { … } 이다')
       if (sdm[2] === 'pick') return out(200, await hub.seedPick(ctx, kn, { picks: b.picks }))
+      if (sdm[2] === 'scan') return out(200, await hub.seedScan(ctx, kn, { paths: b.paths }))
       if (sdm[2] === 'plan') return out(200, await hub.seedPlan(ctx, kn, { mode: b.mode, plan: b.plan ?? null, note: b.note ?? '' }))
       if (sdm[2] === 'write') return out(200, await hub.seedWrite(ctx, kn, { doc: b.doc ?? null, all: b.all === true, items: b.items ?? null, approve: b.approve ?? null, stop: b.stop === true }))
       if (sdm[2] === 'try') return out(200, await hub.seedTry(ctx, kn))

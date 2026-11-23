@@ -526,8 +526,9 @@ const TIPS = {
   'kd.repo': ['지식마다 붙이는 git 저장소다. 저장할 때마다 kmd 가 보낸다 · 비었거나 이 지식의 지난 이력이어야 붙는다 · 주소 속 열쇠는 가린다', ''],
   'mg.seed': ['빈 지식을 폴더째 재료로 한 번에 세운다. 파일 몇 개는 생성 › 수기수집', ''],
   'sd.kn': ['문서가 없는 지식에만 세운다. 먼저 수기수집으로 넣은 지식은 고를 수 없다 · [넣기] 전에는 지식이 바뀌지 않는다', ''],
-  'sd.src': ['이 PC 의 폴더 경로. kmd-seed 스킬이 만든 짜임 꾸러미 폴더도 같은 칸에 넣는다', ''],
-  'sd.big': ['이 화면은 한 번에 300 파일 · 200MB 까지 연다. 넘으면 Claude Code 에서 kmd-seed 스킬로 짜임 꾸러미를 만든 뒤 그 폴더를 넣는다', ''],
+  'sd.src': ['이 PC 의 폴더 경로. 짜임 꾸러미 폴더도 같은 칸에 넣는다', ''],
+  'sd.big': ['한도는 없다. 1,000 파일 · 1GB 를 넘으면 조사 · 구조안이 오래 걸린다(하위 폴더로 나눠 세워도 된다). 다시 조사하면 바뀌지 않은 파일은 글로 다시 바꾸지 않는다. 20,000 파일이 넘는 폴더는 열지 않는다', ''],
+  'sd.scan': ['글 층이 없는 pdf · 그림을 이 PC 의 Claude 가 읽어 글로 옮긴다(원본이 Claude 로 간다 · 파일마다 세션 하나). 바꾼 글로 지은 항목은 짓기에서 「스캔 근거」 로 본다', ''],
   'sd.claude': ['비밀 의심 파일은 보내지 않는다. 구조안 · 글을 지을 때 고른 파일의 글이 이 PC 의 Claude 로 간다', ''],
   'sd.up': ['폴더나 파일을 팀 서버로 올린다. 서버가 파일마다 글로 바꿔 두고 원본은 두지 않는다 · 올린 뒤 조사(판 · 같은 글 · 비밀 의심)', ''],
   'sd.bigT': ['한 묶음 300 파일 · 200MB. 넘으면 나눠 올린다: 앞 묶음을 넣은 뒤 같은 지식에 다음 묶음(묶음마다 구조안 승인). 스캔 · 아주 큰 대량은 Claude Code 의 kmd-seed', ''],
@@ -535,7 +536,7 @@ const TIPS = {
   'sd.cost': ['팀 일꾼 일: 구조안 1 + 글을 지을 문서마다 1. 하루 한도(지식마다)를 넘으면 내일 잇거나 손으로 쓴다 · 폴더 그대로는 0', ''],
   'sd.worker': ['열 분 안에 일감을 물은 팀 일꾼이 없거나 짜임 일감을 모른다. 폴더 그대로 · 손으로 짜거나 설정 › 팀 일꾼', ''],
   'sd.idle': ['24시간 걸음이 없던 기초 세우기. 지은 것은 그대로다 · 다른 지식관리자가 새로 열 수 있다', ''],
-  'sd.pick': ['넣음: 글로 쓴다 · 근거만: 값을 견줄 때만 · 빼기: 쓰지 않는다 · 보류: 이번에는 둔다. 옛 판 · 같은 글은 빼기, 비밀 의심 · 스캔은 보류가 처음 값', ''],
+  'sd.pick': ['넣음: 글로 쓴다 · 근거만: 값을 견줄 때만 · 빼기: 쓰지 않는다 · 보류: 이번에는 둔다. 옛 판 · 같은 글은 빼기, 비밀 의심 · 스캔은 보류가 처음 값. 스캔은 [글로 바꾸기] 뒤 넣음', ''],
   'sd.feed': ['Claude 가 지금 하는 일: 읽는 재료 · 생각 · 답 · kmd 의 검사. 이 PC 의 메모리에만 있다(다시 켜면 사라진다)', ''],
   'sd.plan': ['어떤 문서 · 항목을 세울지. 문서 이름은 여기서 고친다 · 걸림이 0 이어야 다음으로', ''],
   'sd.mode': ['Claude 안: 파일을 대상 · 주제로 다시 묶는다 · 폴더 그대로: 파일 하나가 문서 하나(Claude 를 부르지 않는다)', ''],
@@ -1414,15 +1415,17 @@ function sdKnHtml(d) {
   const going = mine.length ? `<div class="card" data-t="sdOpen"><div class="ch">만들던 것 <small>${mine.length}</small></div><ul class="plain pl">${mine.map((x) => `<li><span class="nm"><b>${esc(x.name)}</b> <small>${esc(SD_STEPS[x.ui] || '')}</small></span><button type="button" class="btn sm" data-a="sdResume" data-k="${esc(x.kn)}" data-t="sdResume">이어 하기</button></li>`).join('')}</ul></div>` : d.openErr ? `<div class="callout danger err" data-t="sdOpenErr"><b>${esc(d.openErr)}</b><button type="button" class="btn sm retry" data-a="sdOpenRetry" data-t="retry">다시 읽기</button></div>` : ''
   return `<div role="radiogroup" aria-label="빈 지식" data-t="sdKns">${rows || '<p class="muted" data-t="sdNoKn">지식이 없다</p>'}</div>${!isTeam() || isBoss() ? '<div class="row u-g3"><button type="button" class="btn" data-a="openAdd" data-t="sdAdd">+ 새 지식</button></div>' : ''}${going}`
 }
-// b 재료 — 경로 칸 · 한도 칩 · Claude 로 글이 간다
+// b 재료 — 경로 칸 · 조사한 크기 칩 · 큰 원본 경고(막지 않음 · 바탕 설계 Z11) · Claude 로 글이 간다
+const sdSize = (b) => (b >= 1 << 30 ? `${(b / (1 << 30)).toFixed(1)}GB` : `${Math.max(1, Math.round(b / 1048576))}MB`)
 function sdSrcHtml(d) {
   if (isTeam()) return sdUpHtml(d)
-  const r = d.v && d.v.run, w = sdWork(d), lim = d.v ? d.v.limit : { files: 300, bytes: 200 << 20 }
-  if (r && r.kind === 'survey' && r.state === 'running') return sdRunHtml(d, `조사하는 중${r.n ? ` ${r.i}/${r.n}` : ''}`)
-  const big = r && r.kind === 'survey' && r.state === 'fail' && r.big
-  const fail = r && r.kind === 'survey' && r.state === 'fail' && !big ? sdRunFail(d, 'survey') : ''
+  const r = d.v && d.v.run, w = sdWork(d), lim = (d.v && d.v.limit && d.v.limit.big) || { files: 1000, bytes: 1 << 30 }
+  const sz = r && r.kind === 'survey' && r.big ? r.big : w && w.counts ? { files: w.counts.files, bytes: w.counts.bytes } : null
+  const warn = sz && (sz.files > lim.files || sz.bytes > lim.bytes) ? `<div class="callout warn" data-t="sdBig"><i></i><span>크다: 조사 · 구조안이 오래 걸린다</span>${tipb('sd.big', '큰 폴더')}</div>` : ''
+  if (r && r.kind === 'survey' && r.state === 'running') return sdRunHtml(d, `조사하는 중${r.n ? ` ${r.i}/${r.n}` : ''}${r.reused ? ` · 다시 씀 ${r.reused}` : ''}`) + warn
+  const fail = sdRunFail(d, 'survey')
   const val = d.path || (w && w.src) || ''
-  return `<div class="field"><label for="sdPath">재료 경로</label><input class="inp mono" id="sdPath" data-in="sdPath" data-t="sdPath" value="${esc(val)}" placeholder="D:\\자료\\…" autocomplete="off"></div><div class="row u-g3 u-wrap"><span class="chip c-mute" data-t="sdLimit">${lim.files} 파일 · ${Math.round(lim.bytes / 1048576)}MB</span>${tipb('sd.big', '큰 폴더')}</div>${big ? `<div class="callout warn" data-t="sdBig"><i></i><span>파일 ${big.files}${big.files > lim.files ? '+' : ''} · 한도 넘음 <code>kmd-seed ${esc(val)}</code></span></div>` : ''}${fail}<div class="callout warn" data-t="sdClaudeNote"><i></i><span>글은 이 PC 의 Claude 로 간다</span>${tipb('sd.claude', 'Claude')}</div>`
+  return `<div class="field"><label for="sdPath">재료 경로</label><input class="inp mono" id="sdPath" data-in="sdPath" data-t="sdPath" value="${esc(val)}" placeholder="D:\\자료\\…" autocomplete="off"></div><div class="row u-g3 u-wrap">${sz ? `<span class="chip c-mute" data-t="sdLimit">${sz.files.toLocaleString()} 파일 · ${sdSize(sz.bytes)}</span>` : ''}${tipb('sd.big', '큰 폴더')}</div>${warn}${fail}<div class="callout warn" data-t="sdClaudeNote"><i></i><span>글은 이 PC 의 Claude 로 간다</span>${tipb('sd.claude', 'Claude')}</div>`
 }
 // b 재료(팀 · 메뉴개편 8-2 b) — 폴더 · 파일 올리기(끌어다 놓기) · 한도 칩은 늘 · 넘으면 나눠 올리기 · kmd-seed (!) · 원본은 팀 서버로 간다(경고 한 줄)
 function sdUpHtml(d) {
@@ -1451,11 +1454,18 @@ function sdPickHtml(d, w) {
   if (w.rowsErr) return errHtml(w.rowsErr, null)
   const n = (p) => rows.filter((r) => r.pick === p).length
   const role = (r) => r.role === '정본' ? '' : r.role === '비밀 의심' ? `<span class="chip c-warn" title="${esc((r.secret || []).join(' · '))}" data-t="sdSecret">비밀 의심</span>` : r.role === '못 읽음' || r.role === '그림' || (r.role === '스캔' && !r.src) ? `<span class="chip c-mute" title="${esc(r.why || '')}">${esc(r.role)}</span>` : `<span class="chip c-mute">${esc(r.role)}</span>`
+  // 스캔 글 바꾸기(바탕 설계 Z11) — 글 없는 스캔 줄 · Claude 가 되고 도는 일이 없을 때
+  const r0 = d.v.run, scanRun = r0 && r0.kind === 'scan' && r0.state === 'running', cok = sdClaudeOk(d.v.claude)
+  const scanOff = d.busy || sdRunning(d) || !cok
+  const scans = rows.filter((r) => r.scanNeed && !r.src && !r.scanWhy)
+  const scanBtn = (r, i) => (r.scanNeed && !r.src ? `<button type="button" class="btn sm" data-a="sdScan" data-v="${i}" data-t="sdScanOne"${scanOff || r.scanWhy ? ' disabled' : ''}${r.scanWhy || !cok ? ` title="${esc(r.scanWhy || (d.v.claude && d.v.claude.why) || 'Claude 를 쓸 수 없다')}"` : ''}>글로 바꾸기</button>${r.scanFail ? ` <span class="small muted" data-t="sdScanFail" title="${esc(r.scanFail)}">못 바꿈</span>` : ''}` : '')
   const body = rows.map((r, i) => {
     const lock = !r.src || r.role === '비밀 의심'
-    return `<tr data-t="sdRow"><td><select class="inp" data-sdpick="${i}" aria-label="${esc(r.path)} 고르기" data-t="sdPick">${SD_PICKS.map((p) => `<option${r.pick === p ? ' selected' : ''}${lock && (p === '넣음' || p === '근거만') ? ' disabled' : ''}>${p}</option>`).join('')}</select></td><td class="mono sd-path" title="${esc(r.path)}">${esc(r.path)}</td><td>${role(r)}</td><td class="u-tr mono small">${r.chars ? r.chars.toLocaleString() : '-'}</td></tr>`
+    return `<tr data-t="sdRow"><td><select class="inp" data-sdpick="${i}" aria-label="${esc(r.path)} 고르기" data-t="sdPick">${SD_PICKS.map((p) => `<option${r.pick === p ? ' selected' : ''}${lock && (p === '넣음' || p === '근거만') ? ' disabled' : ''}>${p}</option>`).join('')}</select></td><td class="mono sd-path" title="${esc(r.path)}">${esc(r.path)}</td><td><span class="row u-g3 sd-acts">${role(r)}${scanBtn(r, i)}</span></td><td class="u-tr mono small">${r.chars ? r.chars.toLocaleString() : '-'}</td></tr>`
   }).join('')
-  return `<div class="row u-g3 u-wrap" data-t="sdPickSum">${chipOf('ok', `넣음 ${n('넣음')}`)}<span class="chip c-mute">근거만 ${n('근거만')}</span><span class="chip c-mute">빼기 ${n('빼기')}</span><span class="chip c-mute">보류 ${n('보류')}</span><button type="button" class="btn sm" data-a="sdPickAll" data-t="sdPickAll"${d.busy ? ' disabled' : ''}>모두 넣기</button></div><div class="tblwrap"><table class="t" data-t="sdRows"><thead><tr><th>고르기</th><th>파일</th><th><span class="sr-only">판</span></th><th class="u-tr">글자</th></tr></thead><tbody>${body}</tbody></table></div>`
+  const scanTop = scans.length ? `<button type="button" class="btn sm" data-a="sdScan" data-v="all" data-t="sdScanAll"${scanOff ? ' disabled' : ''}${cok ? '' : ` title="${esc((d.v.claude && d.v.claude.why) || 'Claude 를 쓸 수 없다')}"`}>스캔 ${scans.length} 글로 바꾸기</button>${tipb('sd.scan', '스캔')}` : ''
+  const scanLine = scanRun ? sdRunHtml(d, `스캔을 글로 바꾸는 중 ${r0.i}/${r0.n}`) : sdRunFail(d, 'scan')
+  return `<div class="row u-g3 u-wrap" data-t="sdPickSum">${chipOf('ok', `넣음 ${n('넣음')}`)}<span class="chip c-mute">근거만 ${n('근거만')}</span><span class="chip c-mute">빼기 ${n('빼기')}</span><span class="chip c-mute">보류 ${n('보류')}</span><button type="button" class="btn sm" data-a="sdPickAll" data-t="sdPickAll"${d.busy || scanRun ? ' disabled' : ''}>모두 넣기</button>${scanTop}</div>${scanLine}<div class="tblwrap"><table class="t" data-t="sdRows"><thead><tr><th>고르기</th><th>파일</th><th><span class="sr-only">판</span></th><th class="u-tr">글자</th></tr></thead><tbody>${body}</tbody></table></div>`
 }
 // d 구조안 — Claude 안 · 폴더 그대로 · 문서 이름은 손으로 고친다 · 검사(걸림 · 경고)
 function sdPlanHtml(d, w) {
@@ -7092,6 +7102,13 @@ const ACT = {
   sdPlan: (el) => { const d = sdState(); if (el.getAttribute('aria-checked') === 'true' && el.dataset.v === 'folder') return; sdDo('plan', () => postJSON(sdUrl(d.kn, 'plan'), { mode: el.dataset.v })) },
   sdWriteOne: (el) => { const d = sdState(), w = sdWork(d), x = w && w.docs[Number(el.dataset.v)]; if (x) sdDo('write', () => postJSON(sdUrl(d.kn, 'write'), { doc: x.id })) },
   sdWriteAll: () => { const d = sdState(); sdDo('write', () => postJSON(sdUrl(d.kn, 'write'), { all: true })) },
+  sdScan: (el) => {
+    const d = sdState(), w = sdWork(d)
+    if (!w) return
+    const rows = w.rows || []
+    const paths = el.dataset.v === 'all' ? rows.filter((r) => r.scanNeed && !r.src && !r.scanWhy).map((r) => r.path) : [rows[Number(el.dataset.v)]].filter(Boolean).map((r) => r.path)
+    if (paths.length) sdDo('scan', () => postJSON(sdUrl(d.kn, 'scan'), { paths }))
+  },
   sdStopRun: () => { const d = sdState(); sdDo('stop', () => postJSON(sdUrl(d.kn, 'write'), { stop: true })) },
   sdApprove: (el) => { const d = sdState(), w = sdWork(d), x = w && w.docs[Number(el.dataset.v)]; if (x) sdDo('approve', () => postJSON(sdUrl(d.kn, 'write'), { approve: x.id })) },
   sdPeek: (el) => sdPeek(Number(el.dataset.v)),
