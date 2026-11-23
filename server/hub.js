@@ -1092,7 +1092,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     run.made = []
     return costLine(id, { ch: 'shape', kind: run.kind === 'plan' ? 'seed-plan' : run.kind === 'scan' ? 'seed-scan' : 'seed-write', by: run.by || null, usd: made.reduce((a, x) => a + (Number(x.cost) || 0), 0), calls: made.length, turns: made.reduce((a, x) => a + (Number(x.turns) || 0), 0) })
   }
-  const SEED_SESSION_BUDGET = () => (Number(process.env.KMD_SEED_BUDGET) > 0 ? Number(process.env.KMD_SEED_BUDGET) : 5)
+  const SEED_SESSION_BUDGET = () => (Number(process.env.KMD_SEED_BUDGET) > 0 ? Number(process.env.KMD_SEED_BUDGET) : 10)
   // 세션 폴더 — 재료.tsv · md/<16자>.md(쓰는 재료의 사본) · cards/<16자>.json(카드가 있으면). 꾸러미 · 장부 · 지식 폴더는 넣지 않는다
   async function seedSessionDir(pack, g, cards, f) {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'kmd-seed-'))
