@@ -862,23 +862,6 @@ ol,ul{padding:0;list-style:none}
 .pvb{margin-top:clamp(18px,2.4vw,28px);text-align:center;font-size:clamp(17px,2vw,22px);letter-spacing:-.02em;color:var(--sub)}
 .pvb b{color:var(--ink)}
 @media (max-width:760px){.pv{grid-template-columns:1fr}.pvj{margin-left:0}}
-/* ── 채널: 들어오는 길 → 같은 절차(LLM 세션 · 코드 · 사람 승인) → 지식 ── */
-.ch3{min-width:720px;display:grid;grid-template-columns:minmax(0,1.05fr) auto minmax(0,1.1fr) auto minmax(0,.8fr);gap:clamp(12px,1.8vw,22px);align-items:center;padding:clamp(18px,2.4vw,28px);border-radius:20px;background:var(--sunk)}
-.ch-in,.ch-mid{display:flex;flex-direction:column;gap:12px}
-.ch-g{display:flex;flex-direction:column;gap:7px;padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
-.ch-g small{font-size:12.5px;font-weight:700;color:var(--mute)}
-.ch-g.hu small{color:var(--doc)}
-.ch-g span{font-size:14.5px;font-weight:600;padding:8px 14px;border-radius:999px;background:var(--sunk2);color:var(--ink)}
-.ch-g.hu span{background:var(--surface);border:1.2px solid var(--doc)}
-.ch-a{font-style:normal;font-size:20px;color:var(--mute)}
-.ch-s{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:16px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
-.ch-s b{font-size:17px;letter-spacing:-.02em}.ch-s span{font-size:13.5px;color:var(--sub)}
-.ch-s.llm{background:var(--ink);border-color:var(--ink);color:var(--bg)}.ch-s.llm span{color:var(--bg);opacity:.75}
-.ch-s.ok{background:var(--item-t);border-color:transparent}.ch-s.ok b{color:var(--item)}
-.ch-out{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:26px 16px;border-radius:18px;background:var(--surface);border:2px solid var(--ink)}
-.ch-out b{font-size:22px;letter-spacing:-.03em}
-.ch-k{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-.ch-out small{font-size:13px;color:var(--sub)}
 @media (max-width:900px){.pos{grid-template-columns:1fr}}
 
 /* ── 맺음 ── */
@@ -911,8 +894,17 @@ ol,ul{padding:0;list-style:none}
 .pts li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:16px 0;border-top:1px solid var(--line2)}
 .pts b{display:block;font-size:18px;letter-spacing:-.02em;line-height:1.35}
 .pts span{display:block;margin-top:3px;color:var(--sub);font-size:14.5px;line-height:1.5}
-.savew{display:grid;place-items:center;padding:clamp(20px,3vw,40px);border-radius:16px;background:var(--sunk);border:1px solid var(--line)}
-.savew .sf{max-width:720px;width:100%}
+.gpair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(14px,2vw,24px)}
+.gcap{margin:0 0 16px 34px;font:600 13px/1 var(--mono);color:var(--mute)}
+.chn{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:clamp(16px,2vw,24px)}
+.chcol{display:grid;gap:clamp(16px,2vw,24px);align-content:start}
+.chc{border:1px solid var(--line2);border-radius:14px;background:var(--surface);padding:18px;box-shadow:var(--sh2)}
+.chh{display:flex;align-items:center;gap:10px}.chh b{font-size:20px;letter-spacing:-.02em}
+.chh span{font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--sunk2);color:var(--sub)}
+.chc p{margin:6px 0 14px;color:var(--sub);font-size:14.5px;line-height:1.5}
+.chc figure{margin:0}.chc img{width:100%;display:block;border-radius:10px;border:1px solid var(--line2)}
+.chi2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.chi2 figcaption{margin-top:8px;font-size:13px;color:var(--sub)}
 .sflow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line);font-size:13.5px;font-weight:600}
 .sflow span{padding:5px 10px;border-radius:999px;background:var(--ct,var(--sunk2));color:var(--c,var(--sub));white-space:nowrap}
 .sflow i{font-style:normal;color:var(--mute)}
@@ -928,8 +920,35 @@ ol,ul{padding:0;list-style:none}
 .ovf{display:flex;align-items:center;gap:14px;margin-top:clamp(28px,4vw,44px);font:500 13px/1 var(--mono);color:var(--mute)}
 .ovf i{flex:1;height:1px;background:var(--line2)}
 .nums b{white-space:nowrap}
-@media (max-width:900px){.side:has(.sf.sm){grid-template-columns:minmax(0,1fr)}.ov{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:520px){.ov{grid-template-columns:minmax(0,1fr)}.sf .sfm{width:22px;height:22px;font-size:11px}.ovf{flex-wrap:wrap}.ovf i{display:none}}
+.evw{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:clamp(24px,3.2vw,48px);align-items:start}
+.evt{display:grid;font-size:14.5px}
+.evr{display:grid;grid-template-columns:minmax(100px,8.5em) minmax(110px,10.5em) minmax(0,1fr) 3.6em;gap:12px;align-items:center}
+.evh{display:grid;grid-template-columns:5.5em minmax(100px,8.5em) minmax(110px,10.5em) minmax(0,1fr) 3.6em;gap:12px;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--line2);font-size:12.5px;font-weight:600;color:var(--mute)}
+.evh span:last-child,.evq{text-align:right}
+.evgb{display:grid;grid-template-columns:5.5em minmax(0,1fr);gap:14px;border-bottom:1px solid var(--line2)}
+.evgl{padding-top:10px;font-size:12.5px;font-weight:700;color:var(--mute)}
+.evr{padding:5px 0;border-bottom:1px solid var(--line)}.evrs .evr:last-child{border-bottom:0}
+.evn{font-weight:600;white-space:nowrap}.evf{font-size:12.5px;color:var(--sub);white-space:nowrap}
+.evb{display:flex;align-items:center;gap:8px;min-width:0}
+.evb i{display:block;height:10px;border-radius:5px;background:var(--line2);flex:none}
+.evb.lo i{background:var(--bad)}
+.evb em{font:600 12.5px/1 var(--mono);font-style:normal;color:var(--sub);white-space:nowrap}
+.evb.lo em{color:var(--bad)}
+.evq{font:700 14px/1 var(--mono);color:var(--item)}
+.evq.lo{color:var(--bad)}.evq.na{font:600 12.5px/1 var(--f);color:var(--mute)}
+.evk{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-block:1px solid var(--line)}
+.evk div{padding:18px 0 18px 14px;border-left:1px solid var(--line);min-width:0}.evk div:first-child{border-left:0;padding-left:0}
+.evk b{display:block;font-size:34px;letter-spacing:-.04em;line-height:1.1;white-space:nowrap}
+.evk span{display:block;margin-top:4px;font-size:13px;color:var(--sub)}
+.evd{margin:18px 0 0;display:grid;gap:8px}.evd div{display:grid;grid-template-columns:4.8em minmax(0,1fr);gap:10px}.evd dt{font-size:13px;font-weight:700;color:var(--ink)}.evd dd{margin:0;font-size:13.5px;line-height:1.5;color:var(--sub)}
+.evs h4{margin:22px 0 4px;font-size:17px;letter-spacing:-.02em}
+.evi{margin:0;padding:0;list-style:none;counter-reset:evi}
+.evi li{counter-increment:evi;display:grid;grid-template-columns:26px minmax(0,1fr);gap:4px 10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.evi li::before{content:counter(evi);grid-row:1 / 3;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--bad-t);color:var(--bad);font:700 12px/1 var(--mono)}
+.evi b{font-size:15.5px}.evi span{font-size:14px;line-height:1.5;color:var(--sub)}
+@media (max-width:600px){.evh{display:none}.evgb{grid-template-columns:minmax(0,1fr);gap:0}.evgl{padding-top:12px}.evr{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n q" "f f" "b b";gap:4px 10px;padding:8px 0}.evn{grid-area:n}.evq{grid-area:q}.evf{grid-area:f;white-space:normal}.evb{grid-area:b}.evk b{font-size:26px}.evd div{grid-template-columns:minmax(0,1fr);gap:2px}}
+@media (max-width:900px){.side:has(.sf.sm),.chn,.gpair,.evw{grid-template-columns:minmax(0,1fr)}.ov{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.ov,.chi2{grid-template-columns:minmax(0,1fr)}.sf .sfm{width:22px;height:22px;font-size:11px}.ovf{flex-wrap:wrap}.ovf i{display:none}}
 </style>
 </head>
 <body>
@@ -957,7 +976,7 @@ ol,ul{padding:0;list-style:none}
 <header class="nav">
   <a class="logo" href="#top"><i>##</i>KMD</a>
   <nav aria-label="구획">
-    <a href="#problem">문제</a><a href="#answer">해결</a><a href="#principle">원칙</a><a href="#screens">산출물</a><a href="#s-doc">문서</a><a href="#s-item">항목</a><a href="#s-rec">기록</a><a href="#s-graph">그래프</a><a href="#s-save">저장</a><a href="#numbers">실측</a>
+    <a href="#problem">문제</a><a href="#answer">해결</a><a href="#principle">원칙</a><a href="#cycle">순환</a><a href="#screens">산출물</a><a href="#s-doc">문서</a><a href="#s-item">항목</a><a href="#s-rec">기록</a><a href="#s-graph">그래프</a><a href="#s-chan">수집</a><a href="#personal">개인 지식</a><a href="#position">비교</a><a href="#eval">평가</a>
   </nav>
   <button class="tgl" type="button" id="tgl" aria-label="밝은 테마 · 어두운 테마 바꾸기"><svg class="ic sun"><use href="#i-sun"/></svg><svg class="ic moon"><use href="#i-moon"/></svg></button>
 </header>
@@ -1092,15 +1111,87 @@ ol,ul{padding:0;list-style:none}
   </div>
 </section>
 
+<!-- 순환 -->
+<section class="sec" id="cycle">
+  <div class="head"><p class="eyebrow"><b>##</b>순환</p>
+  <h2 class="h2">지식이 나오고, 생성되고, 들어가고, 다시 나옵니다</h2></div>
+  <div class="scrollx"><div class="cy2" role="img" aria-label="세션 공간과 KMD 지식 공간 사이를 지식이 도는 그림. 1 나온다: KMD 의 문서 사업현황및이해관계자에서 항목 개소 현황의 지금 글과 히스토리가 세션의 맥락으로 나온다. 2 생성된다: 세션이 일을 하고 기록 초안과 고칠 항목을 만든다. 3 들어간다: 사람이 승인하면 기록과 고칠 항목이 KMD 로 들어간다. 4 다시 나온다: 기록이 하나 쌓이고 항목의 지금 글이 바뀌어 다음 세션에 다시 나온다">
+    <svg class="cyo" aria-hidden="true"><defs><marker id="cymo" viewBox="0 0 10 10" refX="8.6" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1.5 1 L8.6 5 L1.5 9"/></marker><marker id="cymi" viewBox="0 0 10 10" refX="8.6" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1.5 1 L8.6 5 L1.5 9"/></marker></defs><path class="out" marker-end="url(#cymo)"/><circle class="out" r="4.2"/><path class="in" marker-end="url(#cymi)"/><circle class="in" r="4.2"/></svg>
+    <i class="cyd out c-i"></i><i class="cyd in c-r"></i>
+    <div class="sp ses2">
+      <div class="sp-h"><svg class="ic"><use href="#i-bot"/></svg><b>세션 공간</b><span>Claude Code</span></div>
+      <div class="sw">
+        <div class="su">질매 연계 시험 일정 잡아줘<em>업무 시작</em></div>
+        <div class="fg i" data-cy="ctx"><span class="fg-l">맥락 · 나온 항목</span>
+          <div class="ed-body">
+            <div class="ln" data-n="79"><span class="t2">## 개소 현황</span></div>
+            <div class="ln" data-n="85"><span class="tb">| 질매 | … | PLC 설치 10월 말 ~ 11월 초 |</span></div>
+            <div class="ln rec was" data-n="216"><span>- [HNC 통화](../../work/2026-1016-…md)</span></div>
+          </div></div>
+        <div class="vx dn"><i></i><b>② 생성된다</b><small>작업 → 기록 + 고칠 항목</small></div>
+        <div class="dr" data-cy="draft">
+        <div class="fg r"><span class="fg-l">초안 · 기록</span>
+          <div class="ed-body">
+            <div class="ln" data-n="+"><span>title: "질매 연내 테스트 계획: …"</span></div>
+            <div class="ln" data-n="+"><span>touches: [사업현황:개소현황]</span></div>
+            <div class="ln rec" data-n="+"><span>- 질매 전기공사: … → 11월 말 ~ 12월 초</span></div>
+          </div></div>
+        <div class="fg i"><span class="fg-l">초안 · 고칠 항목</span>
+          <div class="ed-body">
+            <div class="ln" data-n="79"><span class="t2">## 개소 현황</span></div>
+            <div class="ln del" data-n="−"><span class="tb">| 질매 | … | PLC 설치 10월 말 ~ 11월 초 |</span></div>
+            <div class="ln add" data-n="+"><span class="tb">| 질매 | … | PLC 설치 <b class="ch">11월 말 ~ 12월 초</b> |</span></div>
+          </div></div>
+        </div>
+        <div class="su">넣어<em>승인</em></div>
+      </div>
+    </div>
+    <div class="cym">
+      <div class="fl out c-i"><b>① 나온다</b><small>지금 글 · 히스토리<code>match · section</code></small></div>
+      <div class="lpi" aria-hidden="true"><svg viewBox="0 0 74 74"><defs><marker id="cyah" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 L6 4 L1 7" fill="none" stroke="currentColor" stroke-width="1.6"/></marker></defs><path d="M12.6 28.1 A26 26 0 0 1 61.4 28.1" marker-end="url(#cyah)"/><path d="M61.4 45.9 A26 26 0 0 1 12.6 45.9" marker-end="url(#cyah)"/></svg><span>순환</span></div>
+      <div class="fl in c-r"><small>기록 + 고칠 항목<code>propose · save</code></small><b>③ 들어간다</b></div>
+    </div>
+    <div class="sp kmd">
+      <div class="sp-h"><svg class="ic"><use href="#i-folder"/></svg><b>KMD 지식 공간</b><span>문서 · 항목 · 기록</span></div>
+      <div class="ed">
+        <div class="ed-bar"><span class="w-dots"><i></i><i></i><i></i></span><span class="ed-tab"><svg class="ic"><use href="#i-file"/></svg>사업현황및이해관계자.md</span><em class="k-d">문서</em></div>
+        <div class="ed-body">
+          <div class="ln" data-n="1"><span class="t1"># 사업 현황 및 이해관계자</span></div>
+          <div class="ib" data-cy="item">
+          <div class="ln" data-n="79"><span class="t2">## 개소 현황<i class="an2">항목</i></span></div>
+          <div class="ln del" data-n="85"><span class="tb">| 질매 | … | PLC 설치 10월 말 ~ 11월 초 |</span></div>
+          <div class="ln add" data-n="85"><span class="tb">| 질매 | … | PLC 설치 <b class="ch">11월 말 ~ 12월 초</b> |</span></div>
+          </div>
+          <div class="ln dim" data-n="138"><span class="t2">## 주요 일정 · 진행</span></div>
+          <div class="ln rec was" data-n="216"><span>- [HNC 통화](../../work/2026-1016-…md)</span></div>
+          <div class="ln rec" data-n="218"><span>- [질매 연내 테스트 계획](../../work/2026-1104-…md)</span></div>
+        </div>
+      </div>
+      <div class="vx up"><i></i><b>④ 다시 나온다</b><small>기록 +1 · 항목의 지금 글</small></div>
+      <div class="ed" data-cy="rec">
+        <div class="ed-bar"><span class="w-dots"><i></i><i></i><i></i></span><span class="ed-tab"><svg class="ic"><use href="#i-file"/></svg>work/2026-1104-질매-연내-테스트-계획.md</span><em class="k-r">기록 +1</em></div>
+        <div class="ed-body">
+          <div class="ln" data-n="3"><span>title: "질매 연내 테스트 계획: …"</span></div>
+          <div class="ln" data-n="6"><span>touches:</span></div>
+          <div class="ln add" data-n="12"><span>&nbsp;&nbsp;- 사업현황:개소현황</span></div>
+          <div class="ln" data-n="19"><span class="t2">## 바뀐 것</span></div>
+          <div class="ln rec" data-n="20"><span>- 질매 전기공사: … → 11월 말 ~ 12월 초</span></div>
+          <div class="ln dim" data-n="27"><span class="t2">## 까닭</span></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
 <!-- 산출물 -->
 <section class="sec" id="screens">
   <div class="head"><p class="eyebrow"><b>##</b>산출물</p>
   <h2 class="h2">팀 서버 화면 하나에서 문서 · 항목 · 기록 · 그래프로 봅니다</h2></div>
   <div class="ov">
     <a class="ovc c-d" href="#s-doc"><span class="ovi"><img src="img_산출물/doc.png" alt="문서 화면" width="2880" height="1720"></span><b>문서<em>33</em></b><span>항목의 최신</span></a>
-    <a class="ovc c-i" href="#s-item"><span class="ovi"><img src="img_산출물/item.png" alt="항목 화면" width="2880" height="1720"></span><b>항목<em>456</em></b><span>지식의 원자</span></a>
-    <a class="ovc c-r" href="#s-rec"><span class="ovi"><img src="img_산출물/rec.png" alt="기록 화면" width="2880" height="1720"></span><b>기록<em>217</em></b><span>항목의 히스토리</span></a>
-    <a class="ovc c-k" href="#s-graph"><span class="ovi"><img src="img_산출물/graph.png" alt="그래프 화면" width="2880" height="1720"></span><b>그래프<em>점 706</em></b><span>이어진 모양</span></a>
+    <a class="ovc c-i" href="#s-item"><span class="ovi"><img src="img_산출물/item2.png" alt="항목 화면" width="2880" height="1720"></span><b>항목<em>456</em></b><span>지식의 원자</span></a>
+    <a class="ovc c-r" href="#s-rec"><span class="ovi"><img src="img_산출물/rec2.png" alt="기록 화면" width="2880" height="1720"></span><b>기록<em>217</em></b><span>항목의 히스토리</span></a>
+    <a class="ovc c-k" href="#s-graph"><span class="ovi"><img src="img_산출물/graph3d.png" alt="그래프 화면" width="2880" height="1720"></span><b>그래프<em>점 706</em></b><span>이어진 모양</span></a>
   </div>
   <p class="ovf"><span>10.10.20.188:8090</span><i></i><span>팀 서버 · DPMS 지식</span><i></i><span>2026-11-19 기준</span></p>
 </section>
@@ -1115,43 +1206,125 @@ ol,ul{padding:0;list-style:none}
 <!-- 항목 -->
 <section class="sec scr c-i" id="s-item">
   <div class="head"><p class="eyebrow"><b>##</b>화면 · 항목</p>
-  <h2 class="h2">항목 하나를 어느 문서에 있든 한 자리에서 봅니다</h2></div>
-  <div class="shot"><figure class="sf"><img src="img_산출물/item.png" alt="DPMS 지식 항목 화면: 개소 현황" width="2880" height="1720"><b class="sfb" style="left:15.69%;top:16.28%;width:19.17%;height:83.72%"></b><i class="sfm" style="left:15.69%;top:16.28%">1</i><b class="sfb" style="left:36.67%;top:8.14%;width:15.69%;height:7.44%"></b><i class="sfm" style="left:36.67%;top:8.14%">2</i><b class="sfb" style="left:37.36%;top:17.21%;width:40.28%;height:82.79%"></b><i class="sfm r" style="left:77.64%;top:17.21%">3</i><b class="sfb" style="left:79.86%;top:43.02%;width:19.17%;height:34.88%"></b><i class="sfm" style="left:79.86%;top:43.02%">4</i></figure><div class="side"><ol class="pts"><li><i>1</i><div><b>항목 장부</b><span>종류별 항목 456 · 용어 · 테이블정의서 · 사업분석 …</span></div></li><li><i>2</i><div><b>종류 · 라벨 · 문서</b><span>사업현황 · 개소 현황 · 사업 현황 및 이해관계자 › 개소 현황</span></div></li><li><i>3</i><div><b>지금 글</b><span>문서의 ## 한 덩이 그대로 · 표까지</span></div></li><li><i>4</i><div><b>이 항목의 기록 4</b><span>새것 위 · 11-04 질매 연내 테스트 계획</span></div></li></ol></div></div>
+  <h2 class="h2">항목 하나를 보면 들어 있는 문서와 바꾼 기록이 옆에 붙습니다</h2></div>
+  <div class="shot"><figure class="sf"><img src="img_산출물/item2.png" alt="DPMS 지식 항목 화면: 개소 현황 · 오른쪽 칸 문서 · 기록" width="2880" height="1720"><b class="sfb" style="left:15.69%;top:16.28%;width:19.17%;height:83.72%"></b><i class="sfm" style="left:15.69%;top:16.28%">1</i><b class="sfb" style="left:36.67%;top:8.14%;width:15.69%;height:7.44%"></b><i class="sfm" style="left:36.67%;top:8.14%">2</i><b class="sfb" style="left:37.36%;top:17.21%;width:40.28%;height:82.79%"></b><i class="sfm r" style="left:77.64%;top:17.21%">3</i><b class="sfb" style="left:79.86%;top:16.28%;width:19.17%;height:25.58%"></b><i class="sfm r" style="left:99.03%;top:16.28%">4</i><b class="sfb" style="left:79.86%;top:43.26%;width:19.17%;height:36.98%"></b><i class="sfm r" style="left:99.03%;top:43.26%">5</i></figure><div class="side"><ol class="pts"><li><i>1</i><div><b>항목 장부</b><span>종류별 항목 456 · 용어 · 테이블정의서 · 사업분석 …</span></div></li><li><i>2</i><div><b>종류 · 라벨 · 문서</b><span>사업현황 · 개소 현황 · 사업 현황 및 이해관계자 › 개소 현황</span></div></li><li><i>3</i><div><b>지금 글</b><span>문서의 ## 한 덩이 그대로 · 표까지</span></div></li><li><i>4</i><div><b>오른쪽 칸 · 문서 4</b><span>이 항목이 있는 문서 1 · 이 항목을 쓰는 문서 3</span></div></li><li><i>5</i><div><b>오른쪽 칸 · 기록 4</b><span>이 항목의 이력 새것 위 · 11-04 질매 연내 테스트 계획</span></div></li></ol></div></div>
 </section>
 
 <!-- 기록 -->
 <section class="sec scr c-r" id="s-rec">
   <div class="head"><p class="eyebrow"><b>##</b>화면 · 기록</p>
-  <h2 class="h2">기록은 누가 · 무엇을 · 왜 바꿨나를 서식으로 남깁니다</h2></div>
-  <div class="shot"><figure class="sf"><img src="img_산출물/rec.png" alt="DPMS 지식 기록 화면: 질매 연내 테스트 계획" width="2880" height="1720"><b class="sfb" style="left:15.69%;top:12.56%;width:19.17%;height:87.21%"></b><i class="sfm" style="left:15.69%;top:12.56%">1</i><b class="sfb" style="left:40.97%;top:15.58%;width:14.31%;height:3.49%"></b><i class="sfm" style="left:40.97%;top:15.58%">2</i><b class="sfb" style="left:40.69%;top:34.65%;width:33.19%;height:15.58%"></b><i class="sfm" style="left:40.69%;top:34.65%">3</i><b class="sfb" style="left:40.56%;top:52.56%;width:33.47%;height:47.44%"></b><i class="sfm" style="left:40.56%;top:52.56%">4</i><b class="sfb" style="left:79.86%;top:43.72%;width:19.17%;height:40.12%"></b><i class="sfm r" style="left:99.03%;top:43.72%">5</i></figure><div class="side"><ol class="pts"><li><i>1</i><div><b>기록 목록</b><span>기록 217 · 새것 위 · 쓴 사람 · 요약</span></div></li><li><i>2</i><div><b>상태</b><span>문서에 들어감</span></div></li><li><i>3</i><div><b>요약</b><span>한두 문장</span></div></li><li><i>4</i><div><b>서식 칸</b><span>바뀐 것 · 까닭 · 버린 안 · 영향 · 근거(오른쪽 개요 6)</span></div></li><li><i>5</i><div><b>건드린 항목 6</b><span>개소 현황 · 주요 일정 · 이슈 넷</span></div></li></ol></div></div>
+  <h2 class="h2">기록은 왜 바꿨나를 서식으로 남기고, 들어간 문서와 건드린 항목을 옆에 둡니다</h2></div>
+  <div class="shot"><figure class="sf"><img src="img_산출물/rec2.png" alt="DPMS 지식 기록 화면: 질매 연내 테스트 계획 · 오른쪽 칸 문서 · 항목" width="2880" height="1720"><b class="sfb" style="left:15.69%;top:12.56%;width:19.17%;height:87.21%"></b><i class="sfm" style="left:15.69%;top:12.56%">1</i><b class="sfb" style="left:40.97%;top:15.58%;width:14.31%;height:3.49%"></b><i class="sfm" style="left:40.97%;top:15.58%">2</i><b class="sfb" style="left:40.69%;top:34.65%;width:33.19%;height:15.58%"></b><i class="sfm" style="left:40.69%;top:34.65%">3</i><b class="sfb" style="left:40.56%;top:52.56%;width:33.47%;height:47.44%"></b><i class="sfm" style="left:40.56%;top:52.56%">4</i><b class="sfb" style="left:79.86%;top:16.28%;width:19.17%;height:18.84%"></b><i class="sfm r" style="left:99.03%;top:16.28%">5</i><b class="sfb" style="left:79.86%;top:40.23%;width:19.17%;height:40.23%"></b><i class="sfm r" style="left:99.03%;top:40.23%">6</i></figure><div class="side"><ol class="pts"><li><i>1</i><div><b>기록 목록</b><span>기록 217 · 새것 위 · 쓴 사람 · 요약</span></div></li><li><i>2</i><div><b>상태</b><span>문서에 들어감</span></div></li><li><i>3</i><div><b>요약</b><span>한두 문장</span></div></li><li><i>4</i><div><b>서식 칸</b><span>바뀐 것 · 까닭 · 버린 안 · 영향 · 근거</span></div></li><li><i>5</i><div><b>오른쪽 칸 · 문서 2</b><span>이 기록이 들어간 문서 · 위험및이슈관리대장 · 사업 현황 및 이해관계자</span></div></li><li><i>6</i><div><b>오른쪽 칸 · 항목 6</b><span>이 기록이 건드린 항목 · 개소 현황 · 주요 일정 · 이슈 넷</span></div></li></ol></div></div>
 </section>
 
 <!-- 그래프 -->
-<section class="sec scr c-k" id="s-graph">
+<section class="sec scr c-k wide" id="s-graph">
   <div class="head"><p class="eyebrow"><b>##</b>화면 · 그래프</p>
-  <h2 class="h2">문서 · 항목 · 기록이 이어진 모양을 그대로 봅니다</h2></div>
-  <div class="shot"><figure class="sf"><img src="img_산출물/graph.png" alt="DPMS 지식 그래프 화면: 점 706 · 선 3983" width="2880" height="1720"><b class="sfb" style="left:15.97%;top:8.49%;width:18.40%;height:33.02%"></b><i class="sfm" style="left:15.97%;top:8.49%">1</i><b class="sfb" style="left:80.42%;top:8.49%;width:18.40%;height:5.58%"></b><i class="sfm r" style="left:98.82%;top:8.49%">2</i><b class="sfb" style="left:45.14%;top:16.28%;width:38.89%;height:80.23%"></b><i class="sfm" style="left:45.14%;top:16.28%">3</i></figure><div class="side"><figure class="sf sm"><img src="img_산출물/graphsel-crop.png" alt="그래프에서 개소 현황을 고른 화면(가운데 · 오른쪽 부분)" width="1664" height="1240"><b class="sfb" style="left:2.40%;top:10.00%;width:58.89%;height:88.39%"></b><i class="sfm" style="left:2.40%;top:10.00%">4</i><b class="sfb" style="left:63.10%;top:1.13%;width:35.82%;height:39.19%"></b><i class="sfm r" style="left:98.92%;top:1.13%">5</i></figure><ol class="pts"><li><i>1</i><div><b>보는 방법 · 보기 · 종류</b><span>3D · 2D 표 / 선 · 제목 / 문서 · 항목 · 기록</span></div></li><li><i>2</i><div><b>전체</b><span>점 706 · 선 3983</span></div></li><li><i>3</i><div><b>이어진 모양</b><span>문서 ■ · 항목 ● · 기록 ◆</span></div></li><li><i>4</i><div><b>개소 현황을 고르면</b><span>한 겹 이웃 12만 남는다</span></div></li><li><i>5</i><div><b>고른 항목 카드</b><span>지금 글 · 기록 4 · 문서로 보기 · 항목으로 보기</span></div></li></ol></div></div>
+  <h2 class="h2">항목 하나를 고르면 이어진 문서 · 항목 · 기록이 3D 와 2D 표로 보입니다</h2></div>
+  <div class="shot"><div class="gpair"><div><p class="gcap">3D</p><figure class="sf"><img src="img_산출물/g3-crop.png" alt="그래프 3D 에서 개소 현황을 고른 화면" width="2440" height="1600"><b class="sfb" style="left:0.74%;top:1.63%;width:21.80%;height:35.50%"></b><i class="sfm" style="left:0.74%;top:1.63%">1</i><b class="sfb" style="left:30.49%;top:15.00%;width:42.62%;height:70.00%"></b><i class="sfm" style="left:30.49%;top:15.00%">2</i><b class="sfb" style="left:74.18%;top:9.63%;width:24.43%;height:30.38%"></b><i class="sfm r" style="left:98.61%;top:9.63%">4</i></figure></div><div><p class="gcap">2D 표</p><figure class="sf"><img src="img_산출물/g2-crop.png" alt="그래프 2D 표에서 개소 현황을 고른 화면" width="2440" height="1600"><b class="sfb" style="left:0.74%;top:1.63%;width:21.80%;height:35.50%"></b><i class="sfm" style="left:0.74%;top:1.63%">1</i><b class="sfb" style="left:6.72%;top:37.75%;width:23.77%;height:24.00%"></b><i class="sfm" style="left:6.72%;top:37.75%">3</i><b class="sfb" style="left:36.72%;top:30.50%;width:56.56%;height:44.00%"></b><b class="sfb" style="left:74.18%;top:9.63%;width:24.43%;height:30.38%"></b><i class="sfm r" style="left:98.61%;top:9.63%">4</i></figure></div></div><div class="side"><ol class="pts"><li><i>1</i><div><b>찾기 · 보는 방법</b><span>개소 현황을 찾으면 그 점을 고른다 · 3D / 2D 표</span></div></li><li><i>2</i><div><b>3D · 한 겹 이웃 12</b><span>문서 ■ · 항목 ● · 기록 ◆ 이 선으로 이어진다</span></div></li><li><i>3</i><div><b>2D 표</b><span>왼쪽 열 기록 · 문서 상자 안에 항목 줄</span></div></li><li><i>4</i><div><b>고른 항목 카드</b><span>지금 글 · 기록 4 · 문서로 보기 · 항목으로 보기</span></div></li></ol></div></div>
 </section>
 
-<!-- 저장 -->
-<section class="sec scr c-i" id="s-save">
-  <div class="head"><p class="eyebrow"><b>##</b>화면 · 저장</p>
-  <h2 class="h2">고친 것은 저장 제안으로 보이고, 승인 한 번에 들어갑니다</h2></div>
-  <div class="shot"><div class="savew"><figure class="sf win2"><img src="img_산출물/propose-win.png" alt="저장 확인 창: 개소 현황 질매 칸 고침" width="1120" height="880"><b class="sfb" style="left:1.43%;top:15.91%;width:97.14%;height:26.36%"></b><i class="sfm r" style="left:98.57%;top:15.91%">1</i><b class="sfb" style="left:1.43%;top:43.64%;width:97.14%;height:18.18%"></b><i class="sfm r" style="left:98.57%;top:43.64%">2</i><b class="sfb" style="left:1.43%;top:64.55%;width:97.14%;height:14.09%"></b><i class="sfm r" style="left:98.57%;top:64.55%">3</i><b class="sfb" style="left:88.21%;top:90.23%;width:9.64%;height:7.73%"></b><i class="sfm r" style="left:97.86%;top:90.23%">4</i></figure></div><div class="side"><ol class="pts"><li><i>1</i><div><b>고칠 항목 · 바꿀 곳</b><span>사업 현황 및 이해관계자 › 개소 현황 · 옛 값 → 새 값</span></div></li><li><i>2</i><div><b>바뀐 것</b><span>기록의 서식 칸으로 들어간다</span></div></li><li><i>3</i><div><b>까닭</b><span>왜 바꿨나</span></div></li><li><i>4</i><div><b>넣기 = 승인</b><span>기록 + 항목이 한 번에 함께 저장</span></div></li></ol><div class="sflow"><span>화면 고치기 · 세션</span><i>→</i><span>저장 제안</span><i>→</i><b class="nw"><span>넣기</span><i>→</i><span class="c-r">기록 +1 · 문서 지금 글</span></b></div></div></div>
-</section>
-
-<!-- 실측 -->
-<section class="sec" id="numbers">
-  <div class="head"><p class="eyebrow"><b>##</b>실측 · DPMS</p>
-  <h2 class="h2">사업 한 건이 6주 동안 남긴 것</h2></div>
-  <div class="nums">
-    <div class="c-d"><b>33</b><span>문서</span></div>
-    <div class="c-i"><b>456</b><span>항목</span></div>
-    <div class="c-r"><b>217</b><span>기록</span></div>
-    <div><b>388</b><span>이력</span></div>
-    <div><b>1,024</b><span>git 커밋</span></div>
+<!-- 수집 -->
+<section class="sec scr c-i" id="s-chan">
+  <div class="head"><p class="eyebrow"><b>##</b>화면 · 수집 채널</p>
+  <h2 class="h2">세션 · 수기수집 · 자동수집, 어디서 와도 같은 저장 문으로 들어갑니다</h2></div>
+  <div class="chn">
+    <div class="chc"><div class="chh"><b>세션</b><span>사람 줄기</span></div><p>Claude Code 가 kmd-team MCP 로 항목을 찾아 읽고, 일을 마치면 저장 제안을 보이고 승인받는다</p>
+      <div class="chi2"><figure><img src="img_산출물/session-find.png" alt="Claude Code 세션이 kmd-team 의 match · search · section 으로 개소 현황을 찾은 화면" width="865" height="866"><figcaption>① match · search · section 으로 찾아 읽기</figcaption></figure><figure><img src="img_산출물/session-propose.png" alt="세션이 보인 저장 제안: 기록 서식 칸과 고칠 항목" width="787" height="894"><figcaption>② 【저장 제안】 → 승인 → save</figcaption></figure></div></div>
+    <div class="chcol">
+      <div class="chc"><div class="chh"><b>수기수집</b><span>사람 줄기</span></div><p>파일 · 폴더 · 글을 놓으면 넣을 것이 되고, 팀 일꾼이 지은 것을 사람이 넣기 한다</p><figure><img src="img_산출물/gen-crop.png" alt="생성 › 수기수집 화면: 파일 · 폴더 · 글" width="1740" height="540"></figure></div>
+      <div class="chc"><div class="chh"><b>자동수집</b><span>무인 줄기</span></div><p>문서 폴더 · 소스 코드(git) · DB 를 정해진 때마다 읽고, 검사를 넘은 것만 들어간다</p><figure><img src="img_산출물/auto-crop.png" alt="생성 › 자동수집의 가져올 곳 더하기 창: 문서 폴더 · 소스 코드(git) · DB" width="1520" height="876"></figure></div>
+    </div>
   </div>
-  <div class="span-l"><span>2026-10-08</span><i></i><span>6주</span><i></i><span>2026-11-19</span></div>
+  <div class="sflow"><span>세션 · 수기수집 · 자동수집</span><i>→</i><span>저장 문 · 검사</span><i>→</i><span class="c-r">기록 + 고칠 항목</span><i>·</i><span>사람 줄기는 승인 · 무인 줄기는 검사</span></div>
+</section>
+
+<!-- 개인 지식 -->
+<section class="sec" id="personal">
+  <div class="bento">
+    <div class="bx s12">
+      <span class="bl"><b>##</b>개인 지식</span>
+      <h3>내 PC 의 kmd 와 내 Claude</h3>
+      <div class="duo">
+        <div class="zone c-r">
+          <h4><svg class="ic"><use href="#i-user"/></svg>내 PC</h4>
+          <div class="g2"><div><b>개인 지식</b><small>나만</small></div><div><b>내 Claude</b><small>내 구독</small></div><div><b class="mono">MCP kmd</b><small>Claude Code 연결</small></div><div><b>파일 300</b><small>한 번에 · 200MB</small></div></div>
+          <span class="lb">Claude 가 하는 일</span>
+          <div class="chips"><span class="chip">스캔 → 글</span><span class="chip">항목 맞추기</span><span class="chip">기록 · 항목 짓기</span><span class="chip">공유 글 짓기</span></div>
+        </div>
+        <div class="share"><b>공유</b><div class="arr"></div><span>팀 저장 제안 → 승인</span></div>
+        <div class="zone c-d">
+          <h4><svg class="ic"><use href="#i-users"/></svg>팀 서버</h4>
+          <div class="g2"><div><b>팀 지식</b><small>자리에 따라</small></div><div><b>팀 일꾼</b><small>팀 Claude</small></div><div><b class="mono">MCP kmd-team</b><small>Claude Code 연결</small></div><div><b>파일 20</b><small>한 번에</small></div></div>
+          <span class="lb">자리</span>
+          <div class="chips"><span class="chip">읽기</span><span class="chip">쓰기</span><span class="chip">지식관리자</span><span class="chip">총괄 관리자</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 비교 -->
+<section class="sec" id="position">
+  <div class="head"><p class="eyebrow"><b>##</b>비교</p>
+  <h2 class="say2 two">RAG 는 쌓인 자료에서 찾고, <span>KMD 는 바뀌는 사실을 맞춰 둡니다.</span></h2></div>
+  <div class="pv" role="img" aria-label="같은 질문 질매 전기공사 언제야 를 두 쪽에 던진 장면. 문서 검색 AI 인 RAG 는 쌓여 있는 자료에서 비슷한 대목 셋을 내놓고 어느 것이 지금인지는 읽을 때마다 추정한다. 팀 지식 장부인 KMD 는 항목 개소 현황의 지금 값 하나와 바뀐 이력을 내놓는다. 쓸 때 한 번 확정해 둔 것이다">
+    <div class="pvc">
+      <div class="pvh"><b>RAG</b><small>문서 검색 AI</small><span class="pvj">쌓여 있는 자료에서 찾기</span></div>
+      <div class="pvq"><svg class="ic"><use href="#i-user"/></svg>질매 전기공사 언제야?</div>
+      <ol class="pvr">
+        <li><i>1</i><span>PLC 설치 10월 말 ~ 11월 초 예상</span><small>통화 메모</small></li>
+        <li><i>2</i><span>전기공사 11월 말 ~ 12월 초</span><small>테스트 계획</small></li>
+        <li><i>3</i><span>연내 완공 시 현장 테스트</span><small>회의록</small></li>
+      </ol>
+      <div class="pvx"><em class="det">추정</em><b>비슷한 대목 셋</b><span>어느 것이 지금인지는 읽을 때마다 짐작한다</span></div>
+      <dl class="pvd"><div><dt>강한 곳</dt><dd>정리 안 된 자료 더미 · 예상 못 한 질문</dd></div><div><dt>약한 곳</dt><dd>옛 판과 새 판을 가르지 못한다</dd></div></dl>
+    </div>
+    <div class="pvc k">
+      <div class="pvh"><b>KMD</b><small>팀 지식 장부</small><span class="pvj">계속 바뀌는 사실을 맞춰 두기</span></div>
+      <div class="pvq"><svg class="ic"><use href="#i-user"/></svg>질매 전기공사 언제야?</div>
+      <div class="pvi">
+        <div class="pvi-h"><code class="tagc">사업현황:개소현황</code><span>## 개소 현황</span></div>
+        <div class="pvi-v">전기공사 <b>11월 말 ~ 12월 초</b><small>지금 값</small></div>
+        <div class="pvi-l"><s>10월 말 ~ 11월 초</s> → 11월 말 ~ 12월 초<small>이력 · 질매 연내 테스트 계획</small></div>
+      </div>
+      <div class="pvx"><em class="det k">확정</em><b>지금 값 하나</b><span>쓸 때 한 번 맞춰 둔 것을 꺼낸다</span></div>
+      <dl class="pvd"><div><dt>강한 곳</dt><dd>계속 바뀌는 사실 · 여럿이 함께</dd></div><div><dt>약한 곳</dt><dd>항목으로 세운 것만 꺼낸다 · 저장마다 승인</dd></div></dl>
+    </div>
+  </div>
+  <p class="pvb">프로젝트 지식의 물음은 <b>「지금 값이 무엇이냐」</b>입니다.</p>
+</section>
+
+<!-- 평가 -->
+<section class="sec" id="eval">
+  <div class="head"><p class="eyebrow"><b>##</b>평가 · 채널별 지식 생성</p>
+  <h2 class="h2">채널마다 지금 걸리는 시간과 품질을 재 두었고, 계속 다듬어 갑니다</h2></div>
+  <div class="evw">
+    <div class="evt" role="table" aria-label="채널별 지식 생성: 넣은 자료 · 그 자료 전체를 넣는 데 걸린 시간 · 품질 점수 · 2026-11-22">
+      <div class="evh" role="row"><span class="evgl" aria-hidden="true"></span><span role="columnheader">채널</span><span role="columnheader">넣은 자료</span><span role="columnheader">시간 · 넣은 자료 전체</span><span role="columnheader">품질</span></div>
+      <div class="evgb" role="rowgroup" aria-label="세션"><span class="evgl" aria-hidden="true">세션</span><div class="evrs"><div class="evr" role="row"><span class="evn" role="cell">세션</span><span class="evf" role="cell">문서 2 · 979자</span><span class="evb" role="cell"><i style="width:35.2%"></i><em>3분 7초</em></span><span role="cell" class="evq">95점</span></div><div class="evr" role="row"><span class="evn" role="cell">대량 넣기</span><span class="evf" role="cell">문서 2 · 922자</span><span class="evb" role="cell"><i style="width:34.4%"></i><em>3분 2초</em></span><span role="cell" class="evq">100점</span></div></div></div>
+      <div class="evgb" role="rowgroup" aria-label="수기수집"><span class="evgl" aria-hidden="true">수기수집</span><div class="evrs"><div class="evr" role="row"><span class="evn" role="cell">파일 들이기</span><span class="evf" role="cell">문서 2 · 875자</span><span class="evb" role="cell"><i style="width:37.0%"></i><em>3분 16초</em></span><span role="cell" class="evq">95점</span></div><div class="evr" role="row"><span class="evn" role="cell">화면 새 항목</span><span class="evf" role="cell">새 항목 1</span><span class="evb" role="cell"><i style="width:14.8%"></i><em>1분 19초</em></span><span role="cell" class="evq">100점</span></div></div></div>
+      <div class="evgb" role="rowgroup" aria-label="자동수집"><span class="evgl" aria-hidden="true">자동수집</span><div class="evrs"><div class="evr" role="row"><span class="evn" role="cell">가져올 곳</span><span class="evf" role="cell">문서 2 · 875자 + 커밋 1</span><span class="evb lo" role="cell"><i style="width:78.0%"></i><em>6분 54초</em></span><span role="cell" class="evq">100점</span></div></div></div>
+      <div class="evgb" role="rowgroup" aria-label="바탕 · 짜임"><span class="evgl" aria-hidden="true">바탕 · 짜임</span><div class="evrs"><div class="evr" role="row"><span class="evn" role="cell">팀 기초 세우기</span><span class="evf" role="cell">문서 3 · 1,167자</span><span class="evb lo" role="cell"><i style="width:49.2%"></i><em>4분 21초</em></span><span role="cell" class="evq lo">88점</span></div><div class="evr" role="row"><span class="evn" role="cell">개인 기초 세우기</span><span class="evf" role="cell">문서 3 · 1,167자</span><span class="evb" role="cell"><i style="width:27.8%"></i><em>2분 28초</em></span><span role="cell" class="evq">96점</span></div><div class="evr" role="row"><span class="evn" role="cell">바탕 세우기 세션</span><span class="evf" role="cell">문서 3 · 1,167자</span><span class="evb" role="cell"><i style="width:36.1%"></i><em>3분 11초</em></span><span role="cell" class="evq">96점</span></div><div class="evr" role="row"><span class="evn" role="cell">짜임 다시 잡기</span><span class="evf" role="cell">있는 문서 3 · 1,155자</span><span class="evb" role="cell"><i style="width:11.8%"></i><em>1분 3초</em></span><span role="cell" class="evq">96점</span></div></div></div>
+      <div class="evgb" role="rowgroup" aria-label="개인 · 정리"><span class="evgl" aria-hidden="true">개인 · 정리</span><div class="evrs"><div class="evr" role="row"><span class="evn" role="cell">개인 들이기</span><span class="evf" role="cell">문서 1 · 239자</span><span class="evb lo" role="cell"><i style="width:44.8%"></i><em>3분 58초</em></span><span role="cell" class="evq">100점</span></div><div class="evr" role="row"><span class="evn" role="cell">공유</span><span class="evf" role="cell">문서 2 · 839자</span><span class="evb" role="cell"><i style="width:18.6%"></i><em>1분 39초</em></span><span role="cell" class="evq">100점</span></div><div class="evr" role="row"><span class="evn" role="cell">다듬기</span><span class="evf" role="cell">문서 2 · 심은 결함 6</span><span class="evb" role="cell"><i style="width:15.5%"></i><em>1분 22초</em></span><span role="cell" class="evq">100점</span></div><div class="evr" role="row"><span class="evn" role="cell">다시 그리기</span><span class="evf" role="cell">항목 1</span><span class="evb" role="cell"><i style="width:26.0%"></i><em>2분 18초</em></span><span role="cell" class="evq na">안전 멈춤</span></div></div></div>
+    </div>
+    <div class="evs">
+      <div class="evk"><div><b>97점</b><span>품질 평균 · 12 채널</span></div><div><b>12/13</b><span>들어감 · 하나는 안전 멈춤</span></div><div><b>4,766자</b><span>시험 자료 · 문서 15</span></div></div>
+      <dl class="evd">
+        <div><dt>넣은 자료</dt><dd>짧은 업무 문서 15개(모두 4,766자) 가운데 채널마다 1 ~ 3개. A4 한 장이 안 되는 크기다</dd></div>
+        <div><dt>시간</dt><dd>왼쪽 자료 전체를 그 채널로 넣는 데 걸린 시간. Claude 부름 · 검사 · 저장까지</dd></div>
+        <div><dt>품질</dt><dd>자료에 꼭 담길 사실 31개를 정답으로 정해 두고, 만든 지식에서 같은 항목에 들어갈 사실끼리 모였는지 맞춘 점수(F1). 100점이면 정답 짜임과 같다</dd></div>
+      </dl>
+      <h4>계속 다듬을 것</h4>
+      <ol class="evi">
+        <li><b>긴 시간</b><span>A4 한 장이 안 되는 자료에 몇 분씩 걸린다. 가져올 곳(문서 2 + 커밋 1) 6분 54초 · 팀 기초 세우기(문서 3) 4분 21초 · 개인 들이기(문서 1) 3분 58초</span></li>
+        <li><b>품질 바닥</b><span>팀 기초 세우기 88점. 사실 일부가 다른 항목에 놓인다</span></li>
+        <li><b>고쳐 받기</b><span>바탕 세우기는 첫 초안에 원본 소제목이 남아 검사에 걸리고, 한 번 고쳐 받아 넣는다</span></li>
+        <li><b>더 넓게 재기</b><span>작은 시험 자료로 한 번 잰 값이다. 다시 그리기는 안전 멈춤에 걸려 품질을 재지 못했다. 실제 크기의 지식 · 여러 판으로 넓혀 다시 잰다</span></li>
+      </ol>
+    </div>
+  </div>
+  <p class="ovf"><span>채널 평가 하네스 · 지식을 짓는 13 채널</span><i></i><span>2026-11-22 · sonnet</span><i></i><span>고칠 때마다 다시 잰다</span></p>
 </section>
 
 <!-- 맺음 -->
