@@ -49,7 +49,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
-import { readShape, cleanPlan, planCheck, putErrors, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, SEED_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedDraftProblems, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, seedPriorOf, pickOf } from '../core/shape.js'
+import { readShape, cleanPlan, planCheck, putErrors, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, SEED_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteParts, seedWriteFixOf, seedDraftProblems, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, seedPriorOf, pickOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -1288,7 +1288,28 @@ ${genRulesBlock({ profile: 'shape' })}`
     const f = feedOf(id)
     const tag = doc.split('/').pop().slice(0, 24)
     const pathOf = new Map(mats.rows.filter((r) => r.src).map((r) => [r.src, r.path]))
-    const srcs = [...new Set(d.items.flatMap((it) => it.src || []))]
+    // 재료가 한 세션 문맥을 넘으면 몫으로 나눠 몫마다 세션(seedWriteParts) — 한 몫이면 지금 그대로
+    const parts = seedWriteParts(d, g, mats.text, { chars: Number(process.env.KMD_SEED_PART_CHARS) > 0 ? Number(process.env.KMD_SEED_PART_CHARS) : 80_000, items: 40 })
+    if (parts.length === 1) return seedWritePart(ctx, id, run, { w, mats, d, g, dItems: d.items, srcs: parts[0].srcs, tag, pathOf, f })
+    feedPush(id, { k: 'kmd', text: `글 짓기: ${doc} · 항목 ${g.targets.length} · 재료가 커서 ${parts.length} 몫으로 나눠 몫마다 세션에 짓는다` }, tag)
+    const got = new Map()
+    const values = []
+    let intro = ''
+    for (const [i, p] of parts.entries()) {
+      const r = await seedWritePart(ctx, id, run, { w, mats, d, g: { ...g, targets: p.targets }, dItems: p.items, srcs: p.srcs, tag: `${tag.slice(0, 18)} ${i + 1}/${parts.length}`, pathOf, f })
+      if (!r || r.state !== 'ok') return r && r.state === 'fail' ? { ...r, why: `몫 ${i + 1}/${parts.length}: ${r.why}` } : r
+      for (const y of r.items) got.set(y.h, y)
+      values.push(...(r.values || []))
+      if (!intro && r.intro) intro = r.intro
+    }
+    const items = d.items.map((it) => (it.src?.length ? got.get(it.h) : { h: it.h, content: String(it.text || '') }))
+    if (items.some((y) => !y)) return { state: 'fail', why: '몫을 합치다 빠진 항목이 있다' }
+    feedPush(id, { k: 'kmd', text: `지었다(몫 ${parts.length} 합침): ${doc} · ${items.reduce((a, y) => a + y.content.length, 0).toLocaleString()} 자`, tone: 'ok' }, tag)
+    return { state: 'ok', items, values: values.slice(0, 20), ...(intro ? { intro } : {}) }
+  }
+  // 글 짓기 몫 하나 — 세션 폴더(그 몫 재료 사본 + 앞선 값 재료) 세션 → 판정 · 고쳐 받기. dItems 는 이 몫의 구조안 항목(한 몫이면 문서 항목 모두)
+  async function seedWritePart(ctx, id, run, { w, mats, d, g, dItems, srcs, tag, pathOf, f }) {
+    const doc = d.id
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'kmd-seed-'))
     f.dirs = [...new Set([...f.dirs, dir, await fs.realpath(dir).catch(() => dir)])].sort((a, b) => b.length - a.length)
     let s = null
@@ -1342,14 +1363,14 @@ ${genRulesBlock({ profile: 'shape' })}`
         let why = x.error || null
         // 글 초안 검사(작성기준 5-1 · 세션 꾸러미 check 와 같은 함수) — 재료 소제목 · 끊긴 앵커는 고쳐 받기 몫 · 마지막이면 알림만 남기고 받는다(저장은 그대로 알림)
         if (!why) {
-          const sp = seedDraftProblems(x.texts, d.items.map((it) => it.h))
+          const sp = seedDraftProblems(x.texts, dItems.map((it) => it.h))
           if (sp.length && !last) why = sp.slice(0, 3).join(' · ')
           else if (sp.length) feedPush(id, { k: 'kmd', text: `글 초안 알림 ${sp.length}(받았다): ${sp.slice(0, 3).join(' · ')}`, tone: 'warn' }, tag)
         }
         let items = null
         let j = null
         if (!why) {
-          items = d.items.map((it) => (it.src?.length ? { h: it.h, content: x.texts.find((y) => y.h === it.h).content } : { h: it.h, content: String(it.text || '') }))
+          items = dItems.map((it) => (it.src?.length ? { h: it.h, content: x.texts.find((y) => y.h === it.h).content } : { h: it.h, content: String(it.text || '') }))
           j = hub.seedJudge(await hub.get(id, ctx), w.plan, doc, items, mats)
           if (j.errors.length) why = j.errors.slice(0, 3).map((e) => e.why).join(' · ')
         }

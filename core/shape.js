@@ -1022,6 +1022,25 @@ export const seedDraftProblems = (texts, heads) => texts.flatMap((t) => seedText
 export const SEED_INLINE_MAX = 20000
 const SEED_INLINE_FENCE = /^\s*(?:<<<|>>>|\[target )/m
 export const seedInlineOk = (files, prior = []) => { const all = [...files, ...prior]; return all.length > 0 && all.every((f) => typeof f.text === 'string') && all.reduce((a, f) => a + f.text.length, 0) <= SEED_INLINE_MAX && !all.some((f) => SEED_INLINE_FENCE.test(f.text)) }
+// 글 짓기 몫(문서 하나를 세션 여럿으로) — 재료 글이 한 세션 문맥을 넘으면(「Prompt is too long」 · 주간 보고 20 편 같은 모으는 문서) 항목을 구조안 차례대로
+//   몫마다 재료 chars · 항목 items 안으로 나눈다. 몫마다 세션 하나 · 그 몫의 재료만. 한 몫이면 지금 그대로(재료 없는 항목까지 그 몫에)
+export const SEED_WRITE_PART = { chars: 80_000, items: 40 }
+export function seedWriteParts(d, g, textOf, lim = SEED_WRITE_PART) {
+  const len = (s) => { const t = textOf(s); return typeof t === 'string' ? t.length : 0 }
+  const its = d.items.filter((it) => it.src?.length)
+  const all = [...new Set(its.flatMap((it) => it.src))]
+  if (all.reduce((a, s) => a + len(s), 0) <= lim.chars && its.length <= lim.items) return [{ items: d.items, targets: g.targets, srcs: all }]
+  const parts = []
+  let cur = null
+  const extra = (it) => it.src.filter((s) => !cur?.srcs.has(s)).reduce((a, s) => a + len(s), 0)
+  for (const it of its) {
+    if (!cur || (cur.items.length && (cur.chars + extra(it) > lim.chars || cur.items.length >= lim.items))) parts.push((cur = { items: [], srcs: new Set(), chars: 0 }))
+    cur.chars += extra(it)
+    cur.items.push(it)
+    it.src.forEach((s) => cur.srcs.add(s))
+  }
+  return parts.map((p) => { const hs = new Set(p.items.map((it) => it.h)); return { items: p.items, targets: g.targets.filter((t) => hs.has(t.h)), srcs: [...p.srcs] } })
+}
 export function seedWriteSessionPromptOf(g, files, { writeRules = WRITE_RULES, form = '', prior = [] } = {}) {
   const inline = files.length > 0 && seedInlineOk(files, prior)
   return [

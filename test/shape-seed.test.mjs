@@ -235,6 +235,18 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     assert.ok(!fw.rows.find((r) => r.k === 'me').text.includes('09:00'), '재료 글을 프롬프트에 싣지 않는다')
     assert.ok(d0.chars > 0)
     assert.equal(await code(s.hub.seedTry(s.ctx, id)), 'E_INPUT', '처음 문서 승인 전')
+    // 재료가 한 세션 문맥을 넘으면 몫으로 나눠 몫마다 세션(「Prompt is too long」) — 합친 글은 한 세션 글과 같은 항목 · 같은 차례
+    process.env.KMD_SEED_PART_CHARS = '1'
+    await s.hub.seedWrite(s.ctx, id, { doc: '업무 안내' })
+    const vp = await settle(s.hub, s.ctx, id)
+    delete process.env.KMD_SEED_PART_CHARS
+    assert.equal(vp.work.docs[0].state, 'ok', JSON.stringify(vp.work.docs[0]))
+    assert.deepEqual(vp.work.docs[0].items.map((x) => x.h), d0.items.map((x) => x.h), '몫을 합쳐도 항목 차례 그대로')
+    const fp = await s.hub.seedFeed(s.ctx, id)
+    const nParts = fp.rows.filter((r) => r.k === 'start').length
+    assert.ok(nParts >= 2 && nParts === d0.items.length, `항목마다 몫 하나 · 세션 ${nParts}`)
+    assert.ok(fp.rows.some((r) => r.k === 'kmd' && /몫으로 나눠/.test(r.text)))
+    assert.ok(fp.rows.some((r) => r.k === 'kmd' && r.tone === 'ok' && /몫 \d+ 합침/.test(r.text)))
     v = await s.hub.seedWrite(s.ctx, id, { approve: '업무 안내' })
     assert.equal(v.work.docs[0].ok, true)
     // 이름만 바꾼 문서는 지은 글 · 승인을 잇는다(구조안 names 도 따라간다)
