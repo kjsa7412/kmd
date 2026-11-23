@@ -9,7 +9,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError, httpStatusOf } from '../core/errors.js'
-import { save as coreSave, serial, localStamp, recordTakenSync, SECTIONS_MAX, assetPath, ATTACH_MAX_BYTES, checkInput } from '../core/save.js'
+import { save as coreSave, serial, localStamp, recordTakenSync, SECTIONS_MAX, SHAPE_SECTIONS_MAX, assetPath, ATTACH_MAX_BYTES, checkInput } from '../core/save.js'
 import { audit as guardAudit, recordBody, RECORD_PARTS, proposeInputWhy, RECORDS_DOC, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT } from '../core/guard.js'
 import { recover as recoverSave } from '../core/journal.js'
 import { renderReverted, parseReverted, parsePut, renderPut, dropPart, PUT_PART, REVERTED_PART, ACCEPTED_PART, VALUES_PART, LINKED_PART, FRESH_PART, itemKey, parseFresh } from '../core/parts.js'
@@ -3531,7 +3531,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const c = cleanPlan(plan)
       if (c.error) throw new KmdError('E_INPUT', c.error)
       if (fp != null && !/^[0-9a-f]{16}$/.test(String(fp))) throw new KmdError('E_INPUT', 'fp 는 16자 지문이다')
-      if (!Array.isArray(texts) || texts.length > SECTIONS_MAX || texts.some((x) => !x || typeof x.doc !== 'string' || typeof x.h !== 'string' || typeof x.content !== 'string' || x.content.length > 200_000)) throw new KmdError('E_INPUT', 'texts 는 [{ doc, h, content }] 다')
+      if (!Array.isArray(texts) || texts.length > SHAPE_SECTIONS_MAX || texts.some((x) => !x || typeof x.doc !== 'string' || typeof x.h !== 'string' || typeof x.content !== 'string' || x.content.length > 200_000)) throw new KmdError('E_INPUT', 'texts 는 [{ doc, h, content }] 다')
       if (!intros || typeof intros !== 'object' || Array.isArray(intros) || Object.keys(intros).some((x) => ['__proto__', 'prototype', 'constructor'].includes(x)) || Object.values(intros).some((x) => typeof x !== 'string' || x.length > 4000)) throw new KmdError('E_INPUT', 'intros 는 { 문서: 글 } 이다')
       // approve 모드 지식(P-D24) — 걸리면 걸음 입력 오류(아무것도 쓰지 않는다)
       const strict = true // 짜임 걸음은 늘 엄격(P-D24 · P11 — 넣지 못함이 없다)
