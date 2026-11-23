@@ -353,7 +353,8 @@ export function planCheck(k, S, Pl) {
   // write 단위 — 50 항목 · 장부 항목 다시 놓기
   const nameAt = new Map(Pl.names.map((x) => [x.coord, x]))
   for (const u of diff.writes) {
-    if (u.size > PLAN_LIMITS.unit) err(`단위 ${u.n}`, `나누기 · 합치기가 엮여 한 저장이 ${u.size} 항목이다(${PLAN_LIMITS.unit} 안으로 나눈다)`, 'unit')
+    // 바탕 세우기(seed) 단위는 새 문서 하나다 — 나누기 · 합치기가 없고 글은 문서마다 세션이 짓는다(대장은 원본 ID 행마다 항목 · 50 을 넘을 수 있다 · 문서 크기는 알림 5~40)
+    if (u.size > PLAN_LIMITS.unit && u.kind !== 'seed') err(`단위 ${u.n}`, `나누기 · 합치기가 엮여 한 저장이 ${u.size} 항목이다(${PLAN_LIMITS.unit} 안으로 나눈다)`, 'unit')
     for (const s of u.sources) {
       const dObj = k?.byDocPath.get(`docs/${s.doc}.md`)
       const sec = dObj?.sections.find((x) => x.h === s.h)
