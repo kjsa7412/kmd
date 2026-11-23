@@ -52,6 +52,7 @@ const COORD = /^[^\s:`]+:[^\n`]+$/
 const MAX_BODY = 200_000
 // 한 저장의 항목 수 — 새 저장 문(prepare · intake · approve)에서만 센다(옛 길은 그대로)
 export const SECTIONS_MAX = 50
+export const SHAPE_SECTIONS_MAX = 1000
 // 첨부(S-D30) — docs/assets/ 아래 · 허용 꼴 · 한 저장 20개 · 파일 하나 32MB(채널마다 더 작은 한도는 hub 가 본다)
 export const ATTACH_MAX_FILES = 20
 export const ATTACH_MAX_BYTES = 32 * 1024 * 1024
@@ -110,9 +111,9 @@ function check(input, { system = false, many = false } = {}) {
 export const checkInput = (input) => check(input)
 
 // 항목 모양 — 입력과 prepare 결과가 같이 거친다(S-D44)
-function sectionShape(secs, { many = false } = {}) {
+function sectionShape(secs, { many = false, max = SECTIONS_MAX } = {}) {
   if (!Array.isArray(secs)) fail('E_INPUT', 'sections 는 목록이다')
-  if (many && secs.length > SECTIONS_MAX) fail('E_INPUT', `항목은 한 번에 ${SECTIONS_MAX}개까지 보낸다`)
+  if (many && secs.length > max) fail('E_INPUT', `항목은 한 번에 ${max}개까지 보낸다`)
   for (const s of secs) {
     if (!s || (typeof s.content !== 'string' && !s.remove && s.rename == null)) fail('E_INPUT', '항목마다 content(새 글)가 있다')
     if (s.rename != null && !(oneLine(s.rename) && String(s.rename).trim())) fail('E_INPUT', '새 머리는 한 줄 글이다')
@@ -293,7 +294,8 @@ export function save(dir, input, { user, now = new Date(), system = false, guard
       //   무인 채널(P6)의 판정 오류: 아무것도 쓰지 않고 오류를 돌려준다(부른 쪽이 고쳐 받기 · 일감이 다시 시도한다)
       if (prep.abort) return { same: !!prep.abort.same, id: prep.abort.id ?? null, ...(Array.isArray(prep.abort.errors) ? { errors: prep.abort.errors } : {}), ...(prep.abort.ask ? { ask: prep.abort.ask } : {}) }
       if (prep.sections != null) {
-        const g = guardSections(sectionShape(prep.sections, { many: !system }), { system, structure })
+        // 짜임 걸음(shape)의 글 걸음은 서버가 승인된 글로 지은 단위다 — 사람 · 세션 입력 한도(50) 대신 SHAPE_SECTIONS_MAX(바탕 대장은 원본 ID 행마다 항목 · 50 을 넘는다)
+        const g = guardSections(sectionShape(prep.sections, { many: !system, max: shape ? SHAPE_SECTIONS_MAX : SECTIONS_MAX }), { system, structure })
         secs = g.secs
       }
       held = cleanHeld(prep.held)
