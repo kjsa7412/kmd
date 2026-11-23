@@ -1204,7 +1204,10 @@ ${genRulesBlock({ profile: 'shape' })}`
         say(`문서 ${b.docs.length} · 재료 ${mats.length}${budget !== B ? ` · 예산 $${budget}` : ''}: ${b.docs.map((d) => d.id).join(' · ')}`, '', tag)
         const x = await askFix(o.s, seedBatchPromptOf(b, { mats }, { cards: o.sd.cards > 0, of: bs.length, kinds }) + SEED_RULES_TAIL(), (v) => batchOfDraft(v, b, { mats }, { check: formCheck }), tag, false, true)
         if (x?.budget) { sessions.delete(o.s); await o.s.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message)); return x }
-        if (x && !x.error) live.push({ ...o, b, mats, tag, part: x.value })
+        if (x && !x.error) {
+          live.push({ ...o, b, mats, tag, part: x.value })
+          if (x.value.dropped) say(`문서를 뺐다(재료를 모두 skip): ${x.value.dropped.join(' · ')}`, 'warn', tag)
+        }
         return x
       }
       const tryBatch = async (b, tag, budget = B) => {

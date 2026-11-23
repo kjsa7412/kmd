@@ -84,6 +84,15 @@ test('나눠 받기 — 뼈대 검사(덮임 · 없는 재료 · 같은 id · �
   assert.equal(fx.error, undefined, JSON.stringify(fx))
   assert.equal(fx.docs[0].id, '분석설계/프로세스정의')
   assert.equal(fx.names[0].doc, '분석설계/프로세스정의', '장부 항목의 doc 도 같이 바로잡는다')
+  // 문서 빼기 — 쓸 것이 없는 문서는 그 문서의 넣음 재료가 모두 skip 에 있으면 뺀다 · 아니면 빠진 문서로 걸린다
+  const db = { i: 0, docs: [{ id: '운영/수정요청관리', src: [A] }, { id: '운영/장애관리', src: [B] }], srcs: [A, B] }
+  const dg = { mats: [{ src: A, pick: '넣음' }, { src: B, pick: '넣음' }] }
+  const dx = S.batchOfDraft({ docs: [{ id: '운영/장애관리', items: [{ h: '장애', src: [B] }] }], skip: [{ src: A, why: '빈 양식' }] }, db, dg)
+  assert.equal(dx.error, undefined, JSON.stringify(dx))
+  assert.deepEqual(dx.dropped, ['운영/수정요청관리'])
+  assert.deepEqual(S.mergeSeedPlan({ docs: db.docs, skip: [], why: '' }, [dx]).docs.map((d) => d.id), ['운영/장애관리'], '뺀 문서는 구조안에 없다')
+  assert.equal(S.batchOfDraft({ docs: [{ id: '운영/수정요청관리', items: [] }, { id: '운영/장애관리', items: [{ h: '장애', src: [B] }] }], skip: [{ src: A, why: '빈 양식' }] }, db, dg).dropped[0], '운영/수정요청관리', '항목 없는 문서도 재료가 모두 skip 이면 뺀다')
+  assert.match(S.batchOfDraft({ docs: [{ id: '운영/장애관리', items: [{ h: '장애', src: [B] }] }] }, db, dg).error, /빠진 문서: 운영\/수정요청관리\(문서를 빼려면/)
   assert.equal(S.coordProblem('dbms:PostgreSQL'), null)
   assert.equal(S.coordProblem('시스템:나라119'), null)
   assert.match(S.coordProblem('DB스키마:nara'), /종류 꼴/)

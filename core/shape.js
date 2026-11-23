@@ -828,6 +828,7 @@ export function seedBatchPromptOf(b, g, { cards = false, of = 1, kinds = null } 
     SEED_SAFE,
     '꼴: docs[{ id(아래 그대로), nature(으뜸 성격), items[{ h(항목 머리), src[재료 id], note?(까닭 한 줄) }] }] · names[{ coord(종류:값), label?, gist(뜻 한 줄), doc, h }](세우는 항목마다 하나 · 생성 룰 R7-1 · 머리만 세우지 않는다) · skip[{ src, why }](이 묶음의 쓰지 않는 넣음 재료) · why(한 문장)',
     '- 이 묶음의 「넣음」 재료는 모두 어느 항목의 src 이거나 skip 에 든다. 항목 src 는 그 문서에 정해진 재료만 쓴다.',
+    '- 읽어 보니 세울 항목이 없는 문서(빈 양식 · 표지만)는 docs 에서 빼고, 그 문서의 「넣음」 재료를 모두 skip 에 까닭과 함께 넣는다(그래야 빠진 문서로 걸리지 않는다).',
     '- 항목 머리는 대상 이름(사건 갈래만 「YYYY-MM-DD 주제」 · 대장은 「값: 설명」). 한 문서 안에서 머리끼리 같거나 앞부분이 겹치지 않게.',
     '- names 의 gist 는 그 항목이 무엇인가를 15 ~ 60자 한 문장으로(생성 룰 R5-3 · R7-1 · 장부에 남아 다음 판단의 재료가 된다). 이름 · 라벨을 되풀이하지 않는다. 좋은 예: { coord: "모듈:수집기", label: "수집기", gist: "PLC 값을 읽어 묶음으로 만들어 전송기에 넘기는 프로세스" }. 라벨이 값과 같으면 머리는 값만(## 수집기 · 반례 ## 수집기: 수집기). 반례: gist 를 비움 · gist: "수집기".',
     '- names 의 coord 종류는 영문 소문자 또는 한글로 시작한다(24자 안 · 대문자 약어는 소문자로: dbms:PostgreSQL · was:Apache Tomcat · 시스템:나라119).',
@@ -868,6 +869,14 @@ export function batchOfDraft(draft, b, g, { check = null } = {}) {
   if (!draft || typeof draft !== 'object' || !Array.isArray(draft.docs)) return { error: '구조안 꼴이 아니다: docs 가 없다' }
   const want = new Map(b.docs.map((d) => [d.id, new Set(d.src)]))
   const idOf = batchIdFixer([...want.keys()])
+  const mine = new Set(b.srcs)
+  const skip = (Array.isArray(draft.skip) ? draft.skip : []).filter((x) => x && mine.has(String(x.src))).map((x) => ({ src: String(x.src), why: String(x.why || '').slice(0, 200) }))
+  const skipped = new Set(skip.map((x) => x.src))
+  const pick = new Map(g.mats.map((x) => [x.src, x]))
+  // 문서 빼기 — 쓸 것이 없는 문서(빈 양식 · 표지만)는 그 문서의 넣음 재료가 모두 skip 에 있으면 뺀다(항목 없는 문서를 세우지 않는다 · 생성 룰 R3-6)
+  const droppable = (id) => [...want.get(id)].filter((x) => pick.get(x)?.pick === '넣음').every((x) => skipped.has(x))
+  const DROP = '(문서를 빼려면 그 문서의 넣음 재료를 모두 skip 에 까닭과 함께 넣는다)'
+  const dropped = []
   const seen = new Set()
   const used = new Set()
   const docs = []
@@ -876,7 +885,10 @@ export function batchOfDraft(draft, b, g, { check = null } = {}) {
     if (!want.has(id)) return { error: `이 묶음의 문서가 아니다: ${String(d?.id).slice(0, 80)}(이 묶음: ${[...want.keys()].join(' · ')})` }
     if (seen.has(id)) return { error: `같은 문서가 둘이다: ${id}` }
     seen.add(id)
-    if (!Array.isArray(d.items) || !d.items.length) return { error: `항목이 없는 문서다: ${id}` }
+    if (!Array.isArray(d.items) || !d.items.length) {
+      if (droppable(id)) { dropped.push(id); continue }
+      return { error: `항목이 없는 문서다: ${id}${DROP}` }
+    }
     for (const it of d.items) {
       const src = Array.isArray(it?.src) ? it.src.map(String) : []
       const bad = src.find((s) => !want.get(id).has(s))
@@ -886,11 +898,9 @@ export function batchOfDraft(draft, b, g, { check = null } = {}) {
     docs.push({ id, items: d.items, ...(FORM_KINDS.includes(d.nature) ? { nature: d.nature } : {}) })
   }
   const miss = [...want.keys()].filter((x) => !seen.has(x))
-  if (miss.length) return { error: `빠진 문서: ${miss.join(' · ')}` }
-  const mine = new Set(b.srcs)
-  const skip = (Array.isArray(draft.skip) ? draft.skip : []).filter((x) => x && mine.has(String(x.src))).map((x) => ({ src: String(x.src), why: String(x.why || '').slice(0, 200) }))
-  const skipped = new Set(skip.map((x) => x.src))
-  const pick = new Map(g.mats.map((x) => [x.src, x]))
+  for (const x of miss.filter(droppable)) dropped.push(x)
+  const lost = miss.filter((x) => !dropped.includes(x))
+  if (lost.length) return { error: `빠진 문서: ${lost.join(' · ')}${DROP}` }
   const left = b.srcs.filter((s) => pick.get(s)?.pick === '넣음' && !used.has(s) && !skipped.has(s))
   if (left.length) return { error: `넣음 재료 ${left.length} 가 항목에도 skip 에도 없다: ${left.slice(0, 5).map((s) => `${s}(${pick.get(s)?.path || ''})`).join(' · ')}` }
   const names = (Array.isArray(draft.names) ? draft.names : []).filter((x) => x && typeof x === 'object').map((x) => ({ ...x, doc: idOf(x.doc) })).filter((x) => want.has(x.doc))
@@ -898,7 +908,7 @@ export function batchOfDraft(draft, b, g, { check = null } = {}) {
   if (nb) return { error: nb }
   const ce = check ? check(docs) : null
   if (ce) return { error: ce }
-  return { docs, names, skip }
+  return { docs, names, skip, ...(dropped.length ? { dropped } : {}) }
 }
 // 뼈대 + 묶음들 → 구조안 초안(seedPlanOfDraft 가 받는 꼴) · 문서는 뼈대 차례 · 장부 항목은 coord + 자리로 한 번만
 export function mergeSeedPlan(frame, parts) {
