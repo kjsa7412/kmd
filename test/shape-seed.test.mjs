@@ -140,10 +140,17 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     // 지식은 아직 그대로
     assert.ok(!fs.existsSync(path.join(s.root, id, 'docs', '업무 안내.md')))
     // 구조안 — Claude 안(덮임 걸림 → 고쳐 쓰기)
+    //   묶음 세션이 예산을 넘으면 실패로 끝내지 않고 새 세션에 예산을 두 배로 다시 한다(문서 하나 묶음)
     process.env.FAKE_CLAUDE_MODE = 'badseed'
+    const budFile = path.join(s.tmp, 'budget-once')
+    fs.writeFileSync(budFile, '1')
+    process.env.FAKE_CLAUDE_BUDGET_FILE = budFile
     await s.hub.seedPlan(s.ctx, id, { mode: 'claude' })
     v = await settle(s.hub, s.ctx, id)
     delete process.env.FAKE_CLAUDE_MODE
+    delete process.env.FAKE_CLAUDE_BUDGET_FILE
+    assert.ok(!fs.existsSync(budFile), '묶음이 예산을 한 번 넘었다')
+    assert.equal(fs.readFileSync(budFile + '.used', 'utf8').trim(), 'batch 10', '다시 한 묶음 세션은 예산 두 배')
     assert.equal(v.run.state, 'done', JSON.stringify(v.run))
     assert.ok(v.run.tries >= 2, '덮임 걸림이면 고쳐 쓴다')
     assert.equal(v.work.check.ok, true, JSON.stringify(v.work.check))
@@ -155,8 +162,9 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     const ks = fd.rows.map((r) => r.k)
     assert.match(fd.sid, /^[0-9a-f]{8}$/)
     assert.equal(fd.title, '구조안')
-    assert.equal(ks.filter((k) => k === 'start').length, 2, '뼈대 + 묶음 1: ' + ks.join(' '))
-    assert.equal(ks.filter((k) => k === 'me').length, 3, '뼈대 · 뼈대 고쳐 받기 · 묶음')
+    assert.equal(ks.filter((k) => k === 'start').length, 3, '뼈대 + 묶음 1(예산을 넘어 다시 한 세션까지): ' + ks.join(' '))
+    assert.equal(ks.filter((k) => k === 'me').length, 4, '뼈대 · 뼈대 고쳐 받기 · 묶음 · 다시 한 묶음')
+    assert.ok(fd.rows.some((r) => r.k === 'kmd' && r.tone === 'warn' && /예산 \$5 을 넘었다 · 예산 \$10 로/.test(r.text)), '예산을 넘으면 다시 한다는 줄')
     assert.ok(fd.rows[0].k === 'kmd' && /뼈대/.test(fd.rows[0].text) && fd.rows[0].tag === '뼈대', JSON.stringify(fd.rows[0]))
     assert.ok(fd.rows.some((r) => r.tag === '묶음 1/1' && r.k === 'start'), '묶음 세션 줄에 tag')
     assert.equal(fd.rows.filter((r) => r.k === 'start' && r.tag === '뼈대').length, 1, '고쳐 받기는 같은 세션(새 세션 없음)')
@@ -182,11 +190,17 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     fs.writeFileSync(limFile, '1')
     process.env.FAKE_CLAUDE_LIMIT_FILE = limFile
     process.env.KMD_LIMIT_POLL_MS = '300'
+    const budW = path.join(s.tmp, 'budget-write')
+    fs.writeFileSync(budW, '1')
+    process.env.FAKE_CLAUDE_BUDGET_FILE = budW
     await s.hub.seedWrite(s.ctx, id, { doc: '업무 안내' })
     v = await settle(s.hub, s.ctx, id)
     delete process.env.FAKE_CLAUDE_LIMIT_FILE
     delete process.env.KMD_LIMIT_POLL_MS
+    delete process.env.FAKE_CLAUDE_BUDGET_FILE
     assert.ok(!fs.existsSync(limFile), '한도에 한 번 걸렸다')
+    assert.ok(!fs.existsSync(budW), '짓기가 예산을 한 번 넘었다')
+    assert.equal(fs.readFileSync(budW + '.used', 'utf8').trim(), 'write 10', '짓기도 새 세션에 예산 두 배로 다시')
     const d0 = v.work.docs[0]
     assert.equal(d0.state, 'ok', JSON.stringify(d0))
     // 짓기도 세션(Z9) — 재료 글은 프롬프트에 없고 세션 폴더 md/ 에서 읽는다 · 한 번 한도에 걸려도 풀리면 잇는다(앞 짓기에서)

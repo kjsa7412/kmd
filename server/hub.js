@@ -1130,21 +1130,23 @@ ${genRulesBlock({ profile: 'shape' })}`
     const say = (text, tone = '', tag = '') => feedPush(id, { k: 'kmd', text, tone }, tag)
     const sessions = new Set()
     const dirs = []
-    const open = async (mats, schema, tag) => {
+    const open = async (mats, schema, tag, budget = SEED_SESSION_BUDGET()) => {
       const sd = await seedSessionDir(pack, { mats }, cards, f)
       dirs.push(sd.dir)
-      const s = steadySession(id, run, async () => claudeSession({ cwd: sd.dir, schema, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
+      const s = steadySession(id, run, async () => claudeSession({ cwd: sd.dir, schema, budget, model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
       sessions.add(s)
       return { s, sd }
     }
     run.kill = (why) => { for (const s of sessions) s.kill(why) }
     const fail = async (r, tag) => { const why = await seedClaudeWhy(r); say(why, 'bad', tag); Object.assign(run, { state: 'fail', why }); return null }
     // 세션 하나에 묻고 꼴 검사(check) — 걸리면 같은 세션에 고쳐 받기 · { value } | { error } | null(Claude 가 답하지 않음 · 그만둠)
-    const askFix = async (s, msg, check, tag, soft = false) => {
+    const askFix = async (s, msg, check, tag, soft = false, overBudget = false) => {
       for (let n = 0; n <= INTAKE_FIX; n++) {
         const r = await s.ask(msg)
         run.tries = (run.tries || 0) + 1
         if (run.state !== 'running') return null
+        // 예산을 넘었다(묶음) — 실패로 끝내지 않고 부른 쪽이 나누거나 예산을 늘려 새 세션에 다시 한다
+        if (overBudget && r.error === 'budget') return { budget: true }
         // 글로만 답했다(StructuredOutput 을 부르지 않음) — 같은 세션에 JSON 으로 내게 한다
         if (r.error === 'shape' && n < INTAKE_FIX) { say('답이 JSON 이 아니다 · 같은 세션에 JSON 으로 내게 한다', 'warn', tag); msg = SEED_JSON_AGAIN; continue }
         if (r.error) return soft && r.error === 'shape' ? { error: '답이 JSON 이 아니다' } : fail(r, tag)
@@ -1191,30 +1193,51 @@ ${genRulesBlock({ profile: 'shape' })}`
       }
       say(`뼈대: 문서 ${frame.docs.length} · 묶음 ${bs.length}(동시에 ${Math.min(SEED_POOL, bs.length)})`, 'ok', '뼈대')
       Object.assign(run, { i: 0, n: bs.length })
-      // 2 묶음마다 항목(동시에) — 세션은 합친 검사가 끝날 때까지 열어 둔다(걸림을 그 묶음에 돌려보낸다)
+      // 2 묶음마다 항목(동시에) — 세션은 합친 검사가 끝날 때까지 열어 둔다(걸림을 그 묶음에 돌려보낸다) · live 한 칸이 받은 묶음 하나(part)
+      //   예산을 넘은 묶음은 문서 하나씩 나눠 새 세션에 다시 · 문서 하나도 넘으면 예산을 두 배로 한 번 더 · 그래도 넘으면 실패(재료를 나눈다)
       const live = []
       let done = 0
-      const parts = await pool(bs, SEED_POOL, async (b) => {
+      const B = SEED_SESSION_BUDGET()
+      const runBatch = async (b, tag, budget) => {
+        const mats = g.mats.filter((m) => b.srcs.includes(m.src))
+        const o = await open(mats, SEED_PLAN_SCHEMA, tag, budget)
+        say(`문서 ${b.docs.length} · 재료 ${mats.length}${budget !== B ? ` · 예산 $${budget}` : ''}: ${b.docs.map((d) => d.id).join(' · ')}`, '', tag)
+        const x = await askFix(o.s, seedBatchPromptOf(b, { mats }, { cards: o.sd.cards > 0, of: bs.length, kinds }) + SEED_RULES_TAIL(), (v) => batchOfDraft(v, b, { mats }, { check: formCheck }), tag, false, true)
+        if (x?.budget) { sessions.delete(o.s); await o.s.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message)); return x }
+        if (x && !x.error) live.push({ ...o, b, mats, tag, part: x.value })
+        return x
+      }
+      const tryBatch = async (b, tag, budget = B) => {
+        const x = await runBatch(b, tag, budget)
+        if (!x?.budget) return x
+        if (b.docs.length > 1) {
+          say(`예산 $${budget} 을 넘었다 · 문서 ${b.docs.length} 를 하나씩 새 세션에 다시 한다`, 'warn', tag)
+          for (const [j, d] of b.docs.entries()) {
+            const y = await tryBatch({ i: b.i, docs: [d], srcs: [...new Set(d.src)] }, `${tag}.${j + 1}`, budget)
+            if (!y || y.error) return y
+          }
+          return { value: true }
+        }
+        if (budget < B * 2) { say(`예산 $${budget} 을 넘었다 · 예산 $${budget * 2} 로 새 세션에 다시 한다`, 'warn', tag); return tryBatch(b, tag, budget * 2) }
+        return { error: `예산 $${budget} 을 넘었다(문서 ${b.docs[0].id} 하나로도) · 그 문서의 재료를 나누거나 KMD_SEED_BUDGET 을 늘린다` }
+      }
+      const got = await pool(bs, SEED_POOL, async (b) => {
         if (run.state !== 'running') return null
         const tag = `묶음 ${b.i + 1}/${bs.length}`
-        const mats = g.mats.filter((m) => b.srcs.includes(m.src))
-        const o = await open(mats, SEED_PLAN_SCHEMA, tag)
-        live[b.i] = { ...o, b, mats, tag }
-        say(`문서 ${b.docs.length} · 재료 ${mats.length}: ${b.docs.map((d) => d.id).join(' · ')}`, '', tag)
-        const x = await askFix(o.s, seedBatchPromptOf(b, { mats }, { cards: o.sd.cards > 0, of: bs.length, kinds }) + SEED_RULES_TAIL(), (v) => batchOfDraft(v, b, { mats }, { check: formCheck }), tag)
+        const x = await tryBatch(b, tag)
         if (!x) return null
         if (x.error) { say(`묶음을 받지 못했다: ${x.error}`, 'bad', tag); Object.assign(run, { state: 'fail', why: `${tag}: ${x.error}` }); return null }
         run.i = ++done
-        say(`항목 ${x.value.docs.reduce((a, d) => a + d.items.length, 0)}`, 'ok', tag)
-        return x.value
+        say(`항목 ${live.filter((o) => o.b.i === b.i).reduce((a, o) => a + o.part.docs.reduce((c, d) => c + d.items.length, 0), 0)}`, 'ok', tag)
+        return true
       })
-      if (run.state !== 'running' || parts.some((p) => !p)) return
+      if (run.state !== 'running' || got.some((p) => !p)) return
       // 3 합치기 · 검사 — 걸림은 그 문서(또는 그 재료)의 묶음 세션에
       const meta = await hub.meta(id, ctx)
       const docOf = new Map(frame.docs.flatMap((d) => d.src.map((s) => [rows.find((r) => r.src === s)?.path, d.id])))
       const stuck = new Set() // 고쳐 받기에 실패한 묶음(앞 답을 쓴다)
       for (let n = 0; ; n++) {
-        const draft = mergeSeedPlan(frame, parts)
+        const draft = mergeSeedPlan(frame, live.map((o) => o.part))
         const p = seedPlanOfDraft(draft)
         if (p.error) { say(`구조안 꼴이 아니다: ${p.error}`, 'bad'); return Object.assign(run, { state: 'fail', why: `구조안 꼴이 아니다: ${p.error}` }) }
         cache.delete(id)
@@ -1235,9 +1258,9 @@ ${genRulesBlock({ profile: 'shape' })}`
           const o = live[i]
           const why = es.slice(0, 5).map((e) => `${e.where}: ${e.why}`).join(' · ')
           say(`고쳐 받는다: ${why}`, 'warn', o.tag)
-          const x = await askFix(o.s, seedSessionFixOf(why), (v) => batchOfDraft(v, o.b, { mats: o.mats }, { check: formCheck }), o.tag, true)
-          if (x && !x.error) parts[i] = x.value
-          else if (x) { stuck.add(i); say(`고쳐 받지 못했다 · 앞 답을 쓴다: ${x.error}`, 'warn', o.tag) }
+          const x = await askFix(o.s, seedSessionFixOf(why), (v) => batchOfDraft(v, o.b, { mats: o.mats }, { check: formCheck }), o.tag, true, true)
+          if (x && !x.error && !x.budget) o.part = x.value
+          else if (x?.budget) { stuck.add(i); say('고쳐 받다가 예산을 넘었다 · 앞 답을 쓴다', 'warn', o.tag) } else if (x) { stuck.add(i); say(`고쳐 받지 못했다 · 앞 답을 쓴다: ${x.error}`, 'warn', o.tag) }
           return x
         }))
         if (run.state !== 'running' || again.some((x) => !x)) return
@@ -1283,18 +1306,33 @@ ${genRulesBlock({ profile: 'shape' })}`
         await fs.writeFile(path.join(dir, 'md', `${p.src.slice(2)}.md`), p.body)
         prior.push({ file: `${p.src.slice(2)}.md`, path: p.path, date: p.date, text: p.body })
       }
-      s = steadySession(id, run, async () => claudeSession({ cwd: dir, schema: SEED_WRITE_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
+      let budget = SEED_SESSION_BUDGET()
+      const mk = () => steadySession(id, run, async () => claudeSession({ cwd: dir, schema: SEED_WRITE_SCHEMA, budget, model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
+      s = mk()
       run.sessions?.add(s)
       feedPush(id, { k: 'kmd', text: `글 짓기: ${doc} · 항목 ${g.targets.length} · 재료 ${files.length}${prior.length ? ` · 앞선 값 재료 ${prior.length}` : ''}` }, tag)
       const meta = await hub.meta(id, ctx)
       const k0 = await hub.get(id, ctx)
       const kd = kindOf(seedFormsOf(k0, readShape(k0, await readStructure(meta.dir))), doc)
       let msg = seedWriteSessionPromptOf(g, files, { writeRules: WRITE_RULES, form: formBlock(kd.kind, { name: kd.form || doc.split('/').pop(), props: kd.props }), prior })
+      const first = msg
       let summary = ''
       for (let n = 0; n <= INTAKE_FIX; n++) {
         const r = await s.ask(msg)
         run.tries = (run.tries || 0) + 1
         if (run.state !== 'running') return null
+        // 예산을 넘었다 — 한 번은 새 세션에 예산 두 배로 처음 말부터 다시(고쳐 받기 횟수는 그대로)
+        if (r.error === 'budget' && budget < SEED_SESSION_BUDGET() * 2) {
+          feedPush(id, { k: 'kmd', text: `예산 $${budget} 을 넘었다 · 예산 $${budget * 2} 로 새 세션에 다시 한다`, tone: 'warn' }, tag)
+          run.sessions?.delete(s)
+          await s.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message))
+          budget *= 2
+          s = mk()
+          run.sessions?.add(s)
+          msg = first
+          n--
+          continue
+        }
         if (r.error) { const why = await seedClaudeWhy(r); feedPush(id, { k: 'kmd', text: why, tone: 'bad' }, tag); return { state: 'fail', why, fatal: true } }
         const last = n === INTAKE_FIX
         const x = writeOfDraft(g, r.value)

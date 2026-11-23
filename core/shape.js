@@ -806,7 +806,8 @@ export function frameOfDraft(draft, g, { clash = null } = {}) {
   return { docs, skip, why: typeof draft.why === 'string' ? draft.why.slice(0, 400) : '' }
 }
 // 문서 묶음 — 뼈대 차례대로 · 묶음마다 재료 maxMats · 글자 maxChars · 문서 maxDocs 까지(문서 하나가 넘으면 그 문서 혼자)
-export function seedBatches(frame, g, { maxMats = 12, maxChars = 400_000, maxDocs = 8 } = {}) {
+//   (묶음 하나가 세션 예산 KMD_SEED_BUDGET 안에 들게 작게 · 넘으면 hub 가 문서 하나씩 나눠 · 예산 두 배로 다시 한다)
+export function seedBatches(frame, g, { maxMats = 8, maxChars = 150_000, maxDocs = 4 } = {}) {
   const chars = new Map(g.mats.map((m) => [m.src, Number(m.chars) || 0]))
   const out = []
   let cur = null

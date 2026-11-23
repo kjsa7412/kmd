@@ -76,6 +76,12 @@ function session() {
     if (!fixing) kind = text.startsWith('바탕 세우기 뼈대를') ? 'frame' : text.startsWith('바탕 세우기 구조안의 한 묶음') ? 'batch' : text.startsWith('바탕 세우기 항목 글을') ? 'write' : 'other'
     if (!fixing) m.first = text
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `seed-${kind}${fixing ? ' fix' : ''}\n`)
+    // FAKE_CLAUDE_BUDGET_FILE=<파일> → 그 파일이 있으면 묶음 · 짓기 턴 한 번은 예산을 넘는다(파일을 지운다) · 그 뒤 세션은 예산을 <파일>.used 에 남긴다
+    const bud = process.env.FAKE_CLAUDE_BUDGET_FILE
+    if (bud && (kind === 'batch' || kind === 'write')) {
+      if (fs.existsSync(bud)) { fs.rmSync(bud); return say({ is_error: true, subtype: 'error_max_budget_usd', result: '', total_cost_usd: 5.2, num_turns: 4 }) }
+      fs.appendFileSync(bud + '.used', `${kind} ${val('--max-budget-usd')}\n`)
+    }
     out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'thinking', thinking: fixing ? '걸린 곳을 고친다' : '재료를 훑는다' }] } })
     out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 't' + turn, name: 'Grep', input: { pattern: '^#{1,3} ', path: 'md', output_mode: 'content' } }] } })
     const mds = fs.readdirSync('md')
