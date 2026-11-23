@@ -839,15 +839,40 @@ export function seedBatchPromptOf(b, g, { cards = false, of = 1, kinds = null } 
     '정했으면 구조안 JSON 을 낸다.',
   ].join('\n')
 }
+// 묶음의 문서 id 는 서버가 정해 준 값이다 — 답이 글자 몇 개를 틀리게 옮기면(「분석」 → 한자 「分析」 · \u 이스케이프 실수) 가장 가까운 하나로 바로잡는다.
+//   폴더 조각 수가 같고 · 고친 거리가 id 길이의 1/4 안이고(짧은 id 는 바로잡지 않는다) · 가장 가까운 것이 하나일 때만. 아니면 받은 그대로(검사가 걸린다)
+export function batchIdFixer(ids) {
+  const dist = (a, b) => {
+    const A = [...a]
+    const B = [...b]
+    let prev = Array.from({ length: B.length + 1 }, (_, j) => j)
+    for (let i = 1; i <= A.length; i++) {
+      const cur = [i]
+      for (let j = 1; j <= B.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (A[i - 1] === B[j - 1] ? 0 : 1))
+      prev = cur
+    }
+    return prev[B.length]
+  }
+  return (raw) => {
+    const id = cleanId(raw)
+    if (!id || ids.includes(id)) return id
+    const segs = id.split('/').length
+    const near = ids.filter((x) => x.split('/').length === segs).map((x) => ({ x, d: dist(id, x) })).sort((a, b) => a.d - b.d)
+    const best = near[0]
+    if (!best || best.d > Math.floor([...best.x].length / 4) || (near[1] && near[1].d === best.d)) return id
+    return best.x
+  }
+}
 // 받은 묶음 초안 → { docs, names, skip } | { error }(꼴 · 문서 id · 재료 배정 · 덮임은 이 묶음 안에서)
 export function batchOfDraft(draft, b, g, { check = null } = {}) {
   if (!draft || typeof draft !== 'object' || !Array.isArray(draft.docs)) return { error: '구조안 꼴이 아니다: docs 가 없다' }
   const want = new Map(b.docs.map((d) => [d.id, new Set(d.src)]))
+  const idOf = batchIdFixer([...want.keys()])
   const seen = new Set()
   const used = new Set()
   const docs = []
   for (const d of draft.docs) {
-    const id = cleanId(d?.id)
+    const id = idOf(d?.id)
     if (!want.has(id)) return { error: `이 묶음의 문서가 아니다: ${String(d?.id).slice(0, 80)}(이 묶음: ${[...want.keys()].join(' · ')})` }
     if (seen.has(id)) return { error: `같은 문서가 둘이다: ${id}` }
     seen.add(id)
@@ -868,7 +893,7 @@ export function batchOfDraft(draft, b, g, { check = null } = {}) {
   const pick = new Map(g.mats.map((x) => [x.src, x]))
   const left = b.srcs.filter((s) => pick.get(s)?.pick === '넣음' && !used.has(s) && !skipped.has(s))
   if (left.length) return { error: `넣음 재료 ${left.length} 가 항목에도 skip 에도 없다: ${left.slice(0, 5).map((s) => `${s}(${pick.get(s)?.path || ''})`).join(' · ')}` }
-  const names = (Array.isArray(draft.names) ? draft.names : []).filter((x) => x && want.has(cleanId(x.doc)))
+  const names = (Array.isArray(draft.names) ? draft.names : []).filter((x) => x && typeof x === 'object').map((x) => ({ ...x, doc: idOf(x.doc) })).filter((x) => want.has(x.doc))
   const nb = names.map((x) => coordProblem(x.coord)).find(Boolean)
   if (nb) return { error: nb }
   const ce = check ? check(docs) : null
