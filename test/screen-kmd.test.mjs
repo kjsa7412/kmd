@@ -86,7 +86,7 @@ const hist = (page) => kmClick(page, 'history')
 const WORK = ['import', 'held', 'send']
 async function mg(page, area, item) {
   if (WORK.includes(item)) return kmClick(page, item)
-  // 구조는 문서 나무 머리 [구조] — 목록 칸은 목록 화면에만 보인다(개편 3단계): 목록 없는 화면이면 「목차」 부터
+  // 구조는 문서 나무 머리 [구조] — 목록 칸은 목록 화면에만 보인다(개편 3단계): 목록 없는 화면이면 보기 「문서」 부터
   if (item === 'structure') { await page.waitForSelector('[data-t=tree] [data-t=treeStruct]', { state: 'attached' }); if (!(await page.locator('[data-t=tree] [data-t=treeStruct]').isVisible())) { if (await page.locator('[data-t=ktabs]').count()) await page.click('[data-t=ktabs] [data-t=rb-docs]'); else { await page.click('[data-t=kpick]'); await page.click('[data-t=kmenuKn][aria-current=true]') } } await page.waitForSelector('[data-t=tree] [data-t=treeStruct]'); return page.click('[data-t=tree] [data-t=treeStruct]') }
   // 지식관리(N6) — 모든 지식(옛 팀 지식) · 사람 · 기초 세우기는 공통 메뉴 「지식관리」 의 본문 왼쪽 메뉴
   const MG = { kns: 'all', all: 'all', people: 'people', seed: 'seed' }
@@ -148,13 +148,13 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
   page.on('pageerror', (e) => errors.push(e.message))
 
-  // 들어가기 — 앱 틀 없이 두 쪽(왼쪽 잉크 판 그림 · 오른쪽 위 설명서 · 가운데 칸) · 틀리면 한 줄
+  // 들어가기 — 앱 틀 없이 두 쪽(왼쪽 잉크 판 로고 · 오른쪽 위 설명서 · 가운데 칸) · 틀리면 한 줄
   await page.goto(s.url)
   await page.waitForSelector('[data-t=loginBtn]')
   assert.match(await page.locator('.gate').innerText(), /팀 kmd 에 들어간다/)
   await page.click('[data-t="tip-gate.login"]'); assert.match(await page.locator('#tipPop').innerText(), /한 번 들어오면 쓰는 동안 이어진다/); await page.keyboard.press('Escape')
   assert.equal(await page.locator('.side, .hdr').count(), 0, '들어가기는 앱 틀 없이 두 쪽(개편 6단계)')
-  assert.equal(await page.locator('[data-t=gatePage] .gart[aria-hidden=true] svg.gprev').count(), 1)
+  assert.equal(await page.locator('[data-t=gatePage] .gart[aria-hidden=true] svg').count(), 1, '잉크 판은 로고 하나(보기 그림은 걷었다)')
   // 로고(컨벤션 1-1) — 잉크 판 아래는 글 「kmd」 가 아니라 로고 SVG 하나(마크 칸 · k · 갈래 점 · 글자표) · 높이 64
   { const lg = await page.locator('[data-t=gatePage] .gart svg.lg').evaluate((e) => ({ n: e.querySelectorAll('.lg-t,.lg-k,.lg-d,.lg-w').length, h: Math.round(e.getBoundingClientRect().height), txt: e.textContent.trim(), spans: e.parentElement.querySelectorAll(':scope > span').length })); assert.deepEqual(lg, { n: 4, h: 64, txt: '', spans: 0 }, '들어가기 로고는 SVG(글로 때우지 않음)') }
   assert.equal(await page.locator('head link[rel=icon]').getAttribute('href'), '/favicon.svg')
@@ -173,15 +173,16 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   // 셸(세 칸 책상 · 개편 3단계) — 리본 없음 · 잉크 기둥(지식 고르기 · 자리 줄 · 지식 메뉴 · 보기 · 공통 메뉴 · 바닥 나 · Claude · 설명서) · 목록 칸(찾기 · 빨리 열기 · 목록) · 머리 줄 56 · 띠 · 아래 줄 없음
   assert.equal(await page.locator('.ribbon').count(), 0)
   // 옆 메뉴(메뉴 개편 N4 · 7절) — 지식 고르기 · 지식 메뉴(팀: 점검 · 생성 · 문서 · 이력 · 아이콘 + 이름 · 저장 승인 P10) · 층 3(보기 탭 · 나무)은 문서에서만 · 공통 메뉴(지식관리 · 설정)
-  // 지식관리 · 설정은 지식 메뉴 · 보기 없이 하위 메뉴만(확정안 7-4) — 지식 메뉴는 문서 화면에서 본다(아래)
-  assert.equal(await page.locator('[data-t=knMenu]').count(), 0, '지식관리 화면은 지식 메뉴 없음')
-  assert.equal(await page.locator('.side [data-t=mgNav]').count(), 1, '1025 이상 하위 메뉴는 잉크 기둥')
+  // 지식관리 · 설정에서도 위 지식 메뉴는 그대로 · 하위 메뉴는 공통 메뉴의 그 단추 바로 아래(2026-11-23)
+  assert.equal(await page.locator('[data-t=knMenu]').count(), 1, '지식관리 화면에도 지식 메뉴 고정')
+  assert.equal(await page.locator('.side [data-t=manageArea] [data-t=nav-manage] + .sb-sub [data-t=mgNav]').count(), 1, '1025 이상 하위 메뉴는 「지식관리」 단추 바로 아래')
+  assert.equal(await page.locator('.side [data-t=mgNav] .mgt').count(), 0, '기둥 하위 메뉴는 머리 없이(단추가 대신)')
   assert.deepEqual(await page.locator('[data-t=manageArea] .sb-ic').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.textContent.trim())), ['nav-manage:지식관리', 'nav-settings-team:설정'])
   assert.equal(await page.locator('[data-t=nav-manage]').getAttribute('aria-current'), 'page', '지식 목록은 공통 메뉴 「지식관리」')
-  assert.equal(await page.locator('[data-t=ktabs]').count(), 0, '지식관리는 「보기」 자리에 하위 메뉴(개편 6단계)')
+  assert.equal(await page.locator('[data-t=ktabs]').count(), 1, '지식관리에서도 「보기」 는 그대로(하위 메뉴는 공통 메뉴 단추 아래)')
   assert.match(await page.locator('[data-t=kpick] .rn').innerText(), /지식/, '지식 고르기는 지식 목록에서도 고른 지식 이름')
-  // 레일(접힘)도 같은 차례 — 지식 약자 · (문서 화면은 지식 메뉴 · 선) · 공통 메뉴
-  assert.deepEqual(await page.locator('[data-t=sideRailNav] button').evaluateAll((els) => els.map((e) => e.dataset.t)), ['sideFold', 'rl-kn', 'rl-manage', 'rl-settings-team'])
+  // 레일(접힘)도 같은 차례 — 지식 약자 · 지식 메뉴 · 선(어느 화면이든) · 공통 메뉴
+  assert.deepEqual(await page.locator('[data-t=sideRailNav] button').evaluateAll((els) => els.map((e) => e.dataset.t)), ['sideFold', 'rl-kn', 'rl-held', 'rl-import', 'rl-history', 'rl-manage', 'rl-settings-team'])
   // 찾기 · 빨리 열기는 한 자리(개편 3단계) — 목록 칸이 없는 화면(지식관리)은 머리 줄 맨 앞 · 목록 칸 머리의 것은 숨는다
   assert.match(await page.locator('.hdr [data-t=hSearch]').innerText(), /찾기[\s\S]*Ctrl K/)
   assert.match(await page.locator('.hdr [data-t=hQo]').innerText(), /빨리 열기/)
@@ -201,7 +202,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.deepEqual(await page.locator('[data-t=mgNav] .mgi').allInnerTexts(), ['모든 지식', '기초 세우기', '사람'])
   // 1025 이상은 잉크 기둥이 하위 메뉴(「보기」 자리) · 모든 지식은 카드 격자(머리글자 · 값 이름) · 개편 6단계
   assert.equal(await page.locator('.side [data-t=mgNav]').count(), 1)
-  assert.equal(await page.locator('.side [data-t=ktabs]').count(), 0)
+  assert.equal(await page.locator('.side [data-t=ktabs]').count(), 1, '보기도 고정')
   assert.equal(await page.locator('[data-t=krow][data-name="DPMS 지식"] [data-t=knOpen]').getAttribute('data-ini'), 'DP')
   assert.equal(await page.locator('[data-t=krow]').first().evaluate((e) => getComputedStyle(e).display), 'grid')
   assert.match(await page.locator('.crumb').innerText(), /지식관리 › 모든 지식/)
@@ -253,7 +254,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.deepEqual(await page.locator('[data-t=docsEmpty] .hk > span').allInnerTexts(), ['나란히 보기', '빨리 열기'])
   assert.equal(await page.locator('[data-t=stage] .big').innerText(), 'DPMS 지식')
   assert.equal(await page.locator('[data-t=stage] .st-who').innerText(), '팀 지식 · 팀 서버')
-  assert.deepEqual(await page.locator('[data-t=stage] .stn > span').allInnerTexts(), ['목차', '항목', '기록'])
+  assert.deepEqual(await page.locator('[data-t=stage] .stn > span').allInnerTexts(), ['문서', '항목', '기록'])
   assert.equal(await page.locator('[data-t=stage] [data-t=knProps] [data-t=whoVal]').count(), 1, '속성은 무대 안')
   assert.equal(await page.locator('[data-t=aside]').count(), 0, '첫 화면은 오른쪽 칸이 없다')
   // 600 이하 머리 줄 — 경로 대신 지금 화면 이름 하나(경로 › 없음) · 오른쪽 칸 없는 첫 화면은 「옆 칸」 없음(확정안 6절)
@@ -287,7 +288,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.ok((await page.locator('[data-t=guardCard] .cktile.warn .ckt-n').count()) >= 1, '경고 판은 큰 수')
   assert.ok((await page.locator('.main .tipb').count()) <= 5, '(!) 는 화면에 다섯까지')
   assert.match(page.url(), /#\/k\/[^/]+\/check$/, '점검 › 점검 주소(처음 탭)')
-  // 점검 화면에서도 아래 나무는 그대로 · 보기 탭은 고르지 않은 채 · 목차 탭으로 문서 화면에 간다
+  // 점검 화면에서도 아래 나무는 그대로 · 보기 탭은 고르지 않은 채 · 보기 「문서」 로 문서 화면에 간다
   assert.ok((await page.locator('[data-t=tree] [data-t=doc]').count()) > 0, '점검 화면에서도 문서 나무가 보인다')
   assert.equal(await page.locator('[data-t=ktabs] [aria-selected=true]').count(), 0, '문서 화면이 아니면 보기 탭은 고르지 않음')
   await page.click('[data-t=ktabs] [data-t=rb-docs]')
@@ -915,7 +916,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   await page.click('[data-t=loginBtn]')
   await page.waitForSelector('[data-t=klist]')
   await mg(page, 'team', 'mine')
-  assert.equal(await page.locator('[data-t=mgNav] .mgt').innerText(), '설정')
+  assert.equal(await page.locator('[data-t=nav-settings-team] + .sb-sub [data-t=mgNav]').count(), 1, '설정 하위 메뉴는 「설정」 단추 바로 아래')
   assert.equal(await page.locator('[data-t=setTitle]').innerText(), '서버 정보')
   // 정보 단추 (!) — 페이지 안내는 제목 옆 (!) 로(옛 .lead 걷음) · 누르면 단추 바로 뒤에 툴팁 하나 · Esc 면 닫히고 초점은 단추로 · 바깥 누름 · 다시 누름으로 닫힘(컨벤션 4절)
   assert.equal(await page.locator('[data-t=setLead]').count(), 0)
@@ -968,7 +969,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   await page.setViewportSize(VIEW)
   // 설정(메뉴 개편 N6 · 6-2): 서버 정보 · 에이전트 설치 · 개인 프로그램 설치 · 팀 일꾼 · 운영(총괄 관리자) · 팀 지식 · 사람은 지식관리로
   assert.deepEqual(await mgItems(page), ['서버 정보', '에이전트 설치', '개인 프로그램 설치', '팀 일꾼', '운영'])
-  assert.equal(await page.locator('[data-t=knMenu]').count(), 0, '설정 화면은 지식 메뉴 없음(확정안 7-4 · 생성은 지식 화면의 지식 메뉴)')
+  assert.equal(await page.locator('[data-t=knMenu]').count(), 1, '설정 화면에도 지식 메뉴 고정')
   assert.equal(await page.locator('[data-t=nav-settings-team]').getAttribute('aria-current'), 'page', '설정 페이지는 공통 메뉴 「설정」')
   assert.equal(await page.locator('[data-t=mgNav] [data-t=mgGroup]').count(), 0)
   // 서버 정보 = 정보 + 로그인(내 자리 · 비슷한 글 · 비밀번호 · 나가기) · 화면 밝기 · 내 기기는 내 메뉴(11절 2 · 3)

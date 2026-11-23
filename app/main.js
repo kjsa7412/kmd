@@ -722,7 +722,7 @@ function draw() {
   if (!S.me) { app.innerHTML = `<div class="col"><div class="main">${S.err ? `<div class="callout danger err" data-t="bootErr">${sayErr(S.err)}<b>${esc(S.err)}</b><button type="button" class="btn sm retry" data-a="retryBoot" data-t="retry">다시 읽기</button></div>` : loadingHtml}</div></div>`; return }
   hidePv()
   S._pop = null
-  // 목록 칸 갈래 따라가기 — 문서 보기에서 연 탭이 바뀌면 그 갈래로(기록 → 「기록」 · 문서 → 「목차」) · 그 탭 안에서 사람이 고른 갈래는 그대로
+  // 목록 칸 갈래 따라가기 — 문서 보기에서 연 탭이 바뀌면 그 갈래로(기록 → 「기록」 · 문서 → 「문서」) · 그 탭 안에서 사람이 고른 갈래는 그대로
   { const t = activeTab(); if (t && S.route.scr === 'docs' && S._follow !== t.id) { S._follow = t.id; if (t.kind === 'doc' || t.kind === 'rec') UI.stab[t.kn] = t.kind } }
   let scr
   try { scr = gated() ? gateView() : viewOf(S.route.scr) } catch (e) { console.error(e); scr = { main: drawErrHtml(e) } }
@@ -943,10 +943,10 @@ const openSettings = () => openSet(null)
 // 하위 메뉴가 잉크 기둥에 서나(확정안 7-4 · 1025 이상 · 기둥을 접지 않았을 때) — 폭이 끊는 점을 넘으면 다시 그린다(아래 matchMedia)
 const WIDE = () => !!(window.matchMedia && matchMedia('(min-width:1025px)').matches)
 const mgSide = () => WIDE() && !UI.sideRail && MGSCR.includes(S.route.scr) && !gated()
-function mgNavHtml(scr) {
+function mgNavHtml(scr, side) {
   const mg = scr === 'home', name = mg ? '지식관리' : '설정'
   const items = mg ? mgMenu() : setMenu(), cur = mg ? mgPage().id : (setPage() || {}).id
-  return `<nav class="mgnav" data-t="mgNav" data-area="${mg ? 'manage' : setArea()}" aria-label="${name}"><div class="mgt">${name}</div>${items.map((x) => `<button type="button" class="mgi${x.id === cur ? ' on' : ''}" data-a="${mg ? 'mgGo' : 'openSet'}" data-v="${x.id}" data-t="${mg ? 'mgp' : 'mg'}-${x.id}"${x.id === cur ? ' aria-current="page"' : ''}>${esc(x.l)}</button>`).join('')}</nav>`
+  return `<nav class="mgnav" data-t="mgNav" data-area="${mg ? 'manage' : setArea()}" aria-label="${name}">${side ? '' : `<div class="mgt">${name}</div>`}${items.map((x) => `<button type="button" class="mgi${x.id === cur ? ' on' : ''}" data-a="${mg ? 'mgGo' : 'openSet'}" data-v="${x.id}" data-t="${mg ? 'mgp' : 'mg'}-${x.id}"${x.id === cur ? ' aria-current="page"' : ''}>${esc(x.l)}</button>`).join('')}</nav>`
 }
 function mgWrap(scr, v) {
   const name = scr === 'home' ? '지식관리' : '설정', side = mgSide()
@@ -955,8 +955,8 @@ function mgWrap(scr, v) {
 // 옆 메뉴(메뉴 개편 N4 · docs/품질개선/KMD_메뉴개편_설계.md 7절 · 컨벤션 5절) — 위에서 아래로 네 층
 //   1 지식 고르기(.sb-top) · 지금 하는 일 점 · 접기 — 고르기 끝 줄 「모든 지식」 은 지식관리로 가는 지름길(고른 지식은 그대로)
 //   2 지식 메뉴(.kmn > button.kmi) — 개인 점검 · 생성 · 공유 · 이력 / 팀 점검 · 생성 · 이력(kmItems) · 배지는 이력 값 바뀜만(점검 배지 없음 · P-D28)
-//   3 고른 지식이 있으면 늘(어느 화면이든): 보기 탭 한 줄(.ktabs 목차 · 항목 · 기록 · 그래프) · 찾기 + 도구(나무 머리 [구조]) · 목록
-//   4 공통 메뉴(.sb-mg.nm2): 지식관리 · 설정(아이콘 + 이름)
+//   3 고른 지식이 있으면 늘(어느 화면이든): 보기 탭 한 줄(.ktabs 문서 · 항목 · 기록 · 그래프) · 찾기 + 도구(나무 머리 [구조]) · 목록
+//   4 공통 메뉴(.sb-mg.nm2): 지식관리 · 설정(아이콘 + 이름) · 켜진 단추 아래 하위 메뉴(.sb-sub · 1025 이상)
 //   접힌 레일은 같은 차례(지식 약자 · 층 2 · 선 · 층 4) · 들어온 사람은 머리 줄 오른쪽 동그라미(meHtml)
 const VIEWS3 = ['docs', 'items', 'graph']
 function sideList(vt, k) {
@@ -971,7 +971,7 @@ function keysHtml() {
   return `<div class="scrim fix" data-a="keysClose" data-self="1"><div class="modal w420" role="dialog" aria-modal="true" aria-label="단축키" data-t="keysWin"><div class="mh">단축키<button type="button" class="x" data-a="keysClose" title="닫기" aria-label="닫기">×</button></div><div class="mb"><table class="t"><tbody>${KEYS.map(([k, d]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(d)}</td></tr>`).join('')}</tbody></table></div><div class="mf"><span class="l">설명서 › 쓰는 사람에도 있다</span><span class="acts"><button type="button" class="btn ghost" data-a="keysClose" data-focus>닫기</button></span></div></div></div>`
 }
 // 보기 탭 넷 — 기록은 문서 보기 안의 기록 목록
-const LTABS = [['docs', '목차', 'doc'], ['items', '항목', 'tag'], ['recs', '기록', 'rec'], ['graph', '그래프', 'graph']]
+const LTABS = [['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['recs', '기록', 'rec'], ['graph', '그래프', 'graph']]
 const ltabOf = (vt, k) => (vt === 'docs' && k && stabOf(k) === 'rec' ? 'recs' : vt)
 // 탭의 수 — 이미 읽은 것만(수 때문에 따로 읽지 않는다)
 function ltabN(v, k) {
@@ -1011,13 +1011,12 @@ function sideHtml() {
   // 접힌 옆 메뉴(레일 64) — 편 메뉴와 같은 차례: 지식 약자 · 지식 메뉴 · 선 · 공통 메뉴
   const rb = (x) => `<button type="button" class="hb${x.on ? ' on' : ''}" ${x.a} data-t="rl-${x.id}" title="${esc(sideLab(x))}" aria-label="${esc(sideLab(x))}"${cur4(x)}${dis(x)}>${svg(x.ic)}${x.n && !x.dis ? `<i class="rdot${x.bad ? ' dan' : ''}"></i>` : ''}</button>`
   const kab = cur ? `<button type="button" class="hb kab" data-a="railKn" data-t="rl-kn" title="${esc(cur.name)}" aria-label="지식 고르기: ${esc(cur.name)}">${esc(knIni(cur.name))}</button>` : ''
-  const mgs = MGSCR.includes(r.scr)
   // 접힌 레일의 경고 — 자리 줄(.sb-top)이 숨으므로 그림 단추로(같은 data-a · 띠가 있던 때처럼 늘 닿는다)
   const st0 = stopsFor(stopKn())
   const rwarn = S.loginLost
     ? '<button type="button" class="hb rwarn bad" data-a="reLogin" data-t="rl-loginLost" title="들어간 것이 끝났다 · 다시 들어가기" aria-label="들어간 것이 끝났다 · 다시 들어가기">!</button>'
     : st0.length ? `<button type="button" class="hb rwarn${st0.some((x) => x.level === 'bad') ? ' bad' : ''}" data-a="stopOpen" data-t="rl-stop" title="경고 ${st0.length}: 누르면 모두 본다" aria-label="경고 ${st0.length}">⚠<span>${st0.length}</span></button>` : ''
-  const rail = `<nav class="srail" data-t="sideRailNav" aria-label="옆 메뉴(접힘)">${fold}${kab}${rwarn}${mgs ? '' : km.map(rb).join('') + '<span class="rsep" aria-hidden="true"></span>'}${cm.map(rb).join('')}</nav>`
+  const rail = `<nav class="srail" data-t="sideRailNav" aria-label="옆 메뉴(접힘)">${fold}${kab}${rwarn}${km.map(rb).join('') + '<span class="rsep" aria-hidden="true"></span>'}${cm.map(rb).join('')}</nav>`
   let h = `<aside class="side" aria-label="옆 메뉴">${rail}`
   // 1 지식 고르기 — 지식이 없으면 「지식이 없다」(만들 수 있는 사람은 [+ 새 지식]) · 팀에서 받은 지식이 없으면 「받은 지식 없음 (!)」
   const vk = shownKns()
@@ -1031,13 +1030,12 @@ function sideHtml() {
   const warn = S.loginLost ? '<button type="button" class="btn sm stopbtn bad" data-a="reLogin" data-t="loginLost">들어간 것이 끝났다 · 다시 들어가기</button>' : stopBtnHtml(st)
   const who = `<div class="cx-who" data-t="sideWho"><i aria-hidden="true"></i><span>${team ? '팀 지식 · 팀 서버' : '내 지식 · 이 PC'}</span>${team && cur ? lvChip(cur) : ''}${team ? '' : tipb('band.out', '개인 프로그램')}</div>`
   h += `<div class="sb-top">${top}${busyDot()}${fold}${who}${warn ? `<div class="sb-warn">${warn}</div>` : ''}</div><div class="sb-mid">`
-  // 지식관리 · 설정 — 지식 메뉴 · 보기를 걷고 1025 이상은 기둥이 하위 메뉴가 된다(확정안 7-4 · 1024 이하는 본문 위 알약 줄)
+  // 지식관리 · 설정 — 위 지식 메뉴 · 보기는 늘 그대로 · 1025 이상은 하위 메뉴가 공통 메뉴의 그 단추 바로 아래에 선다(1024 이하는 본문 위 알약 줄)
   const sub = mgSide()
-  // 2 지식 메뉴
-  if (!mgs) h += `<nav class="kmn n${km.length}" data-t="knMenu" aria-label="지식 메뉴">${km.map((x) => `<button type="button" class="kmi" ${x.a} data-t="nav-${x.id}" title="${esc(sideLab(x))}" aria-label="${esc(sideLab(x))}"${cur4(x)}${dis(x)}>${svg(x.ic)}<span aria-hidden="true">${esc(x.l)}</span>${sideBadge(x)}</button>`).join('')}</nav>`
-  if (sub) h += `<div class="sb-sub">${mgNavHtml(r.scr)}</div>`
-  // 3 보기 갈래(목차 · 항목 · 기록 · 그래프) — 갈래 점 + 이름 + 흐린 수 · 고른 것은 문서 화면일 때만
-  if (cur && !mgs) {
+  // 2 지식 메뉴(어느 화면이든 고정)
+  h += `<nav class="kmn n${km.length}" data-t="knMenu" aria-label="지식 메뉴">${km.map((x) => `<button type="button" class="kmi" ${x.a} data-t="nav-${x.id}" title="${esc(sideLab(x))}" aria-label="${esc(sideLab(x))}"${cur4(x)}${dis(x)}>${svg(x.ic)}<span aria-hidden="true">${esc(x.l)}</span>${sideBadge(x)}</button>`).join('')}</nav>`
+  // 3 보기 갈래(문서 · 항목 · 기록 · 그래프) — 갈래 점 + 이름 + 흐린 수 · 고른 것은 문서 화면일 때만
+  if (cur) {
     const ds = DOCSCR.includes(r.scr)
     const vt = VIEWS3.includes(r.scr) ? r.scr : VIEWS3.includes(S.ktab) ? S.ktab : 'docs'
     const lt = !ds || r.scr === 'structure' ? '' : ltabOf(vt, k)
@@ -1045,7 +1043,7 @@ function sideHtml() {
   }
   h += '<div class="sb-sp"></div>'
   // 4 공통 메뉴
-  h += `<nav class="sb-mg nm2" data-t="manageArea" aria-label="공통 메뉴">${cm.map((x) => `<button type="button" class="sb-ic" ${x.a} data-t="nav-${x.id}"${cur4(x)}>${svg(x.ic)}<span>${esc(x.l)}</span></button>`).join('')}</nav>`
+  h += `<nav class="sb-mg nm2" data-t="manageArea" aria-label="공통 메뉴">${cm.map((x) => `<button type="button" class="sb-ic" ${x.a} data-t="nav-${x.id}"${cur4(x)}>${svg(x.ic)}<span>${esc(x.l)}</span></button>${sub && x.on ? `<div class="sb-sub">${mgNavHtml(r.scr, true)}</div>` : ''}`).join('')}</nav>`
   h += '</div>'
   // 5 바닥 — 나 · Claude · 설명서(머리 줄 오른쪽에서 옮김 · 들어가기 화면은 머리 줄에 둔다)
   if (!gated()) h += `<div class="sb-foot" data-t="sideFoot">${meHtml()}${claudeChip()}<a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서: 새 탭">${svg('book')}<span>설명서</span></a></div>`
@@ -1885,7 +1883,7 @@ function stageHtml(k, n, tr) {
   const team = isTeam() && !isPersonal(n)
   const who = isPersonal(n) ? '내 지식' + (n.dir ? ' · ' + esc(n.dir) : '') + ' · 나만' : isTeam() ? '팀 지식 · 팀 서버' : '팀 지식'
   const rd = tr && tr.readme ? readmeFirst(tr.readme) : null
-  const nums = [['docs', '목차'], ['items', '항목'], ['recs', '기록']].map(([v, l]) => { const c = ltabN(v, k); return c === '' ? '' : `<button type="button" class="stn" data-a="ltab" data-v="${v}" data-t="stageN-${v}" title="${VIEW_LABEL[v] || l + ' 보기'}"><span>${l}</span><b>${c}</b></button>` }).join('')
+  const nums = [['docs', '문서'], ['items', '항목'], ['recs', '기록']].map(([v, l]) => { const c = ltabN(v, k); return c === '' ? '' : `<button type="button" class="stn" data-a="ltab" data-v="${v}" data-t="stageN-${v}" title="${VIEW_LABEL[v] || l + ' 보기'}"><span>${l}</span><b>${c}</b></button>` }).join('')
   const kvp = (a, b) => `<span class="kvp">${a}${b}</span>`
   const props = team
     ? kvp('<span>쓰는 사람</span>', whoHtml(k)) + kvp('<span>자동수집</span>', `<span data-t="knSrcN">${knSrcN(k)}<button type="button" class="lk" data-a="nav" data-s="import">생성</button></span>`)
@@ -2413,7 +2411,7 @@ function cmdDefs() {
     { n: '새 지식', s: '이름 하나로 새 지식', f: () => openAdd() },
     { n: '나누어 보기', s: 'Ctrl \\: 두 탭을 나란히', f: () => toggleSplit() },
     { n: '그래프 열기', s: '옆 메뉴: 그래프 탭', f: () => setView('graph') },
-    { n: '문서로 보기', s: '옆 메뉴: 목차 탭', f: () => setView('docs') },
+    { n: '문서로 보기', s: '옆 메뉴: 보기 「문서」', f: () => setView('docs') },
     { n: '항목으로 보기', s: '옆 메뉴: 항목 탭', f: () => setView('items') },
     { n: '빨리 열기', s: 'Ctrl O', f: () => openQo() },
     { n: '찾기', s: 'Ctrl K', f: () => openPal() },
@@ -4823,12 +4821,11 @@ async function setOwnerRow(k, patch) {
 
 // ───────────── 들어오기 전 — 들어가기 · 처음 들어오기 링크 · 첫 설정 ─────────────
 // 서버는 비밀번호를 받지 않는다 — 여기서 전처리(prehash)한 값을 보낸다.
-// 들어가기 쪽(확정안 4절 1 · 7-5) — 앱 틀(잉크 기둥 · 머리 줄) 없이 두 쪽: 왼쪽 잉크 판(종이 실물 그림 한 장 + 워드마크) · 오른쪽 위 설명서 · 가운데 칸
+// 들어가기 쪽(확정안 4절 1 · 7-5) — 앱 틀(잉크 기둥 · 머리 줄) 없이 두 쪽: 왼쪽 잉크 판(로고만 · 보기 그림은 걷었다) · 오른쪽 위 설명서 · 가운데 칸
 //   그림은 읽히지 않는다(aria-hidden) · 색은 토큰(CSS 의 .gart 규칙)
-const GATE_ART = `<svg class="gprev" viewBox="0 0 440 304" aria-hidden="true" focusable="false"><rect class="gp-paper" x="0" y="0" width="440" height="304" rx="16"/><text class="gp-c" x="32" y="44">팀 지식 › 배포 체크리스트</text><text class="gp-t" x="32" y="84">배포 체크리스트</text><text class="gp-c" x="32" y="108">10-23 바뀜 · 기록 3</text><rect class="gp-on" x="32" y="128" width="376" height="72" rx="12"/><text class="gp-m" x="48" y="158">##</text><text class="gp-h" x="70" y="158">롤백 순서</text><text class="gp-p" x="48" y="184">앱을 먼저 되돌리고 DB 는 나중에 되돌린다. 차례는 <tspan class="gp-a">롤백 절차</tspan>.</text><text class="gp-m" x="48" y="238">##</text><text class="gp-h" x="70" y="238">헬스 체크 주소</text><text class="gp-p" x="48" y="264">배포 뒤 모든 서버가 200 인지 본다.</text></svg>`
 function gatePage(scr, center) {
   const me = anon() ? '' : meHtml()
-  return `<div class="gpage" data-t="gatePage"><div class="gart" aria-hidden="true">${GATE_ART}${logoSvg({ hidden: true, cls: 'gwm' })}</div><div class="gtop"><a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서: 새 탭">${svg('book')}<span>설명서</span></a>${me}</div><div class="col gcol">${center}</div></div>`
+  return `<div class="gpage" data-t="gatePage"><div class="gart" aria-hidden="true">${logoSvg({ hidden: true, cls: 'gwm' })}</div><div class="gtop"><a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서: 새 탭">${svg('book')}<span>설명서</span></a>${me}</div><div class="col gcol">${center}</div></div>`
 }
 function gateView() {
   // 개인 프로그램 — 들어가기(아이디 · 비밀번호)가 없다. 한 번용 주소로만 들어온다

@@ -2188,8 +2188,8 @@ button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;backgr
   .pal .pft2{display:none}
 }
 
-/* 지식관리 · 설정 — 하위 메뉴는 1025 이상 잉크 기둥(.sb-sub) · 그 밖은 본문 위 알약 줄 */
-.sb-sub{flex:none;padding:0 var(--sp-5)}
+/* 지식관리 · 설정 — 하위 메뉴는 1025 이상 잉크 기둥 공통 메뉴의 그 단추 아래(.sb-mg .sb-sub) · 그 밖은 본문 위 알약 줄 */
+.sb-sub{flex:none;padding:var(--sp-1) 0 var(--sp-3) var(--sp-9)} /* 공통 메뉴 켜진 단추(지식관리 · 설정) 바로 아래 · 들여 쓴 하위 메뉴 */
 .side .mgnav{position:static;width:auto;border:0;padding:0;display:flex;flex-direction:column;gap:var(--sp-1)}
 .side .mgnav .mgt{padding:var(--sp-9) var(--sp-5) var(--sp-3);font-size:var(--fs-xs);line-height:var(--lh-xs);font-weight:var(--fw-md);color:var(--nav-muted)}
 .side .mgnav .mgg{color:var(--nav-muted)}
@@ -2284,21 +2284,10 @@ details.rolemore .cf{border:0;background:none;padding:var(--sp-3) 0 0}
 
 /* 로고(컨벤션 1-1 로고) — app/logo.js 의 logoSvg() 하나 · 잉크 칸 · 글 색 k · 민트 갈래 점 · 글자표는 둘레 글 색(currentColor) · 서버 페이지(설명서 · 받기)는 이 한 줄을 떼어 싣는다 */
 .lg{display:block;flex:none;height:32px;width:auto}.lg .lg-t{fill:var(--nav-bg);stroke:var(--nav-line);stroke-width:1}.lg .lg-k,.lg .lg-w{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.lg .lg-k{stroke:var(--nav-text)}.lg .lg-d{fill:var(--nav-accent)}.lg .lg-w{stroke:currentColor}
-/* 들어가기 — 앱 틀 없이 두 쪽: 왼쪽 잉크 판(종이 실물 그림 · 로고 64) | 오른쪽(위 설명서 · 가운데 칸) · 600 이하는 잉크 띠 160 위 · 칸 아래 */
+/* 들어가기 — 앱 틀 없이 두 쪽: 왼쪽 잉크 판(로고 64 · 아래) | 오른쪽(위 설명서 · 가운데 칸) · 600 이하는 잉크 띠 160 위 · 칸 아래 */
 .gpage{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);min-height:0;overflow:auto;background:var(--surface)}
-.gart{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;justify-content:space-between;gap:var(--sp-9);min-width:0;padding:calc(var(--sp-9) * 5) calc(var(--sp-9) * 2 + var(--sp-3)) calc(var(--sp-9) * 2 + var(--sp-3));background:var(--nav-bg);color:var(--nav-text)}
-.gart .gprev{width:min(440px,100%);height:auto}
+.gart{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;justify-content:flex-end;gap:var(--sp-9);min-width:0;padding:calc(var(--sp-9) * 5) calc(var(--sp-9) * 2 + var(--sp-3)) calc(var(--sp-9) * 2 + var(--sp-3));background:var(--nav-bg);color:var(--nav-text)}
 .gart .lg{height:64px;align-self:flex-start;color:var(--nav-text)} /* 로고(마크 + 글자표 · app/logo.js) 높이 64 · 600 이하 40 */
-.gart svg.gprev,.gart svg.gprev *{stroke:none}
-.gprev .gp-paper{fill:var(--surface)}
-.gprev .gp-on{fill:var(--accent-bg)}
-.gprev text{font-family:var(--font);fill:var(--text)}
-.gprev .gp-c{font-size:var(--fs-xs);fill:var(--text-3)}
-.gprev .gp-t{font-size:var(--fs-xl);font-weight:var(--fw-md)}
-.gprev .gp-m{font-family:var(--mono);font-size:var(--fs-xs);fill:var(--text-3)}
-.gprev .gp-h{font-size:var(--fs-md);font-weight:var(--fw-strong)}
-.gprev .gp-p{font-size:var(--fs-sm);fill:var(--text-2)}
-.gprev .gp-a{fill:var(--accent);text-decoration:underline}
 .gtop{grid-column:2;grid-row:1;display:flex;justify-content:flex-end;align-items:center;gap:var(--sp-7);padding:var(--sp-7) var(--sp-9)}
 .gtop .hlink{min-height:32px;font-size:var(--fs-sm);color:var(--text-2)}
 .gtop .hlink:hover{color:var(--text);text-decoration:underline;text-underline-offset:var(--sp-2)}
@@ -2318,7 +2307,6 @@ details.rolemore .cf{border:0;background:none;padding:var(--sp-3) 0 0}
 @media (max-width:600px){
   .gpage{grid-template-columns:minmax(0,1fr);grid-template-rows:160px auto}
   .gart{grid-column:1;grid-row:1;justify-content:flex-end;padding:var(--sp-9)}
-  .gart .gprev{display:none}
   .gart .lg{height:40px}
   .gtop{grid-column:1;grid-row:1;align-self:start;z-index:1;padding:var(--sp-7)}
   .gtop .hlink{color:var(--nav-dim)}
